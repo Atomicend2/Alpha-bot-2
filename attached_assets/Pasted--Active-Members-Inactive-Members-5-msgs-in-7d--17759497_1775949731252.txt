@@ -1,0 +1,442 @@
+╔═ ❰ 👥 𝗠𝗘𝗠𝗕𝗘𝗥 𝗦𝗧𝗔𝗧𝗦 ❱ ═╗
+║ 🟢 Active Members: ?
+║ 🔴 Inactive Members (≤ 5 msgs in 7d): ?
+║
+╠═ 🟢 𝗔𝗖𝗧𝗜𝗩𝗘
+║ ○ @user
+║ ○ @user
+║ ○ @user
+║ ○ @user
+║ ○ @user
+║ ○ @user
+║ ○ @user
+║ ○ @user
+║ ○ @user
+║ ○ @user
+...
+║
+╠═ 🔴 𝗜𝗡𝗔𝗖𝗧𝗜𝗩𝗘
+║ ○ @user
+║ ○ @user
+║ ○ @user
+║ ○ @user
+║ ○ @user
+║ ○ @user
+║ ○ @user
+║ ○ @user
+║ ○ @user
+║ ○ @user
+...
+╚══════════════════╝
+
+For member stats
+
+Use:
+
+┌─❖
+│「 ⚠️ 𝗪𝗔𝗥𝗡𝗜𝗡𝗚 」
+└┬❖ 「 @user 」
+│✑ 𝗥𝗘𝗔𝗦𝗢𝗡: Detected as a bot user
+│✑ 𝗗𝗲𝘃𝗶𝗰𝗲: Web
+│✑ 𝗟𝗜𝗠𝗜𝗧: 4 / 5
+└────────────┈ ⳹
+
+For warning like if someone sends a uhhh link or something to warn
+
+Use:
+
+╔═ ❰ 📊 𝗚𝗥𝗢𝗨𝗣 𝗦𝗧𝗔𝗧𝗦 📊 ❱ ═╗
+║ 👥 𝗣𝗮𝗿𝘁𝗶𝗰𝗶𝗽𝗮𝗻𝘁𝘀: ?
+║ 🛡️ 𝗔𝗱𝗺𝗶𝗻𝘀: ?
+║
+║ 🔗 𝗔𝗻𝘁𝗶-𝗟𝗶𝗻𝗸: whatsapp ( Delete )
+║ 🚫 𝗔𝗻𝘁𝗶-𝗦𝗽𝗮𝗺: {Enabled or Disabled}
+║ 👑 𝗔𝗻𝘁𝗶-𝗔𝗱𝗺𝗶𝗻: {Enabled or Disabled}
+║ 🤖 𝗔𝗻𝘁𝗶-𝗕𝗼𝘁: {Enabled or Disabled}
+║ 🏕️ 𝗔𝗻𝘁𝗶-𝗖𝗮𝗺𝗽𝗶𝗻𝗴: {Enabled or Disabled}
+║
+║ ✉️ 𝗪𝗲𝗹𝗰𝗼𝗺𝗲: On/Off
+║ 📨 𝗠𝘀𝗴: ?
+║
+║ 🚪 𝗟𝗲𝗮𝘃𝗲: On/Off
+║ 📨 𝗠𝘀𝗴: ?
+║
+║ 🎴 𝗖𝗮𝗿𝗱𝘀: ?
+║ 🎴 𝗦𝗽𝗮𝘄𝗻: ?
+║ 🎮 𝗚𝗮𝗺𝗲𝘀: ?
+║ 🎰 𝗚𝗮𝗺𝗯𝗹𝗶𝗻𝗴: ?
+║
+║ 🔒 𝗕𝗹𝗮𝗰𝗸𝗹𝗶𝘀𝘁: ?
+╚══════════════════╝
+
+For group stats
+
+Use:
+
+╔═ ❰ 👥 𝗠𝗘𝗠𝗕𝗘𝗥 𝗦𝗧𝗔𝗧𝗦 ❱ ═╗
+║ 🟢 Active Members: ?
+║ 🔴 Inactive Members (≤ 5 msgs in 7d): ?
+║
+╠═ 🟢 𝗔𝗖𝗧𝗜𝗩𝗘
+║ ○ @user
+║ ○ @user
+║ ○ @user
+║ ○ @user
+║ ○ @user
+║ ○ @user
+║ ○ @user
+║ ○ @user
+║ ○ @user
+║ ○ @user
+...
+║
+╠═ 🔴 𝗜𝗡𝗔𝗖𝗧𝗜𝗩𝗘
+║ ○ @user
+║ ○ @user
+║ ○ @user
+║ ○ @user
+║ ○ @user
+║ ○ @user
+║ ○ @user
+║ ○ @user
+║ ○ @user
+║ ○ @user
+...
+╚══════════════════╝
+
+For active members..
+
+New menu:
+
+┌─⟡ 『 𝗦𝗛𝗔𝗗𝗢𝗪 𝗚𝗔𝗥𝗗𝗘𝗡 』⟡
+║
+║ ┌────────────────────
+║ ║ 👋 𝗛𝗲𝘆    : {user}
+║ ║ 👾 𝗕𝗼𝘁     : Alpha
+║ ║ 👑 𝗖𝗿𝗲𝗮𝘁𝗼𝗿 : Ryuk
+║ ║ 🔹 𝗣𝗿𝗲𝗳𝗶𝘅  : [ . ]
+║ └────────────────────
+║
+╠─⟡ 📋 𝗠𝗔𝗜𝗡
+║ ┌────────────────────
+║ ║ ➩ .menu
+║ ║ ➩ .ping
+║ ║ ➩ .website
+║ ║ ➩ .community
+║ ║ ➩ .afk
+║ ║ ➩ .help
+║ ║ ➩ .info
+║ ║ ➩ .uptime
+║ └────────────────────
+║
+╠─⟡ ⚙️ 𝗔𝗗𝗠𝗜𝗡
+║ ┌────────────────────
+║ ║ ➩ .kick
+║ ║ ➩ .delete
+║ ║ ➩ .antilink
+║ ║ ➩ .antilink set [action]
+║ ║ ➩ .warn @user [reason]
+║ ║ ➩ .resetwarn
+║ ║ ➩ .groupinfo / .gi
+║ ║ ➩ .welcome on/off
+║ ║ ➩ .setwelcome
+║ ║ ➩ .leave on/off
+║ ║ ➩ .setleave
+║ ║ ➩ .promote
+║ ║ ➩ .demote
+║ ║ ➩ .mute
+║ ║ ➩ .unmute
+║ ║ ➩ .hidetag
+║ ║ ➩ .tagall
+║ ║ ➩ .activity
+║ ║ ➩ .active
+║ ║ ➩ .inactive
+║ ║ ➩ .open
+║ ║ ➩ .close
+║ ║ ➩ .purge [code]
+║ ║ ➩ .antism on/off
+║ ║ ➩ .blacklist add [word]
+║ ║ ➩ .blacklist remove [word]
+║ ║ ➩ .blacklist list
+║ ║ ➩ .groupstats / .gs
+║ └────────────────────
+║
+╠─⟡ 💰 𝗘𝗖𝗢𝗡𝗢𝗠𝗬
+║ ┌────────────────────
+║ ║ ➩ .bal / .balance
+║ ║ ➩ .gems
+║ ║ ➩ .premiumbal / .pbal
+║ ║ ➩ .premium / .prem
+║ ║ ➩ .membership / .memb
+║ ║ ➩ .daily
+║ ║ ➩ .withdraw / .wid [amount]
+║ ║ ➩ .deposit / .dep [amount]
+║ ║ ➩ .donate [amount]
+║ ║ ➩ .lottery
+║ ║ ➩ .lp (lottery pool)
+║ ║ ➩ .richlist
+║ ║ ➩ .richlistglobal / .richlg
+║ ║ ➩ .register / .reg
+║ ║ ➩ .setname <name>
+║ ║ ➩ .profile / .p
+║ ║ ➩ .bio [bio]
+║ ║ ➩ .setage [age]
+║ ║ ➩ .inventory / .inv
+║ ║ ➩ .use [item name]
+║ ║ ➩ .sell [item name]
+║ ║ ➩ .buy [item name]
+║ ║ ➩ .shop
+║ ║ ➩ .leaderboard / .lb
+║ ║ ➩ .work
+║ ║ ➩ .dig
+║ ║ ➩ .fish
+║ ║ ➩ .beg
+║ ║ ➩ .roast
+║ ║ ➩ .cds
+║ ║ ➩ .stats
+║ ║ ➩ .lc (lent cash / lend card)
+║ ║ ➩ .bc (borrowed cash)
+║ └────────────────────
+║
+╠─⟡ 🎴 𝗖𝗔𝗥𝗗𝗦
+║ ┌────────────────────
+║ ║ ➩ .collection / .coll
+║ ║ ➩ .deck
+║ ║ ➩ .sdi (set deck background)
+║ ║ ➩ .card [index]
+║ ║ ➩ .cardinfo / .ci [name] [tier]
+║ ║ ➩ .mycollectionseries / .mycolls
+║ ║ ➩ .cardleaderboard / .cardlb
+║ ║ ➩ .cardshop
+║ ║ ➩ .get [id]
+║ ║ ➩ .stardust
+║ ║ ➩ .vs @user
+║ ║ ➩ .auction [card_id] [price]
+║ ║ ➩ .myauc
+║ ║ ➩ .listauc
+║ ║ ➩ .cg @user [card #] (gift card)
+║ ║ ➩ .spawncard
+║ ║ ➩ .ctd [card #] (add to deck)
+║ ║ ➩ .ctd remove [slot] / .ctd clear
+║ ║ ➩ .lc @user [card #] (lend card)
+║ ║ ➩ .lcd (lent cards)
+║ ║ ➩ .retrieve (get cards back)
+║ ║ ➩ .sellc @user [card #] [price]
+║ ║ ➩ .tc [card #] [their #] (reply)
+║ ║ ➩ .accept / .decline (offers)
+║ └────────────────────
+║
+╠─⟡ 🎮 𝗚𝗔𝗠𝗘𝗦
+║ ┌────────────────────
+║ ║ ➩ .tictactoe / .ttt @user
+║ ║ ➩ .connectfour / .c4 @user
+║ ║ ➩ .wcg start / .joinwcg / .wcg go
+║ ║ ➩ .wordchain / .wcg (solo)
+║ ║ ➩ .startbattle @user
+║ ║ ➩ .truthordare / .td
+║ ║ ➩ .stopgame
+║ └────────────────────
+║
+╠─⟡ 🃏 𝗨𝗡𝗢
+║ ┌────────────────────
+║ ║ ➩ .uno
+║ ║ ➩ .startuno
+║ ║ ➩ .unoplay [number]
+║ ║ ➩ .unodraw
+║ ║ ➩ .unohand
+║ └────────────────────
+║
+╠─⟡ 🎲 𝗚𝗔𝗠𝗕𝗟𝗘
+║ ┌────────────────────
+║ ║ ➩ .slots [amount]
+║ ║ ➩ .dice [amount]
+║ ║ ➩ .casino [amount]
+║ ║ ➩ .coinflip / .cf [h/t] [amount]
+║ ║ ➩ .doublebet / .db [amount]
+║ ║ ➩ .doublepayout / .dp [amount]
+║ ║ ➩ .roulette [color] [amount]
+║ ║ ➩ .horse [1-4] [amount]
+║ ║ ➩ .spin [amount]
+║ └────────────────────
+║
+╠─⟡ 👤 𝗜𝗡𝗧𝗘𝗥𝗔𝗖𝗧𝗜𝗢𝗡
+║ ┌────────────────────
+║ ║ ➩ .hug @user
+║ ║ ➩ .kiss @user
+║ ║ ➩ .slap @user
+║ ║ ➩ .wave
+║ ║ ➩ .pat @user
+║ ║ ➩ .dance
+║ ║ ➩ .sad
+║ ║ ➩ .smile
+║ ║ ➩ .laugh
+║ ║ ➩ .punch @user
+║ ║ ➩ .kill @user
+║ ║ ➩ .hit @user
+║ ║ ➩ .kidnap @user
+║ ║ ➩ .lick @user
+║ ║ ➩ .bonk @user
+║ ║ ➩ .tickle @user
+║ ║ ➩ .shrug
+║ └────────────────────
+║
+╠─⟡ 🎉 𝗙𝗨𝗡
+║ ┌────────────────────
+║ ║ ➩ .gay
+║ ║ ➩ .lesbian
+║ ║ ➩ .simp
+║ ║ ➩ .match @user
+║ ║ ➩ .ship @user
+║ ║ ➩ .character
+║ ║ ➩ .psize / .pp
+║ ║ ➩ .skill
+║ ║ ➩ .duality
+║ ║ ➩ .gen
+║ ║ ➩ .pov
+║ ║ ➩ .social
+║ ║ ➩ .relation
+║ ║ ➩ .wouldyourather / .wyr
+║ ║ ➩ .joke
+║ ║ ➩ .truth
+║ ║ ➩ .dare
+║ ║ ➩ .truthordare / .td
+║ └────────────────────
+║
+╠─⟡ ⚔️ 𝗥𝗣𝗚
+║ ┌────────────────────
+║ ║ ➩ .adventure
+║ ║ ➩ .rpg
+║ ║ ➩ .dungeon
+║ ║ ➩ .heal
+║ ║ ➩ .quest
+║ ║ ➩ .raid
+║ ║ ➩ .class
+║ └────────────────────
+║
+╠─⟡ 🤖 𝗔𝗜
+║ ┌────────────────────
+║ ║ ➩ .ai / .gpt [question]
+║ ║ ➩ .translate / .tt [lang] [text]
+║ ║ ➩ .chat on/off
+║ └────────────────────
+║
+╠─⟡ 🔄 𝗖𝗢𝗡𝗩𝗘𝗥𝗧𝗘𝗥
+║ ┌────────────────────
+║ ║ ➩ .sticker / .s
+║ ║ ➩ .take <pack>, <name> (rename sticker)
+║ ║ ➩ .toimg / .turnimg
+║ ║ ➩ .play <song name>
+║ ║ ➩ .speech <text> (reply to img/sticker to add text)
+║ ║ ➩ .mood <tag> (upload mood sticker)
+║ ║ ➩ .pintimg <query> (9 Pinterest images)
+║ └────────────────────
+║
+╠─⟡ ☀️ 𝗦𝗨𝗠𝗠𝗘𝗥 𝗘𝗩𝗘𝗡𝗧
+║ ┌────────────────────
+║ ║ ➩ .summer
+║ ║ ➩ .token check
+║ ║ ➩ .token shop
+║ ║ ➩ .token buy [#]
+║ ║ ➩ .token top
+║ └────────────────────
+║
+╠─⟡ 🏰 𝗚𝗨𝗜𝗟𝗗𝗦
+║ ┌────────────────────
+║ ║ ➩ .guild create [name] (Lvl 20)
+║ ║ ➩ .guild join [name]
+║ ║ ➩ .guild leave
+║ ║ ➩ .guild info [name]
+║ ║ ➩ .guild list
+║ ║ ➩ .guild desc [text] (owner)
+║ ║ ➩ .guild kick @user (owner)
+║ ║ ➩ .guild disband (owner)
+║ └────────────────────
+║
+╠─⟡ 👑 𝗦𝗧𝗔𝗙𝗙 / 𝗠𝗢𝗗𝗦 / 𝗚𝗨𝗔𝗥𝗗𝗜𝗔𝗡𝗦
+║ ┌────────────────────
+║ ║ ➩ .addmod @user
+║ ║ ➩ .addguardian @user
+║ ║ ➩ .recruit @user
+║ ║ ➩ .addpremium @user (owner)
+║ ║ ➩ .removepremium @user (owner)
+║ ║ ➩ .modlist
+║ ║ ➩ .cardmakers
+║ ║ ➩ .post [message]
+║ ║ ➩ .join [link]
+║ ║ ➩ .exit
+║ ║ ➩ .show all T1/T2/T3/T4/T5/TS/TX
+║ ║ ➩ .spawncard (manual card spawn)
+║ ║ ➩ .dc (delete card — reply to spawn)
+║ ║ ➩ .ac <amount> <number> (add cash)
+║ ║ ➩ .rc <amount> <number> (remove cash)
+║ └────────────────────
+║
+╚─⟡ 🛡️ 𝑃𝑜𝑤𝑒𝑟 𝑏𝑒𝑙𝑜𝑛𝑔𝑠 𝑡𝑜 𝑡ℎ𝑜𝑠𝑒 𝑤ℎ𝑜 𝑟𝑢𝑙𝑒 𝑡ℎ𝑒 𝑠ℎ𝑎𝑑𝑜𝑤𝑠.
+
+Uhh remember it uses uhh a largeee local database to store informations and Bot MUST BE ABLE TO DO ALL THOSE PERFECTLY! AND BOT DOES NOT HAVE NUMBER SO, IF NUMBER PAIRED IS ADMIN THEN BOT IS AUTOMATICALLY ADMIN!!!! AND USE THAT IMAGE FOR THE MENU IMAGE, THE ONE UPLOADED and moreee AND THIS lid is bot owner: 236713549029502 so the bot will detect a Whatsapp number with that lid and detect as bot owner
+
+AN GET IT READY TO CONNECT TO WHATSAPP AND WHEN CONNECTING, LET WHATSAPP SEND A NOTIFICATION PAIRING CONFIRMATION FOR FASTER PAIRING AND IT USES PAIRING CODED AND Let there always be connection, I dont wanna see a reconnecting attempt in console and the number paired should be able to use commands and let menu come with this image I just uploaded and in that menu that 👋🏻 hey: user let it be the person tag that used the command that is the user and let that uhm lid02 be able to spawncards with .spawn command and let commands be listed not .fish .dig no
+.fish
+.dig like that
+
+Nice, love that buh uhm cards don't spawn with images, fix that and we use tiers not rarity and the card id should be short like: Y6wG2 or something like that buh remember, they must never have the same card id and these are anime cards and uhh that lid can use .upload to upload card and spawn like .upload T4 when he replies to image it saves in card db, so when .spawn is used, if it's that card that is in uhm database it spawns with real informations and shi
+
+Nice, love that buh uhm cards don't spawn with images, fix that and we use tiers not rarity and the card id should be short like: Y6wG2 or something like that buh remember, they must never have the same card id and these are anime cards and uhh that lid can use .upload to upload card and spawn like .upload <tier> <name>, <series> when he replies to image it saves in card db, so when .spawn is used, if it's that card that is in uhm database it spawns with real informations and shi. And even tho paired number is admin in a gc bot is still saying it must be admin, fix that too. and there should be a command like .chat on to be able to chat with both like it's a person that you are talking to a real person, it's sees your chat and greetings and talks like chatgpt or something and use:
+
+┌─⟡ 『 🎊 𝗖𝗔𝗥𝗗 𝗗𝗥𝗢𝗣 🎊 』 ⟡
+│
+│ 🎴Name: <name>
+│ ⧉ ID : <I'd>
+│
+│ ⭐️ Tier : <tier>
+│ 💸 Price : $<price>
+│
+│ ➩ Claim : .get <I'd>
+│
+└─⟡ “First to act, wins.”
+
+For card spawns
+
+And:
+
+┌─⟡ 『 🎴 𝗖𝗔𝗥𝗗 𝗜𝗡𝗙𝗢 』 ⟡
+│
+│ ⧉ 𝗡𝗮𝗺𝗲 : <name>
+│ ⧉ 𝗦𝗲𝗿𝗶𝗲𝘀 : <series>
+│ ⧉ 𝗧𝗶𝗲𝗿 : <tier>
+│ ⧉ 𝗢𝘄𝗻𝗲𝗿𝘀 : <owners>
+│
+├─⟡ 𝗢𝗪𝗡𝗘𝗥𝗦
+│
+│ ➩ Issue #1 〔 <id> 〕
+│ ⟡ @user
+│
+└─⟡ “Power acknowledged.”
+
+For ci/card Info and card infor must always come with card image.
+
+And use:
+
+⟡ 『 𝗦𝗧𝗔𝗙𝗙 』 ⟡
+
+🛡️ 𝗠𝗢𝗗𝗘𝗥𝗔𝗧𝗢𝗥𝗦 🛡️
+⧉ @user
+⧉ @user
+And more...
+════════════════════
+
+⚔️ 𝗚𝗨𝗔𝗥𝗗𝗜𝗔𝗡𝗦 ⚔️
+⧉ @user
+⧉ @user
+And more...
+
+> *Don't spam their Dm to avoid blocking ⚠️ just send your link to dm asking for a Bot*
+
+Use MongoDB (Mongoose)
+
+MongoDB Connection:
+mongodb+srv://atomicmunzy_db_user:Johcmevb6sQoCk5U@cluster0.0yyevlg.mongodb.net/?appName=Cluster0
+
+And make a cool commands section maintaining command layout with cool features and that lid can add mod or Guardians with .addmod @user or .addguardian @user and uhhh that recruit card makers with .recruit @user and can upload cards with .upload use T<tier> <name>, <series> and m
+Don't forget that image must come with cards and also with the menu (uploaded)
+Remember: use the latesttt version of WhatsApp so that it triggers a notification and when bot logs out or get unpaired let it clear session and restart and ask for new number to work and remember to use latesttt version of WhatsApp to trigger pairing notification ALWAYS SEND CONFIRMATION NOTIFICATION PAIRING FOR FASTER PAIRING.

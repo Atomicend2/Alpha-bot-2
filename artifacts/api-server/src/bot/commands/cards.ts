@@ -1,0 +1,348 @@
+import type { CommandContext } from "./index.js";
+import { sendText, sendImage } from "../connection.js";
+import {
+  getUserCards, getCard, giveCard, transferCard, lendCard, retrieveCard, getLentCards,
+  getUserCard, addAuction, getAuctions, getAuction, closeAuction,
+  getDeck, addToDeck, removeFromDeck, clearDeck, getCardLeaderboard,
+  getAllCards, ensureUser, getUser, updateUser, createTradeOffer, getPendingTrade,
+  updateTradeStatus, createSellOffer, getPendingSellOffer, updateSellOfferStatus,
+} from "../db/queries.js";
+import { getTierEmoji, formatNumber, generateId } from "../utils.js";
+
+export async function handleCards(ctx: CommandContext): Promise<void> {
+  const { from, sender, args, command: cmd, msg, sock } = ctx;
+
+  if (cmd === "collection" || cmd === "coll") {
+    const target = msg.message?.extendedTextMessage?.contextInfo?.mentionedJid?.[0] || sender;
+    const cards = getUserCards(target);
+    if (cards.length === 0) {
+      await sendText(from, `🃏 @${target.split("@")[0]} has no cards yet!`, [target]);
+      return;
+    }
+    let text = `🃏 *Collection — @${target.split("@")[0]}*\n\n`;
+    cards.slice(0, 30).forEach((c, i) => {
+      text += `${i + 1}. ${getTierEmoji(c.tier)} [${c.tier}] *${c.name}* (ID: \`${c.user_card_id}\`)\n`;
+    });
+    if (cards.length > 30) text += `\n...and ${cards.length - 30} more.`;
+    await sock.sendMessage(from, { text, mentions: [target] });
+    return;
+  }
+
+  if (cmd === "card") {
+    const idx = parseInt(args[0]) - 1;
+    const cards = getUserCards(sender);
+    if (isNaN(idx) || idx < 0 || idx >= cards.length) {
+      await sendText(from, `❌ Invalid card index. You have ${cards.length} cards.`);
+      return;
+    }
+    const c = cards[idx];
+    if (c.image_data) {
+      const buf = Buffer.isBuffer(c.image_data) ? c.image_data : Buffer.from(c.image_data);
+      await sendImage(sock as any, from, buf,
+        `${getTierEmoji(c.tier)} *${c.name}*\n📦 ${c.series} | Tier: ${c.tier}\n⚔️ ATK: ${c.attack} | 🛡️ DEF: ${c.defense} | 💨 SPD: ${c.speed}\n🆔 \`${c.id}\``
+      );
+    } else {
+      await sendText(from, `${getTierEmoji(c.tier)} *${c.name}*\n📦 ${c.series} | Tier: ${c.tier}\n⚔️ ATK: ${c.attack} | 🛡️ DEF: ${c.defense} | 💨 SPD: ${c.speed}\n🆔 \`${c.id}\``);
+    }
+    return;
+  }
+
+  if (cmd === "cardinfo" || cmd === "ci") {
+    const name = args.slice(0, -1).join(" ") || args.join(" ");
+    const tier = args[args.length - 1]?.toUpperCase();
+    const cards = getAllCards();
+    const found = cards.find((c) =>
+      c.name.toLowerCase().includes(name.toLowerCase()) && (!tier || c.tier === tier)
+    );
+    if (!found) { await sendText(from, "❌ Card not found."); return; }
+    if (found.image_data) {
+      const buf = Buffer.isBuffer(found.image_data) ? found.image_data : Buffer.from(found.image_data);
+      await sendImage(sock as any, from, buf,
+        `${getTierEmoji(found.tier)} *${found.name}*\n📦 ${found.series} | Tier: ${found.tier}\n${found.description}\n⚔️ ATK: ${found.attack} | 🛡️ DEF: ${found.defense} | 💨 SPD: ${found.speed}\n🆔 \`${found.id}\``
+      );
+    } else {
+      await sendText(from,
+        `${getTierEmoji(found.tier)} *${found.name}*\n📦 ${found.series} | Tier: ${found.tier}\n${found.description}\n⚔️ ATK: ${found.attack} | 🛡️ DEF: ${found.defense} | 💨 SPD: ${found.speed}\n🆔 \`${found.id}\``
+      );
+    }
+    return;
+  }
+
+  if (cmd === "mycollectionseries" || cmd === "mycolls") {
+    const cards = getUserCards(sender);
+    const series: Record<string, number> = {};
+    for (const c of cards) {
+      series[c.series] = (series[c.series] || 0) + 1;
+    }
+    const text = `📚 *Your Series Collection*\n\n` +
+      Object.entries(series).map(([s, n]) => `• ${s}: ${n} cards`).join("\n") || "No cards yet!";
+    await sendText(from, text);
+    return;
+  }
+
+  if (cmd === "cardleaderboard" || cmd === "cardlb") {
+    const lb = getCardLeaderboard(10);
+    let text = "🃏 *Card Leaderboard*\n\n";
+    lb.forEach((e, i) => {
+      text += `${i + 1}. @${e.user_id.split("@")[0]} — ${e.card_count} cards\n`;
+    });
+    await sock.sendMessage(from, { text, mentions: lb.map((e) => e.user_id) });
+    return;
+  }
+
+  if (cmd === "cardshop") {
+    const cards = getAllCards();
+    const tiers: Record<string, any[]> = {};
+    for (const c of cards) {
+      if (!tiers[c.tier]) tiers[c.tier] = [];
+      tiers[c.tier].push(c);
+    }
+    let text = "🃏 *Card Shop*\n\n";
+    for (const [tier, cs] of Object.entries(tiers)) {
+      text += `${getTierEmoji(tier)} *${tier}*\n`;
+      cs.slice(0, 5).forEach((c) => {
+        text += `  • ${c.name} (${c.series}) — ID: \`${c.id}\`\n`;
+      });
+    }
+    text += "\nUse .get [card_id] to claim a spawned card.";
+    await sendText(from, text);
+    return;
+  }
+
+  if (cmd === "stardust") {
+    const cards = getUserCards(sender);
+    const dust = cards.reduce((acc, c) => acc + ({"T1":5,"T2":10,"T3":25,"T4":50,"T5":100,"TS":250,"TX":500}[c.tier] || 5), 0);
+    await sendText(from, `✨ Your stardust value: *${dust} SD*\n(Based on ${cards.length} cards)`);
+    return;
+  }
+
+  if (cmd === "vs") {
+    const challenged = msg.message?.extendedTextMessage?.contextInfo?.mentionedJid?.[0];
+    if (!challenged) { await sendText(from, "❌ Mention someone to VS."); return; }
+    const myDeck = getDeck(sender);
+    const theirDeck = getDeck(challenged);
+    if (myDeck.length === 0) { await sendText(from, "❌ You don't have a deck set. Use .ctd [card #]"); return; }
+    if (theirDeck.length === 0) { await sendText(from, "❌ Your opponent has no deck."); return; }
+
+    const myPower = myDeck.reduce((acc, c) => acc + c.attack + c.defense + c.speed, 0);
+    const theirPower = theirDeck.reduce((acc, c) => acc + c.attack + c.defense + c.speed, 0);
+    const winner = myPower > theirPower ? sender : myPower < theirPower ? challenged : null;
+
+    await sock.sendMessage(from, {
+      text: `⚔️ *Card Battle*\n\n@${sender.split("@")[0]} Power: ${myPower}\n@${challenged.split("@")[0]} Power: ${theirPower}\n\n${winner ? `🏆 Winner: @${winner.split("@")[0]}!` : "🤝 It's a tie!"}`,
+      mentions: [sender, challenged],
+    });
+    return;
+  }
+
+  if (cmd === "auction") {
+    const userCardId = parseInt(args[0]);
+    const price = parseInt(args[1]);
+    if (isNaN(userCardId) || isNaN(price) || price <= 0) {
+      await sendText(from, "❌ Usage: .auction [card_id] [price]");
+      return;
+    }
+    const card = getUserCard(userCardId);
+    if (!card || card.user_id !== sender) { await sendText(from, "❌ You don't own that card."); return; }
+    const auctionId = addAuction(sender, userCardId, price);
+    await sendText(from, `✅ Card *${card.name}* listed at auction for $${formatNumber(price)}!\nAuction ID: \`${auctionId}\``);
+    return;
+  }
+
+  if (cmd === "myauc") {
+    const auctions = getAuctions().filter((a) => a.seller_id === sender);
+    if (auctions.length === 0) { await sendText(from, "📦 You have no active auctions."); return; }
+    const text = "📦 *Your Auctions*\n\n" +
+      auctions.map((a) => `#${a.id} — ${getTierEmoji(a.tier)} *${a.name}* — $${formatNumber(a.price)}`).join("\n");
+    await sendText(from, text);
+    return;
+  }
+
+  if (cmd === "listauc") {
+    const auctions = getAuctions();
+    if (auctions.length === 0) { await sendText(from, "📦 No auctions active."); return; }
+    const text = "📦 *Active Auctions*\n\n" +
+      auctions.map((a) => `#${a.id} — ${getTierEmoji(a.tier)} *${a.name}* (${a.tier}) — $${formatNumber(a.price)}`).join("\n");
+    await sendText(from, text);
+    return;
+  }
+
+  if (cmd === "cg") {
+    const mentioned = msg.message?.extendedTextMessage?.contextInfo?.mentionedJid?.[0];
+    const cardNum = parseInt(args[1] || args[0]);
+    if (!mentioned || isNaN(cardNum)) { await sendText(from, "❌ Usage: .cg @user [card #]"); return; }
+    const cards = getUserCards(sender);
+    if (cardNum < 1 || cardNum > cards.length) { await sendText(from, "❌ Invalid card number."); return; }
+    const card = cards[cardNum - 1];
+    ensureUser(mentioned);
+    transferCard(card.user_card_id, mentioned);
+    await sock.sendMessage(from, {
+      text: `🎁 @${sender.split("@")[0]} gifted *${card.name}* to @${mentioned.split("@")[0]}!`,
+      mentions: [sender, mentioned],
+    });
+    return;
+  }
+
+  if (cmd === "ctd") {
+    if (args[0]?.toLowerCase() === "clear") {
+      clearDeck(sender);
+      await sendText(from, "✅ Deck cleared.");
+      return;
+    }
+    if (args[0]?.toLowerCase() === "remove") {
+      const slot = parseInt(args[1]);
+      if (isNaN(slot)) { await sendText(from, "❌ Usage: .ctd remove [slot]"); return; }
+      removeFromDeck(sender, slot);
+      await sendText(from, `✅ Removed card from slot ${slot}.`);
+      return;
+    }
+    const cardNum = parseInt(args[0]);
+    if (isNaN(cardNum)) { await sendText(from, "❌ Usage: .ctd [card #]"); return; }
+    const cards = getUserCards(sender);
+    if (cardNum < 1 || cardNum > cards.length) { await sendText(from, "❌ Invalid card number."); return; }
+    const card = cards[cardNum - 1];
+    const deck = getDeck(sender);
+    if (deck.length >= 5) { await sendText(from, "❌ Deck is full (5 cards max). Use .ctd remove [slot] to remove one."); return; }
+    const nextSlot = deck.length + 1;
+    addToDeck(sender, nextSlot, card.user_card_id);
+    await sendText(from, `✅ Added *${card.name}* to deck slot ${nextSlot}.`);
+    return;
+  }
+
+  if (cmd === "deck") {
+    const deck = getDeck(sender);
+    if (deck.length === 0) { await sendText(from, "🃏 Your deck is empty. Use .ctd [card #]"); return; }
+    const totalPower = deck.reduce((acc, c) => acc + c.attack + c.defense + c.speed, 0);
+    let text = `🃏 *Your Deck* (Total Power: ${totalPower})\n\n`;
+    deck.forEach((c) => {
+      text += `[Slot ${c.slot}] ${getTierEmoji(c.tier)} *${c.name}* — ATK:${c.attack} DEF:${c.defense} SPD:${c.speed}\n`;
+    });
+    await sendText(from, text);
+    return;
+  }
+
+  if (cmd === "sdi") {
+    await sendText(from, "🎴 Deck background customization coming soon!");
+    return;
+  }
+
+  if (cmd === "lc") {
+    const mentioned = msg.message?.extendedTextMessage?.contextInfo?.mentionedJid?.[0];
+    const cardNum = parseInt(args[1] || args[0]);
+    if (!mentioned || isNaN(cardNum)) { await sendText(from, "❌ Usage: .lc @user [card #]"); return; }
+    const cards = getUserCards(sender);
+    if (cardNum < 1 || cardNum > cards.length) { await sendText(from, "❌ Invalid card number."); return; }
+    const card = cards[cardNum - 1];
+    lendCard(card.user_card_id, mentioned);
+    await sock.sendMessage(from, {
+      text: `🤝 @${sender.split("@")[0]} lent *${card.name}* to @${mentioned.split("@")[0]}!`,
+      mentions: [sender, mentioned],
+    });
+    return;
+  }
+
+  if (cmd === "lcd") {
+    const lent = getLentCards(sender);
+    if (lent.length === 0) { await sendText(from, "✅ You have no lent cards."); return; }
+    const text = "🤝 *Lent Cards*\n\n" +
+      lent.map((c) => `• *${c.name}* → @${c.lent_to?.split("@")[0]}`).join("\n");
+    await sock.sendMessage(from, { text, mentions: lent.map((c) => c.lent_to).filter(Boolean) });
+    return;
+  }
+
+  if (cmd === "retrieve") {
+    retrieveCard(sender);
+    await sendText(from, "✅ All lent cards have been retrieved!");
+    return;
+  }
+
+  if (cmd === "sellc") {
+    const mentioned = msg.message?.extendedTextMessage?.contextInfo?.mentionedJid?.[0];
+    const cardNum = parseInt(args[1] || args[0]);
+    const price = parseInt(args[2] || args[1] || args[0]);
+    if (!mentioned || isNaN(cardNum) || isNaN(price)) {
+      await sendText(from, "❌ Usage: .sellc @user [card #] [price]");
+      return;
+    }
+    const cards = getUserCards(sender);
+    if (cardNum < 1 || cardNum > cards.length) { await sendText(from, "❌ Invalid card number."); return; }
+    const card = cards[cardNum - 1];
+    const offerId = createSellOffer(sender, mentioned, card.user_card_id, price);
+    await sock.sendMessage(from, {
+      text: `💰 @${mentioned.split("@")[0]}, @${sender.split("@")[0]} wants to sell you *${card.name}* for $${formatNumber(price)}.\n\nReply *.accept* to buy or *.decline* to reject.`,
+      mentions: [sender, mentioned],
+    });
+    return;
+  }
+
+  if (cmd === "tc") {
+    const quotedCtx = msg.message?.extendedTextMessage?.contextInfo;
+    if (!quotedCtx) { await sendText(from, "❌ Reply to someone's message with .tc [your card #] [their card #]"); return; }
+    const recipient = quotedCtx.participant || quotedCtx.remoteJid;
+    if (!recipient) { await sendText(from, "❌ Couldn't determine recipient."); return; }
+    const myCardNum = parseInt(args[0]);
+    const theirCardNum = parseInt(args[1]);
+    if (isNaN(myCardNum) || isNaN(theirCardNum)) { await sendText(from, "❌ Usage: .tc [your card #] [their card #] (reply to their message)"); return; }
+    const myCards = getUserCards(sender);
+    const theirCards = getUserCards(recipient);
+    if (myCardNum < 1 || myCardNum > myCards.length) { await sendText(from, "❌ Invalid card number."); return; }
+    if (theirCardNum < 1 || theirCardNum > theirCards.length) { await sendText(from, "❌ They don't have that card."); return; }
+    const myCard = myCards[myCardNum - 1];
+    const theirCard = theirCards[theirCardNum - 1];
+    const offerId = createTradeOffer(sender, recipient, myCard.user_card_id, theirCard.user_card_id);
+    await sock.sendMessage(from, {
+      text: `🔄 @${recipient.split("@")[0]}, @${sender.split("@")[0]} wants to trade:\n*${myCard.name}* for your *${theirCard.name}*\n\nReply *.accept* or *.decline*`,
+      mentions: [sender, recipient],
+    });
+    return;
+  }
+
+  if (cmd === "accept") {
+    const trade = getPendingTrade(sender);
+    if (trade) {
+      const myCard = getUserCard(trade.to_card);
+      const theirCard = getUserCard(trade.from_card);
+      if (!myCard || !theirCard) { await sendText(from, "❌ Cards no longer available."); return; }
+      transferCard(trade.from_card, sender);
+      transferCard(trade.to_card, trade.from_user);
+      updateTradeStatus(trade.id, "accepted");
+      await sock.sendMessage(from, {
+        text: `✅ Trade complete!\n@${sender.split("@")[0]} got *${theirCard.name}*\n@${trade.from_user.split("@")[0]} got *${myCard.name}*`,
+        mentions: [sender, trade.from_user],
+      });
+      return;
+    }
+
+    const sell = getPendingSellOffer(sender);
+    if (sell) {
+      const buyerUser = ensureUser(sender);
+      if ((buyerUser.balance || 0) < sell.price) {
+        await sendText(from, `❌ Not enough money. Need $${formatNumber(sell.price)}.`);
+        return;
+      }
+      const card = getUserCard(sell.user_card_id);
+      transferCard(sell.user_card_id, sender);
+      updateUser(sender, { balance: (buyerUser.balance || 0) - sell.price });
+      const seller = ensureUser(sell.seller_id);
+      updateUser(sell.seller_id, { balance: (seller.balance || 0) + sell.price });
+      updateSellOfferStatus(sell.id, "accepted");
+      await sock.sendMessage(from, {
+        text: `✅ Purchase complete! @${sender.split("@")[0]} bought *${card.name}* for $${formatNumber(sell.price)}.`,
+        mentions: [sender, sell.seller_id],
+      });
+      return;
+    }
+
+    await sendText(from, "❌ No pending offer found.");
+    return;
+  }
+
+  if (cmd === "decline") {
+    const trade = getPendingTrade(sender);
+    if (trade) { updateTradeStatus(trade.id, "declined"); await sendText(from, "❌ Trade declined."); return; }
+    const sell = getPendingSellOffer(sender);
+    if (sell) { updateSellOfferStatus(sell.id, "declined"); await sendText(from, "❌ Offer declined."); return; }
+    await sendText(from, "❌ No pending offer found.");
+    return;
+  }
+}
