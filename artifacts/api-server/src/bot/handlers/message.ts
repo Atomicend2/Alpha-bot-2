@@ -115,9 +115,11 @@ export async function handleMessage(
 
   if (mentionedJids.length > 0) {
     await checkAfkMention(from, sender, mentionedJids, sock).catch(() => {});
-    await sendMentionStickerIfNeeded(sock, from, mentionedJids, normalizedMsg).catch((err) => {
-      logger.warn({ err }, "Failed to send mention sticker");
-    });
+    if (!msg.key.fromMe) {
+      await sendMentionStickerIfNeeded(sock, from, mentionedJids, normalizedMsg).catch((err) => {
+        logger.warn({ err }, "Failed to send mention sticker");
+      });
+    }
   }
 
   if (isGroup && body && !isCommandBody) {
