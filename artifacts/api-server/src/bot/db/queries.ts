@@ -10,7 +10,7 @@ export function ensureUser(userId: string, name?: string) {
   const existing = getUser(userId);
   if (!existing) {
     db.prepare(
-      "INSERT OR IGNORE INTO users (id, name, balance, bank) VALUES (?, ?, 500, 0)"
+      "INSERT OR IGNORE INTO users (id, name, balance, bank) VALUES (?, ?, 0, 0)"
     ).run(userId, name || userId);
   } else if (name && existing.name !== name) {
     db.prepare("UPDATE users SET name = ? WHERE id = ?").run(name, userId);

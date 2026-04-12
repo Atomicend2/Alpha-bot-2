@@ -15,10 +15,9 @@ export async function handleConverter(ctx: CommandContext): Promise<void> {
   const { from, sender, args, command: cmd, msg, sock } = ctx;
 
   if (cmd === "sticker" || cmd === "s") {
-    const quoted = msg.message?.extendedTextMessage?.contextInfo?.quotedMessage
-      || msg.message?.imageMessage;
-    if (!quoted?.imageMessage && !msg.message?.imageMessage) {
-      await sendText(from, "❌ Reply to an image or send an image with .s caption to make a sticker.");
+    const quoted = msg.message?.extendedTextMessage?.contextInfo?.quotedMessage || msg.message?.imageMessage;
+    if (!quoted?.imageMessage && !quoted?.stickerMessage && !msg.message?.imageMessage) {
+      await sendText(from, "❌ Reply to an image/sticker or send an image with .s caption to make a sticker.");
       return;
     }
     try {
@@ -35,10 +34,12 @@ export async function handleConverter(ctx: CommandContext): Promise<void> {
           };
       const downloaded = await downloadMediaMessage(target as any, "buffer", {}, { reuploadRequest: (sock as any).updateMediaMessage });
       const input = Buffer.isBuffer(downloaded) ? downloaded : Buffer.from(downloaded as any);
-      const webp = await sharp(input, { animated: true })
-        .resize(512, 512, { fit: "cover", position: "centre" })
-        .webp({ quality: 85 })
-        .toBuffer();
+      const webp = quoted?.stickerMessage
+        ? input
+        : await sharp(input, { animated: true })
+          .resize(512, 512, { fit: "cover", position: "centre" })
+          .webp({ quality: 85 })
+          .toBuffer();
       const buf = addWebpExif(webp, DEFAULT_STICKER_PACK, DEFAULT_STICKER_NAME);
       await sock.sendMessage(from, {
         sticker: buf,
@@ -79,14 +80,36 @@ export async function handleConverter(ctx: CommandContext): Promise<void> {
 
   if (cmd === "take") {
     const parts = args.join(" ").split(",").map((s) => s.trim());
-    const packName = parts[0] || "My Pack";
-    const stickerName = parts[1] || "Sticker";
+    const packName = parts[0] || DEFAULT_STICKER_PACK;
+    const stickerName = parts[1] || DEFAULT_STICKER_NAME;
     const quoted = msg.message?.extendedTextMessage?.contextInfo?.quotedMessage;
     if (!quoted?.stickerMessage) {
       await sendText(from, "❌ Reply to a sticker with .take <pack>, <name>");
       return;
     }
-    await sendText(from, `✅ Sticker rename to: Pack="${packName}", Name="${stickerName}" (full metadata editing not available via Baileys directly).`);
+    try {
+      const context = msg.message?.extendedTextMessage?.contextInfo;
+      const target = {
+        key: {
+          remoteJid: from,
+          fromMe: false,
+          id: context?.stanzaId || "",
+          participant: context?.participant,
+        },
+        message: quoted,
+      };
+      const downloaded = await downloadMediaMessage(target as any, "buffer", {}, { reuploadRequest: (sock as any).updateMediaMessage });
+      const input = Buffer.isBuffer(downloaded) ? downloaded : Buffer.from(downloaded as any);
+      const renamed = addWebpExif(input, packName, stickerName);
+      await sock.sendMessage(from, {
+        sticker: renamed,
+        packname: packName,
+        author: stickerName,
+      });
+    } catch (err) {
+      logger.error({ err }, "Failed to rename sticker");
+      await sendText(from, "❌ Failed to rename sticker.");
+    }
     return;
   }
 

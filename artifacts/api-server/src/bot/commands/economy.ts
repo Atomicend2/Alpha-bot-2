@@ -1,12 +1,13 @@
 import type { CommandContext } from "./index.js";
-import { sendText } from "../connection.js";
+import { BOT_OWNER_LID, sendText } from "../connection.js";
 import {
   getUser, ensureUser, updateUser, getInventory, addToInventory, removeFromInventory,
-  getShop, getShopItem, getRichList, ensureRpg, getUserRank, getUserGuild, isBanned,
+  getShop, getShopItem, getRichList, ensureRpg, getUserRank, getUserGuild, isBanned, getStaff,
 } from "../db/queries.js";
 import { formatNumber, timeAgo } from "../utils.js";
 import sharp from "sharp";
 import path from "node:path";
+import { downloadMediaMessage } from "@whiskeysockets/baileys";
 
 const DAILY_AMOUNT = 1000;
 const DAILY_COOLDOWN = 86400;
@@ -229,8 +230,8 @@ export async function handleEconomy(ctx: CommandContext): Promise<void> {
       await sendText(from, "✅ You're already registered!");
       return;
     }
-    updateUser(sender, { registered: 1, balance: (user.balance || 0) + 2000 });
-    await sendText(from, `✅ Welcome! You've been registered and received a $2,000 starter bonus!\n\nUse .profile to see your profile.`);
+    updateUser(sender, { registered: 1, balance: (user.balance || 0) + 45000 });
+    await sendText(from, `✅ Welcome! You've been registered and received a $45,000 starter bonus!\n\nUse .profile to see your profile.`);
     return;
   }
 
@@ -242,6 +243,22 @@ export async function handleEconomy(ctx: CommandContext): Promise<void> {
     return;
   }
 
+  if (cmd === "setpp" || cmd === "setbg") {
+    const image = await getCommandImageBuffer(ctx).catch(() => null);
+    if (!image) {
+      await sendText(from, `❌ Reply to an image/sticker or send an image with .${cmd} as the caption.`);
+      return;
+    }
+    const key = cmd === "setpp" ? "profile_picture" : "profile_background";
+    const resized = await sharp(image)
+      .resize(cmd === "setpp" ? 640 : 765, cmd === "setpp" ? 640 : 850, { fit: "cover" })
+      .jpeg({ quality: 92 })
+      .toBuffer();
+    updateUser(sender, { [key]: resized });
+    await sendText(from, `✅ Your profile ${cmd === "setpp" ? "picture" : "background"} has been updated.`);
+    return;
+  }
+
   if (cmd === "profile" || cmd === "p") {
     const info = ctx.msg.message?.extendedTextMessage?.contextInfo;
     const targetId = info?.mentionedJid?.[0] || info?.participant || sender;
@@ -249,7 +266,7 @@ export async function handleEconomy(ctx: CommandContext): Promise<void> {
     const rpg = ensureRpg(targetId);
     const rank = getUserRank(targetId);
     const guild = getUserGuild(targetId);
-    const role = getProfileRole(target);
+    const role = getProfileRole(targetId);
     const name = target.name || `@${targetId.split("@")[0]}`;
     const age = target.age || "Not set";
     const bio = target.bio || "No bio set";
@@ -257,9 +274,9 @@ export async function handleEconomy(ctx: CommandContext): Promise<void> {
     const profileImage = await buildProfileImage(ctx, targetId, target, rpg, rank, role).catch(async () => null);
 
     const text =
-      `╭━━━✦ 𝙋𝙇𝘼𝙔𝙀𝙍 𝙋𝙍𝙊𝙁𝙄𝙇𝙀 ✦━━━╮\n` +
-      ` Welcome to your profile\n\n` +
-      `✧ 𝗡𝗮𝗺𝗲: ${name}\n` +
+      `╭━✦ 𝙋𝙇𝘼𝙔𝙀𝙍 𝙋𝙍𝙊𝙁𝙄𝙇𝙀 ✦━╮\n` +
+      `    Welcome to your profile\n\n` +
+      `✧ 𝗡𝗮𝗺𝗲: ۶ৎ ${name}\n` +
       `✧ 𝗔𝗴𝗲: ${age}\n` +
       `✧ 𝗕𝗶𝗼: ${bio}\n` +
       `✧ 𝗥𝗲𝗴𝗶𝘀𝘁𝗲𝗿𝗲𝗱: ${registered}\n` +
@@ -523,11 +540,15 @@ function getDailyUsage(user: any, type: "dig" | "fish", now: number): { day: str
   };
 }
 
-function getProfileRole(user: any): string {
-  const now = Math.floor(Date.now() / 1000);
-  if (user.premium && (!user.premium_expiry || Number(user.premium_expiry) > now)) return "Premium";
-  if (user.registered) return "Registered";
-  return "Unregistered";
+function getProfileRole(userId: string): string {
+  const phone = userId.split("@")[0];
+  if (phone === BOT_OWNER_LID || userId === `${BOT_OWNER_LID}@s.whatsapp.net` || userId === `${BOT_OWNER_LID}@lid`) {
+    return "Owner";
+  }
+  const staff = getStaff(userId);
+  if (staff?.role === "guardian") return "Guardian";
+  if (staff?.role === "mod") return "mod";
+  return "normal user";
 }
 
 function formatProfileDate(timestamp: number): string {
@@ -550,7 +571,7 @@ async function buildProfileImage(ctx: CommandContext, targetId: string, user: an
   const name = String(user.name || targetId.split("@")[0]).slice(0, 28);
   const subtitle = `${role} ~ ${rpg?.class || "Warrior"}`;
   const bio = String(user.bio || "").slice(0, 44);
-  const avatar = await getProfileAvatar(ctx, targetId);
+  const avatar = await getProfileAvatar(ctx, targetId, user);
   const avatarSize = 190;
   const avatarMask = Buffer.from(`<svg width="${avatarSize}" height="${avatarSize}"><circle cx="${avatarSize / 2}" cy="${avatarSize / 2}" r="${avatarSize / 2}" fill="#fff"/></svg>`);
   const circularAvatar = await sharp(avatar)
@@ -582,7 +603,10 @@ async function buildProfileImage(ctx: CommandContext, targetId: string, user: an
       <text x="382" y="826" text-anchor="middle" font-size="28" font-weight="800" font-style="italic" fill="rgba(255,255,255,.88)" class="shadow">SHADOW GARDEN</text>
     </svg>
   `);
-  return sharp(templatePath)
+  const background = user.profile_background && Buffer.isBuffer(user.profile_background)
+    ? user.profile_background
+    : templatePath;
+  return sharp(background)
     .resize(width, height, { fit: "cover" })
     .composite([
       { input: circularAvatar, left: 287, top: 146 },
@@ -592,7 +616,10 @@ async function buildProfileImage(ctx: CommandContext, targetId: string, user: an
     .toBuffer();
 }
 
-async function getProfileAvatar(ctx: CommandContext, targetId: string): Promise<Buffer> {
+async function getProfileAvatar(ctx: CommandContext, targetId: string, user: any): Promise<Buffer> {
+  if (user.profile_picture && Buffer.isBuffer(user.profile_picture)) {
+    return user.profile_picture;
+  }
   try {
     const url = await (ctx.sock as any).profilePictureUrl(targetId, "image");
     if (url) {
@@ -615,6 +642,31 @@ async function getProfileAvatar(ctx: CommandContext, targetId: string): Promise<
     }])
     .png()
     .toBuffer();
+}
+
+async function getCommandImageBuffer(ctx: CommandContext): Promise<Buffer | null> {
+  const { from, msg, sock } = ctx;
+  const directImage = msg.message?.imageMessage ? msg : null;
+  const context = msg.message?.extendedTextMessage?.contextInfo;
+  const quoted = context?.quotedMessage;
+  const quotedMedia = quoted?.imageMessage || quoted?.stickerMessage ? quoted : null;
+  const target = directImage || (quotedMedia ? {
+    key: {
+      remoteJid: from,
+      fromMe: false,
+      id: context?.stanzaId || "",
+      participant: context?.participant,
+    },
+    message: quotedMedia,
+  } : null);
+  if (!target) return null;
+  const downloaded = await downloadMediaMessage(
+    target as any,
+    "buffer",
+    {},
+    { reuploadRequest: (sock as any).updateMediaMessage }
+  );
+  return Buffer.isBuffer(downloaded) ? downloaded : Buffer.from(downloaded as any);
 }
 
 function escapeXml(input: string): string {

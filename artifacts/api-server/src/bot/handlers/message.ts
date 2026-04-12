@@ -115,7 +115,7 @@ export async function handleMessage(
 
   if (mentionedJids.length > 0) {
     await checkAfkMention(from, sender, mentionedJids, sock).catch(() => {});
-    await sendMentionStickerIfNeeded(sock, from, mentionedJids).catch((err) => {
+    await sendMentionStickerIfNeeded(sock, from, mentionedJids, normalizedMsg).catch((err) => {
       logger.warn({ err }, "Failed to send mention sticker");
     });
   }
@@ -211,12 +211,12 @@ function getContextInfo(message: any): any {
     {};
 }
 
-async function sendMentionStickerIfNeeded(sock: WASocket, from: string, mentionedJids: string[]): Promise<void> {
+async function sendMentionStickerIfNeeded(sock: WASocket, from: string, mentionedJids: string[], quoted: proto.IWebMessageInfo): Promise<void> {
   for (const jid of mentionedJids) {
     if (!canUseMentionSticker(jid)) continue;
     const sticker = getBotSetting(`mention_sticker:${jid}`);
     if (!sticker) continue;
-    await sock.sendMessage(from, { sticker });
+    await sock.sendMessage(from, { sticker }, { quoted });
   }
 }
 
@@ -330,6 +330,8 @@ async function dispatch(ctx: CommandContext): Promise<void> {
     case "setname":
     case "profile":
     case "p":
+    case "setpp":
+    case "setbg":
     case "bio":
     case "setage":
     case "inventory":
@@ -507,8 +509,6 @@ async function dispatch(ctx: CommandContext): Promise<void> {
     case "join":
     case "setms":
     case "delms":
-    case "setpp":
-    case "setbg":
     case "exit":
     case "show":
     case "dc":

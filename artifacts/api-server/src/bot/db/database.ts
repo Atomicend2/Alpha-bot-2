@@ -40,6 +40,8 @@ function initSchema(db: Database.Database): void {
       level INTEGER DEFAULT 1,
       bio TEXT DEFAULT '',
       age TEXT DEFAULT '',
+      profile_picture BLOB,
+      profile_background BLOB,
       last_daily INTEGER DEFAULT 0,
       warn_count INTEGER DEFAULT 0,
       registered INTEGER DEFAULT 0,
@@ -354,6 +356,8 @@ function initSchema(db: Database.Database): void {
   ensureColumn(db, "users", "premium_expiry", "INTEGER DEFAULT 0");
   ensureColumn(db, "users", "registered", "INTEGER DEFAULT 0");
   ensureColumn(db, "users", "warn_count", "INTEGER DEFAULT 0");
+  ensureColumn(db, "users", "profile_picture", "BLOB");
+  ensureColumn(db, "users", "profile_background", "BLOB");
   ensureColumn(db, "groups", "ai_chat", "TEXT DEFAULT 'off'");
   ensureColumn(db, "groups", "antilink_action", "TEXT DEFAULT 'delete'");
   ensureColumn(db, "groups", "antispam", "TEXT DEFAULT 'off'");
@@ -384,6 +388,7 @@ function initSchema(db: Database.Database): void {
   ensureColumn(db, "banned_entities", "reason", "TEXT DEFAULT ''");
   ensureColumn(db, "banned_entities", "added_by", "TEXT");
   ensureColumn(db, "banned_entities", "added_at", "INTEGER DEFAULT 0");
+  ensureColumn(db, "rpg_characters", "last_dungeon", "INTEGER DEFAULT 0");
 }
 
 function ensureColumn(db: Database.Database, table: string, column: string, definition: string): void {

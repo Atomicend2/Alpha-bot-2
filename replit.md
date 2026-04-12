@@ -41,8 +41,10 @@ pnpm workspace monorepo using TypeScript. Each package manages its own dependenc
 - Spawned cards can be claimed with either `.get <card_id>` or plain `get <card_id>`.
 - `.s` converts image replies/captions to 512×512 cropped WebP stickers with sticker name `Atomic` and pack name `𝐒𝐇𝚫𝐃𝐎𝐖 𝐆𝚫𝐑𝐃𝚵𝐍`, embedding WebP sticker metadata for sharing/favorites.
 - `.setms` saves a replied-to sticker as the sender's personal mention sticker. `.delms` removes the sender's mention sticker.
-- Owner-only `.setpp` and `.setbg` commands update the paired bot account's profile picture and business profile background from a replied image.
-- When someone tags an owner, mod, guardian, or active premium user who has a saved personal mention sticker, the bot replies with that specific user's sticker.
+- `.setpp` and `.setbg` save a player's profile-card picture/background from a replied image or image caption; they do not change the paired WhatsApp account profile.
+- `.register` gives a $45,000 starter bonus.
+- When someone tags an owner, mod, guardian, or active premium user who has a saved personal mention sticker, the bot replies to the tagger's message with that specific user's sticker.
+- Existing RPG databases are migrated with `last_dungeon` so `.dungeon` cooldown updates do not fail after reconnects/restarts.
 - AFK messages use the red dot (`🔴`) indicator.
 - `.play <song>` searches YouTube, sends song details with thumbnail, tries the normal audio stream first, then falls back to `yt-dlp` for bot-check failures before sending MP3 audio.
 - Dig/fish rewards are capped at 376 coins, have 2-minute cooldowns, and are limited to 20 uses per day. Gambling has a 20-use daily limit and per-command cooldowns up to 7 minutes for casino.
