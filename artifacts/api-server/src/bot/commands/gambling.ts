@@ -26,7 +26,7 @@ export async function handleGambling(ctx: CommandContext): Promise<void> {
       winnings = -amount;
       msg = `🎰 ${result}\n\n😭 No match. You lost $${formatNumber(amount)}.`;
     }
-    updateUser(sender, { balance: (user.balance || 0) + winnings, last_gamble: limit.now, gamble_uses: limit.count + 1, gamble_date: limit.day });
+    updateUser(sender, gambleUpdate(limit, { balance: (user.balance || 0) + winnings }));
     await sendText(from, msg + `\nBalance: $${formatNumber((user.balance || 0) + winnings)}`);
     return;
   }
@@ -37,7 +37,7 @@ export async function handleGambling(ctx: CommandContext): Promise<void> {
     const roll = rollDice();
     const win = roll >= 4;
     const winnings = win ? amount : -amount;
-    updateUser(sender, { balance: (user.balance || 0) + winnings, last_gamble: limit.now, gamble_uses: limit.count + 1, gamble_date: limit.day });
+    updateUser(sender, gambleUpdate(limit, { balance: (user.balance || 0) + winnings }));
     await sendText(
       from,
       `🎲 Rolled: *${roll}* ${["⚀","⚁","⚂","⚃","⚄","⚅"][roll-1]}\n` +
@@ -59,7 +59,7 @@ export async function handleGambling(ctx: CommandContext): Promise<void> {
     const userPick = choice === "h" || choice === "heads" ? "heads" : "tails";
     const win = userPick === result;
     const winnings = win ? amount : -amount;
-    updateUser(sender, { balance: (user.balance || 0) + winnings, last_gamble: limit.now, gamble_uses: limit.count + 1, gamble_date: limit.day });
+    updateUser(sender, gambleUpdate(limit, { balance: (user.balance || 0) + winnings }));
     await sendText(
       from,
       `🪙 Flip: *${result}*\n` +
@@ -88,7 +88,7 @@ export async function handleGambling(ctx: CommandContext): Promise<void> {
       winnings = -amount;
       msg = `🎰 House wins. You lost $${formatNumber(amount)}.`;
     }
-    updateUser(sender, { balance: (user.balance || 0) + winnings, last_gamble: limit.now, gamble_uses: limit.count + 1, gamble_date: limit.day });
+    updateUser(sender, gambleUpdate(limit, { balance: (user.balance || 0) + winnings }));
     await sendText(from, msg + `\nBalance: $${formatNumber((user.balance || 0) + winnings)}`);
     return;
   }
@@ -98,7 +98,7 @@ export async function handleGambling(ctx: CommandContext): Promise<void> {
     if (!(await checkBet(from, user, amount))) return;
     const win = Math.random() < 0.45;
     const winnings = win ? amount * 2 : -amount;
-    updateUser(sender, { balance: (user.balance || 0) + winnings, last_gamble: limit.now, gamble_uses: limit.count + 1, gamble_date: limit.day });
+    updateUser(sender, gambleUpdate(limit, { balance: (user.balance || 0) + winnings }));
     await sendText(
       from,
       win ? `🎲 You doubled! +$${formatNumber(amount * 2)}` : `😭 Lost. -$${formatNumber(amount)}`,
@@ -111,7 +111,7 @@ export async function handleGambling(ctx: CommandContext): Promise<void> {
     if (!(await checkBet(from, user, amount))) return;
     const win = Math.random() < 0.4;
     const payout = win ? amount * 3 : -amount;
-    updateUser(sender, { balance: (user.balance || 0) + payout, last_gamble: limit.now, gamble_uses: limit.count + 1, gamble_date: limit.day });
+    updateUser(sender, gambleUpdate(limit, { balance: (user.balance || 0) + payout }));
     await sendText(
       from,
       win ? `🎰 Triple payout! +$${formatNumber(amount * 3)}` : `😭 Lost. -$${formatNumber(amount)}`
@@ -132,7 +132,7 @@ export async function handleGambling(ctx: CommandContext): Promise<void> {
     const win = result === color;
     const multiplier = color === "green" ? 14 : 2;
     const winnings = win ? amount * multiplier : -amount;
-    updateUser(sender, { balance: (user.balance || 0) + winnings, last_gamble: limit.now, gamble_uses: limit.count + 1, gamble_date: limit.day });
+    updateUser(sender, gambleUpdate(limit, { balance: (user.balance || 0) + winnings }));
     await sendText(
       from,
       `🎡 Ball landed on *${num}* (${result})\n` +
@@ -154,7 +154,7 @@ export async function handleGambling(ctx: CommandContext): Promise<void> {
     const win = pick === winner;
     const winnings = win ? amount * 4 : -amount;
     const horses = ["🐴", "🐎", "🏇", "🦄"];
-    updateUser(sender, { balance: (user.balance || 0) + winnings, last_gamble: limit.now, gamble_uses: limit.count + 1, gamble_date: limit.day });
+    updateUser(sender, gambleUpdate(limit, { balance: (user.balance || 0) + winnings }));
     await sendText(
       from,
       `🏇 Race Results: ${horses.map((h, i) => `${h}${i === winner - 1 ? "🏆" : ""}`).join(" ")}\n\n` +
@@ -183,7 +183,7 @@ export async function handleGambling(ctx: CommandContext): Promise<void> {
     }
     const won = Math.floor(amount * outcome.multi);
     const diff = won - amount;
-    updateUser(sender, { balance: (user.balance || 0) + diff, last_gamble: limit.now, gamble_uses: limit.count + 1, gamble_date: limit.day });
+    updateUser(sender, gambleUpdate(limit, { balance: (user.balance || 0) + diff }));
     await sendText(
       from,
       `🌀 Spin result: *${outcome.label}*\n` +
@@ -230,21 +230,41 @@ const GAMBLE_COOLDOWNS: Record<string, number> = {
   spin: 180,
 };
 
-async function checkGamblingAccess(from: string, sender: string, user: any, cmd: string): Promise<{ allowed: boolean; now: number; day: string; count: number }> {
+async function checkGamblingAccess(from: string, sender: string, user: any, cmd: string): Promise<{ allowed: boolean; now: number; day: string; count: number; field: string; label: string }> {
   const now = Math.floor(Date.now() / 1000);
   const day = new Date(now * 1000).toISOString().slice(0, 10);
   const count = user.gamble_date === day ? Number(user.gamble_uses || 0) : 0;
+  const canonical = canonicalGambleCommand(cmd);
+  const field = `last_${canonical}`;
+  const label = canonical.replace(/^\w/, (c) => c.toUpperCase());
   if (count >= GAMBLE_DAILY_LIMIT) {
     await sendText(from, `⛔ Daily gambling limit reached (${GAMBLE_DAILY_LIMIT}/day). Try again tomorrow.`, [sender]);
-    return { allowed: false, now, day, count };
+    return { allowed: false, now, day, count, field, label };
   }
   const cooldown = GAMBLE_COOLDOWNS[cmd] || 120;
-  const diff = now - Number(user.last_gamble || 0);
+  const diff = now - Number(user[field] || 0);
   if (diff < cooldown) {
-    await sendText(from, `⏳ Gambling cooldown: ${formatDuration(cooldown - diff)} left.`, [sender]);
-    return { allowed: false, now, day, count };
+    await sendText(from, `⏳ ${label} cooldown: ${formatDuration(cooldown - diff)} left. Other gamble commands can still be ready.`, [sender]);
+    return { allowed: false, now, day, count, field, label };
   }
-  return { allowed: true, now, day, count };
+  return { allowed: true, now, day, count, field, label };
+}
+
+function gambleUpdate(limit: { now: number; day: string; count: number; field: string }, data: Record<string, any>): Record<string, any> {
+  return {
+    ...data,
+    [limit.field]: limit.now,
+    last_gamble: limit.now,
+    gamble_uses: limit.count + 1,
+    gamble_date: limit.day,
+  };
+}
+
+function canonicalGambleCommand(cmd: string): string {
+  if (cmd === "cf") return "coinflip";
+  if (cmd === "db") return "doublebet";
+  if (cmd === "dp") return "doublepayout";
+  return cmd;
 }
 
 function formatDuration(secs: number): string {

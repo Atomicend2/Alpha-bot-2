@@ -190,7 +190,15 @@ export async function handleEconomy(ctx: CommandContext): Promise<void> {
       ["Dig", DIG_COOLDOWN, user.last_dig || 0],
       ["Fish", FISH_COOLDOWN, user.last_fish || 0],
       ["Beg", BEG_COOLDOWN, user.last_beg || 0],
-      ["Gamble", 420, user.last_gamble || 0],
+      ["Slots", 180, user.last_slots || 0],
+      ["Dice", 120, user.last_dice || 0],
+      ["Coinflip", 120, user.last_coinflip || 0],
+      ["Casino", 420, user.last_casino || 0],
+      ["Doublebet", 240, user.last_doublebet || 0],
+      ["Doublepayout", 300, user.last_doublepayout || 0],
+      ["Roulette", 300, user.last_roulette || 0],
+      ["Horse", 240, user.last_horse || 0],
+      ["Spin", 180, user.last_spin || 0],
     ];
     let text = `╔═ ❰ ⏳ 𝗖𝗢𝗢𝗟𝗗𝗢𝗪𝗡𝗦 ❱ ═╗\n║ @${sender.split("@")[0]}\n║\n`;
     for (const [name, cooldown, last] of cooldowns) {

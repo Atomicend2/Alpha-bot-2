@@ -267,7 +267,7 @@ export async function handleMenu(ctx: CommandContext): Promise<void> {
 ║ ║ ➩ .banlist
 ║ ║ ➩ .addpremium @user (owner)
 ║ ║ ➩ .removepremium @user (owner)
-║ ║ ➩ .modlist
+║ ║ ➩ .mods
 ║ ║ ➩ .cardmakers
 ║ ║ ➩ .post [message]
 ║ ║ ➩ .join [link]

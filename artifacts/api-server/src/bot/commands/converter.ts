@@ -45,6 +45,7 @@ export async function handleConverter(ctx: CommandContext): Promise<void> {
         sticker: buf,
         packname: DEFAULT_STICKER_PACK,
         author: DEFAULT_STICKER_NAME,
+        mimetype: "image/webp",
       });
     } catch (err) {
       logger.error({ err }, "Failed to create sticker");
@@ -105,6 +106,7 @@ export async function handleConverter(ctx: CommandContext): Promise<void> {
         sticker: renamed,
         packname: packName,
         author: stickerName,
+        mimetype: "image/webp",
       });
     } catch (err) {
       logger.error({ err }, "Failed to rename sticker");
@@ -283,6 +285,7 @@ function buildStickerExif(packName: string, stickerName: string): Buffer {
   const json = Buffer.from(JSON.stringify({
     "sticker-pack-id": "atomic-shadow-garden",
     "sticker-pack-name": packName,
+    "sticker-name": stickerName,
     "sticker-pack-publisher": stickerName,
     emojis: [""],
   }), "utf-8");

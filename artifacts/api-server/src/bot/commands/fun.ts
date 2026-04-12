@@ -74,14 +74,24 @@ export async function handleFun(ctx: CommandContext): Promise<void> {
   await sendText(from, loadingText(cmd), [sender]);
 
   if (cmd === "gay") {
+    const targetId = getFunTarget(ctx);
+    const targetName = targetId.split("@")[0];
     const pct = Math.floor(Math.random() * 101);
-    await sendText(from, `🏳️‍🌈 @${name} is *${pct}% gay* today!`, [sender]);
+    await sock.sendMessage(from, {
+      text: analysisResult("𝗚𝗮𝘆", targetName, pct),
+      mentions: [targetId],
+    });
     return;
   }
 
   if (cmd === "lesbian") {
+    const targetId = getFunTarget(ctx);
+    const targetName = targetId.split("@")[0];
     const pct = Math.floor(Math.random() * 101);
-    await sendText(from, `🌈 @${name} is *${pct}% lesbian* today!`, [sender]);
+    await sock.sendMessage(from, {
+      text: analysisResult("𝗟𝗲𝘀𝗯𝗶𝗮𝗻", targetName, pct),
+      mentions: [targetId],
+    });
     return;
   }
 
@@ -185,4 +195,22 @@ export async function handleFun(ctx: CommandContext): Promise<void> {
 
 function loadingText(command: string): string {
   return `┌─⟡ 『 𝗔𝗟𝗣𝗛𝗔 𝗟𝗢𝗔𝗗𝗜𝗡𝗚 』⟡\n║\n║ ➩ Command: .${command}\n║ ➩ Target: calculating...\n║\n└────────────────────`;
+}
+
+function getFunTarget(ctx: CommandContext): string {
+  const info = ctx.msg.message?.extendedTextMessage?.contextInfo;
+  return info?.mentionedJid?.[0] || info?.participant || ctx.sender;
+}
+
+function analysisResult(label: string, targetName: string, pct: number): string {
+  const filled = Math.max(0, Math.min(10, Math.round(pct / 10)));
+  const bar = "■".repeat(filled) + "□".repeat(10 - filled);
+  return `╔═ ❰ 🌈 𝗔𝗡𝗔𝗟𝗬𝗦𝗜𝗦 𝗥𝗘𝗦𝗨𝗟𝗧 🌈 ❱ ═╗\n` +
+    `║\n` +
+    `║ 👤 𝗨𝘀𝗲𝗿: @${targetName}\n` +
+    `║ 💖 ${label} 𝗟𝗲𝘃𝗲𝗹: ${pct}%\n` +
+    `║\n` +
+    `║ 📊 𝗦𝘁𝗮𝘁𝘂𝘀: [${bar}]\n` +
+    `║\n` +
+    `╚═════════════════╝`;
 }

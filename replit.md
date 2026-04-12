@@ -30,7 +30,7 @@ pnpm workspace monorepo using TypeScript. Each package manages its own dependenc
 
 ## Staff, Economy, and Stickers
 
-- `.addmod`, `.addguardian`, and `.recruit` create global staff records shown by `.modlist`.
+- `.addmod`, `.addguardian`, and `.recruit` create global staff records shown by `.mods` in the Shadow Garden mods/guardians layout.
 - Mods and guardians can use `.ban <number>`, `.unban <number>`, `.ban <group link>`, `.unban <group link>`, and `.banlist`.
 - `.ac <amount> @user` and `.rc <amount> @user` can be used by owner, mods, guardians, and active premium users. They also work while replying to a user's message, auto-create missing users, store wallet/bank, and never reduce wallet below zero.
 - SQLite startup migrations add missing bot columns/tables in place so older `bot.db` files do not lose existing data.
@@ -43,11 +43,12 @@ pnpm workspace monorepo using TypeScript. Each package manages its own dependenc
 - `.setms` saves a replied-to sticker as the sender's personal mention sticker. `.delms` removes the sender's mention sticker.
 - `.setpp` and `.setbg` save a player's profile-card picture/background from a replied image or image caption; they do not change the paired WhatsApp account profile.
 - `.register` gives a $45,000 starter bonus.
-- When someone tags an owner, mod, guardian, or active premium user who has a saved personal mention sticker, the bot replies to the tagger's message with that specific user's sticker.
-- Existing RPG databases are migrated with `last_dungeon` so `.dungeon` cooldown updates do not fail after reconnects/restarts.
+- When someone tags or replies to an owner, mod, guardian, or active premium user who has a saved personal mention sticker, the bot replies with that specific user's sticker.
+- Interaction commands (`.hug`, `.kiss`, `.slap`, etc.) support staff GIF uploads by replying to a GIF/video/image with `.<interaction> upload`; saved GIFs persist in SQLite bot settings and are sent when that interaction is used.
+- Existing RPG databases are migrated with `last_dungeon` so `.dungeon` cooldown updates do not fail after reconnects/restarts. `.dungeon` has a 6-minute cooldown, supports multiple moves (`attack`, `guard`, `skill`, `rush`, `sneak`, `loot`, `scout`, `heal`, `focus`, `ambush`, `retreat`), and `.quest` has a 4-minute cooldown.
 - AFK messages use the red dot (`🔴`) indicator.
 - `.play <song>` searches YouTube, sends song details with thumbnail, tries the normal audio stream first, then falls back to `yt-dlp` for bot-check failures before sending MP3 audio.
-- Dig/fish rewards are capped at 376 coins, have 2-minute cooldowns, and are limited to 20 uses per day. Gambling has a 20-use daily limit and per-command cooldowns up to 7 minutes for casino.
+- Dig/fish rewards are capped at 376 coins, have 2-minute cooldowns, and are limited to 20 uses per day. Gambling has a 20-use daily limit and every gambling command has its own independent cooldown column, so using `.casino` does not block `.slots`.
 
 ## Profile System
 

@@ -37,6 +37,20 @@ const DUNGEON_ENEMIES: Record<number, { name: string; hp: number; attack: number
   5: { name: "Dark Dragon", hp: 350, attack: 60, reward: 2500 },
 };
 
+const DUNGEON_MOVES: Record<string, { label: string; damage: number; incoming: number; reward: number; success: number; note: string }> = {
+  attack: { label: "Direct Attack", damage: 1.0, incoming: 1.0, reward: 1.0, success: 0, note: "Balanced strike with normal risk." },
+  guard: { label: "Guard Counter", damage: 0.75, incoming: 0.45, reward: 0.85, success: 0.08, note: "Safer move with reduced damage taken." },
+  skill: { label: "Class Skill", damage: 1.35, incoming: 1.1, reward: 1.15, success: -0.04, note: "High damage, slightly risky." },
+  rush: { label: "Rush", damage: 1.55, incoming: 1.35, reward: 1.25, success: -0.1, note: "Fast and dangerous." },
+  sneak: { label: "Sneak Strike", damage: 1.2, incoming: 0.75, reward: 1.1, success: 0.04, note: "Clever attack with better survival odds." },
+  loot: { label: "Loot Path", damage: 0.85, incoming: 0.95, reward: 1.5, success: -0.06, note: "Lower damage, bigger coin reward." },
+  scout: { label: "Scout", damage: 0.7, incoming: 0.55, reward: 0.8, success: 0.14, note: "Safe information-gathering route." },
+  heal: { label: "Drain Heal", damage: 0.9, incoming: 0.8, reward: 0.9, success: 0.06, note: "Recover a little HP if you survive." },
+  focus: { label: "Focus", damage: 1.15, incoming: 0.9, reward: 1.05, success: 0.07, note: "Steady technique and cleaner hits." },
+  ambush: { label: "Ambush", damage: 1.7, incoming: 1.4, reward: 1.35, success: -0.13, note: "Big reward if the ambush works." },
+  retreat: { label: "Tactical Retreat", damage: 0.45, incoming: 0.25, reward: 0.35, success: 0.2, note: "Very safe, very small reward." },
+};
+
 export async function handleRpg(ctx: CommandContext): Promise<void> {
   const { from, sender, args, command: cmd } = ctx;
   const rpg = ensureRpg(sender);
@@ -117,7 +131,7 @@ export async function handleRpg(ctx: CommandContext): Promise<void> {
   }
 
   if (cmd === "quest") {
-    const cooldown = 7200;
+    const cooldown = 240;
     if (now - (rpg.last_quest || 0) < cooldown) {
       await sendText(from, `⏳ Quest cooldown: ${formatDuration(cooldown - (now - rpg.last_quest))} left.`);
       return;
@@ -137,31 +151,39 @@ export async function handleRpg(ctx: CommandContext): Promise<void> {
   }
 
   if (cmd === "dungeon") {
-    const cooldown = 14400;
+    const cooldown = 360;
     if (now - (rpg.last_dungeon || 0) < cooldown) {
       await sendText(from, `⏳ Dungeon cooldown: ${formatDuration(cooldown - (now - rpg.last_dungeon))} left.`);
       return;
     }
+    const requestedMove = (args[0] || "").toLowerCase();
+    const moveKeys = Object.keys(DUNGEON_MOVES);
+    const moveKey = DUNGEON_MOVES[requestedMove] ? requestedMove : moveKeys[Math.floor(Math.random() * moveKeys.length)];
+    const move = DUNGEON_MOVES[moveKey];
     const floor = rpg.dungeon_floor;
     const enemy = DUNGEON_ENEMIES[Math.min(floor, 5)];
-    const playerDmg = Math.max(1, rpg.attack - Math.floor(enemy.attack * 0.3) + Math.floor(Math.random() * 15));
-    const enemyDmg = Math.max(1, enemy.attack - Math.floor(rpg.defense * 0.5) + Math.floor(Math.random() * 10));
+    const playerDmg = Math.max(1, Math.floor((rpg.attack - Math.floor(enemy.attack * 0.3) + Math.floor(Math.random() * 15)) * move.damage));
+    const enemyDmg = Math.max(1, Math.floor((enemy.attack - Math.floor(rpg.defense * 0.5) + Math.floor(Math.random() * 10)) * move.incoming));
     const turnsToKill = Math.ceil(enemy.hp / playerDmg);
     const hpLost = enemyDmg * turnsToKill;
-    const success = rpg.hp > hpLost * 0.8;
+    const survivalScore = rpg.hp / Math.max(1, hpLost);
+    const successChance = Math.max(0.15, Math.min(0.95, 0.45 + survivalScore * 0.28 + move.success));
+    const success = Math.random() < successChance;
+    const moveList = moveKeys.map((key) => `║ ${key.padEnd(8)} │ ${DUNGEON_MOVES[key].label}`).join("\n");
 
     if (success) {
       const newFloor = floor + 1;
       const xp = floor * 80;
-      const reward = enemy.reward;
-      updateRpg(sender, { dungeon_floor: newFloor, hp: Math.max(1, rpg.hp - Math.floor(hpLost * 0.5)), last_dungeon: now, xp: rpg.xp + xp });
+      const reward = Math.floor(enemy.reward * move.reward);
+      const hpAfter = Math.min(rpg.max_hp, Math.max(1, rpg.hp - Math.floor(hpLost * 0.5) + (moveKey === "heal" ? Math.floor(rpg.max_hp * 0.15) : 0)));
+      updateRpg(sender, { dungeon_floor: newFloor, hp: hpAfter, last_dungeon: now, xp: rpg.xp + xp });
       updateUser(sender, { balance: (user?.balance || 0) + reward });
       addToInventory(sender, "Dungeon Key", 1);
       checkLevelUp(sender, rpg.xp + xp, rpg.level);
-      await sendText(from, `🏰 *Dungeon Floor ${floor}*\n\nBoss: *${enemy.name}*\n\n✅ Defeated! Floor ${newFloor} unlocked!\n+$${formatNumber(reward)} | +${xp} XP | -${Math.floor(hpLost * 0.5)} HP`);
+      await sendText(from, dungeonResult(sender, floor, enemy.name, moveKey, move.label, "✅ Victory", reward, xp, hpAfter, rpg.max_hp, newFloor, move.note, moveList), [sender]);
     } else {
       updateRpg(sender, { hp: 1, last_dungeon: now });
-      await sendText(from, `🏰 *Dungeon Floor ${floor}*\n\nBoss: *${enemy.name}*\n\n❌ Defeated! Barely escaped.\n-HP (now at 1, use .heal to recover)`);
+      await sendText(from, dungeonResult(sender, floor, enemy.name, moveKey, move.label, "❌ Defeated", 0, 0, 1, rpg.max_hp, floor, "Barely escaped. Use .heal or a safer move next time.", moveList), [sender]);
     }
     return;
   }
@@ -200,4 +222,37 @@ function formatDuration(secs: number): string {
   if (secs < 60) return `${secs}s`;
   if (secs < 3600) return `${Math.floor(secs / 60)}m ${secs % 60}s`;
   return `${Math.floor(secs / 3600)}h ${Math.floor((secs % 3600) / 60)}m`;
+}
+
+function dungeonResult(
+  sender: string,
+  floor: number,
+  enemy: string,
+  moveKey: string,
+  moveLabel: string,
+  outcome: string,
+  reward: number,
+  xp: number,
+  hp: number,
+  maxHp: number,
+  nextFloor: number,
+  note: string,
+  moveList: string
+): string {
+  return `╔═ ❰ 🏰 𝗗𝗨𝗡𝗚𝗘𝗢𝗡 ❱ ═╗\n` +
+    `║ 👤 User     │ @${sender.split("@")[0]}\n` +
+    `║ 🧱 Floor    │ ${floor}\n` +
+    `║ 👹 Enemy    │ ${enemy}\n` +
+    `║ ⚔️ Move     │ ${moveKey} — ${moveLabel}\n` +
+    `║ 🎯 Result   │ ${outcome}\n` +
+    `║ ❤️ HP       │ ${hp}/${maxHp}\n` +
+    `║ 💰 Reward   │ $${formatNumber(reward)}\n` +
+    `║ ✨ XP       │ +${xp}\n` +
+    `║ 🚪 Next     │ Floor ${nextFloor}\n` +
+    `╠═ ❰ 𝗠𝗢𝗩𝗘𝗦 ❱ ═╗\n` +
+    `${moveList}\n` +
+    `╠═══════════════\n` +
+    `║ ${note}\n` +
+    `║ Use: .dungeon <move>\n` +
+    `╚══════════════╝`;
 }

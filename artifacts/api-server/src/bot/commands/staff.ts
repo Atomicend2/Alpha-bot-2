@@ -73,6 +73,30 @@ export async function handleStaff(ctx: CommandContext): Promise<void> {
     return;
   }
 
+  if (cmd === "mods" || cmd === "modlist") {
+    const staff = getStaffList();
+    const mods = staff.filter((s) => s.role === "mod");
+    const guardians = staff.filter((s) => s.role === "guardian");
+    const mentions = [...mods, ...guardians].map((s) => s.user_id);
+    const modLines = mods.length > 0 ? mods.map((s) => ` ╰┈➤ @${s.user_id.split("@")[0]}`).join("\n") : " ╰┈➤ None yet";
+    const guardianLines = guardians.length > 0 ? guardians.map((s) => ` ╰┈➤ @${s.user_id.split("@")[0]}`).join("\n") : " ╰┈➤ None yet";
+    const text =
+      `🎀 𝐒𝐇𝚫𝐃𝐎𝐖 𝐆𝚫𝐑𝐃𝚵𝐍 🎀\n\n` +
+      `━━━━━━━━━━━━\n` +
+      `   👑 *Mods* 👑\n` +
+      `━━━━━━━━━━━━\n` +
+      `${modLines}\n\n` +
+      `━━━━━━━━━━━━\n` +
+      `🛡️ *Guardians* 🛡️\n` +
+      `━━━━━━━━━━━━\n` +
+      `${guardianLines}\n\n` +
+      `━━━━━━━━━━━━\n` +
+      `> *⚠️ Don't spam them to avoid being blocked!*\n\n` +
+      `🆘 Need help? Type *.help* to see bot info`;
+    await sock.sendMessage(from, { text, mentions });
+    return;
+  }
+
   if (!isOwner && !staffRecord) {
     await sendText(from, "❌ This command requires staff access.");
     return;
@@ -197,15 +221,6 @@ export async function handleStaff(ctx: CommandContext): Promise<void> {
       text: `❌ Premium removed from @${mentioned.split("@")[0]}.`,
       mentions: [mentioned],
     });
-    return;
-  }
-
-  if (cmd === "modlist") {
-    const staff = getStaffList();
-    if (staff.length === 0) { await sendText(from, "No staff members."); return; }
-    const text = "👑 *Staff List*\n\n" +
-      staff.map((s) => `• @${s.user_id.split("@")[0]} (${s.role})`).join("\n");
-    await sock.sendMessage(from, { text, mentions: staff.map((s) => s.user_id) });
     return;
   }
 

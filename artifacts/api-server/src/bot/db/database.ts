@@ -343,6 +343,15 @@ function initSchema(db: Database.Database): void {
   ensureColumn(db, "users", "last_fish", "INTEGER DEFAULT 0");
   ensureColumn(db, "users", "last_beg", "INTEGER DEFAULT 0");
   ensureColumn(db, "users", "last_gamble", "INTEGER DEFAULT 0");
+  ensureColumn(db, "users", "last_slots", "INTEGER DEFAULT 0");
+  ensureColumn(db, "users", "last_dice", "INTEGER DEFAULT 0");
+  ensureColumn(db, "users", "last_coinflip", "INTEGER DEFAULT 0");
+  ensureColumn(db, "users", "last_casino", "INTEGER DEFAULT 0");
+  ensureColumn(db, "users", "last_doublebet", "INTEGER DEFAULT 0");
+  ensureColumn(db, "users", "last_doublepayout", "INTEGER DEFAULT 0");
+  ensureColumn(db, "users", "last_roulette", "INTEGER DEFAULT 0");
+  ensureColumn(db, "users", "last_horse", "INTEGER DEFAULT 0");
+  ensureColumn(db, "users", "last_spin", "INTEGER DEFAULT 0");
   ensureColumn(db, "users", "dig_uses", "INTEGER DEFAULT 0");
   ensureColumn(db, "users", "dig_date", "TEXT DEFAULT ''");
   ensureColumn(db, "users", "fish_uses", "INTEGER DEFAULT 0");
