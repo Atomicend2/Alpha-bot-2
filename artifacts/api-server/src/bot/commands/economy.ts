@@ -540,7 +540,7 @@ function formatProfileDate(timestamp: number): string {
 }
 
 async function buildProfileImage(ctx: CommandContext, targetId: string, user: any, rpg: any, rank: number, role: string): Promise<Buffer> {
-  const templatePath = path.resolve(process.cwd(), "../../attached_assets/IMG-20260412-WA0616_1776007528987.jpg");
+  const templatePath = path.resolve(process.cwd(), "../../attached_assets/IMG-20260410-WA0424(1)_1776008329836.jpg");
   const width = 765;
   const height = 850;
   const level = Math.max(1, Number(user.level || 1));

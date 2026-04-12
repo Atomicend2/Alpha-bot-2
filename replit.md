@@ -48,10 +48,12 @@ pnpm workspace monorepo using TypeScript. Each package manages its own dependenc
 ## Profile System
 
 - `.profile` and `.p` support self, mention, and reply targets.
-- The profile command sends a styled image generated with Sharp using the provided Shadow Garden template asset, circular WhatsApp profile picture, wallet/bank, name, role/class, rank/level, XP progress, and bio.
+- The profile command sends a styled image generated with Sharp using the latest provided Shadow Garden character background asset (`IMG-20260410-WA0424(1)_1776008329836.jpg`), circular WhatsApp profile picture, wallet/bank, name, role/class, rank/level, XP progress, and bio.
 - The profile image caption sends the requested no-emoji text profile format with name, age, bio, registered date, role, guild, and banned status.
 - Users gain XP from message activity. XP required is `level × 100`; users level up automatically when XP reaches the current level requirement.
 - Rank is calculated globally by level and XP.
+- Non-staff DMs are ignored. Group commands are always processed before anti-spam/anti-link filters so reconnects or repeated command usage do not make the bot snub group commands.
+- Bot admin detection compares all known paired-number identities, including device and LID forms, against group participants so admin-only commands work when the paired bot number is a group admin.
 
 ## Key Commands
 

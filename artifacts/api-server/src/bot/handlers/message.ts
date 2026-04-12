@@ -27,13 +27,12 @@ export async function handleMessage(
   msg: proto.IWebMessageInfo
 ): Promise<void> {
   if (!msg.message) return;
-  if (msg.key.fromMe) return;
 
   const from = msg.key.remoteJid!;
   const isGroup = from.endsWith("@g.us");
 
   const senderRaw = isGroup
-    ? (msg.key.participant || "")
+    ? (msg.key.participant || (msg.key.fromMe ? getPrimaryBotJid(sock) : ""))
     : (msg.key.remoteJid || "");
   const sender = senderRaw;
 
@@ -52,6 +51,7 @@ export async function handleMessage(
     msg.message?.imageMessage?.caption ||
     msg.message?.videoMessage?.caption ||
     "";
+  const isCommandBody = body.trim().startsWith(PREFIX);
 
   const mentionedJids: string[] =
     msg.message?.extendedTextMessage?.contextInfo?.mentionedJid || [];
@@ -72,21 +72,16 @@ export async function handleMessage(
     try {
       ensureGroup(from);
       groupMeta = await sock.groupMetadata(from);
-      const botId = sock.user?.id || "";
-      const botNumericId = botId.split(":")[0] + "@s.whatsapp.net";
-      const botLid = sock.user?.lid || "";
+      const botIds = getBotIdentityCandidates(sock);
 
       const senderParticipant = groupMeta.participants.find(
-        (p: any) => p.id === sender || p.id.split(":")[0] + "@s.whatsapp.net" === sender
+        (p: any) => sameWhatsAppUser(p.id, sender)
       );
       isGroupAdmin = senderParticipant?.admin === "admin" || senderParticipant?.admin === "superadmin";
       isAdmin = isGroupAdmin;
 
       const botParticipant = groupMeta.participants.find(
-        (p: any) =>
-          p.id === botNumericId ||
-          p.id === botId ||
-          (botLid && p.id === botLid)
+        (p: any) => botIds.some((botId) => sameWhatsAppUser(p.id, botId))
       );
       isBotAdmin = botParticipant?.admin === "admin" || botParticipant?.admin === "superadmin";
 
@@ -107,6 +102,10 @@ export async function handleMessage(
     sender === `${BOT_OWNER_LID}@lid` ||
     !!getStaff(sender)?.role === true;
 
+  if (!isGroup && !isOwner && !getStaff(sender)) {
+    return;
+  }
+
   if (mentionedJids.length > 0) {
     await checkAfkMention(from, sender, mentionedJids, sock).catch(() => {});
     await sendMentionStickerIfNeeded(sock, from, mentionedJids).catch((err) => {
@@ -114,7 +113,7 @@ export async function handleMessage(
     });
   }
 
-  if (isGroup && body) {
+  if (isGroup && body && !isCommandBody) {
     const antiSpam = await checkAntispam(sock, from, sender, isAdmin).catch(() => false);
     if (antiSpam) return;
 
@@ -493,6 +492,47 @@ function createReplySocket(sock: WASocket, msg: proto.IWebMessageInfo): WASocket
       };
     },
   }) as WASocket;
+}
+
+function getPrimaryBotJid(sock: WASocket): string {
+  const id = sock.user?.id || "";
+  const decoded = normalizeJid(id);
+  return decoded || id;
+}
+
+function getBotIdentityCandidates(sock: WASocket): string[] {
+  const candidates = new Set<string>();
+  const id = sock.user?.id || "";
+  const lid = (sock.user as any)?.lid || "";
+  for (const value of [id, lid, getPrimaryBotJid(sock)]) {
+    if (!value) continue;
+    candidates.add(value);
+    const normalized = normalizeJid(value);
+    if (normalized) candidates.add(normalized);
+    const user = normalized.split("@")[0];
+    if (user) {
+      candidates.add(`${user}@s.whatsapp.net`);
+      candidates.add(`${user}@lid`);
+    }
+  }
+  return [...candidates];
+}
+
+function sameWhatsAppUser(a?: string, b?: string): boolean {
+  if (!a || !b) return false;
+  const na = normalizeJid(a);
+  const nb = normalizeJid(b);
+  if (na === nb) return true;
+  const au = na.split("@")[0];
+  const bu = nb.split("@")[0];
+  return !!au && au === bu;
+}
+
+function normalizeJid(jid: string): string {
+  if (!jid) return "";
+  const [userPart, serverPart = "s.whatsapp.net"] = jid.split("@");
+  const user = userPart.split(":")[0];
+  return `${user}@${serverPart}`;
 }
 
 function getPingMs(msg: proto.IWebMessageInfo): number {
