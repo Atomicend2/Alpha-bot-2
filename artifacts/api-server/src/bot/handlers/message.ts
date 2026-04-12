@@ -124,6 +124,10 @@ export async function handleMessage(
   }
 
   if (!body.startsWith(PREFIX)) {
+    const plainGet = body.trim().match(/^get\s+(\S+)/i);
+    if (plainGet && isGroup) {
+      return handleGetCard(sock, from, sender, plainGet[1]);
+    }
     if (isGroup) {
       const handled = await handleGameInput(
         {

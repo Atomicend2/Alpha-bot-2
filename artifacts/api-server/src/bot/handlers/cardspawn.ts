@@ -3,6 +3,7 @@ import { getAllCards, getActiveSpawn, claimSpawn, spawnCardInGroup, giveCard, ge
 import { sendText, sendImage } from "../connection.js";
 import { getTierEmoji, getWeightedRandomCard } from "../utils.js";
 import { logger } from "../../lib/logger.js";
+import sharp from "sharp";
 
 const spawnCounters: Map<string, number> = new Map();
 const SPAWN_THRESHOLD = 15;
@@ -30,20 +31,15 @@ export async function spawnCard(sock: WASocket, groupId: string, specific?: stri
 
   const spawnId = spawnCardInGroup(groupId, card.id);
 
-  const caption = `✨ *A card has spawned!*\n\n${getTierEmoji(card.tier)} *${card.name}*\n📦 Series: ${card.series}\n🎖️ Tier: ${card.tier}\n\n📌 Card ID: \`${card.id}\`\n\nType *.get ${card.id}* to claim it!`;
+  const caption = `✨ A card has spawned!\n\n*🎴 Name:* ${card.name}\n*🃏 Series:* ${card.series || "General"}\n*⭐ Tier:* ${card.tier}\n*🆔 ID:* \`${card.id}\`\n\n*💡Tip:* Type \`get ${card.id}\` to claim the card!`;
 
   try {
-    if (card.image_data) {
-      const buf = Buffer.isBuffer(card.image_data)
-        ? card.image_data
-        : Buffer.from(card.image_data);
-      await sendImage(sock as any, groupId, buf, caption);
-    } else {
-      await sendText(groupId, caption);
-    }
+    const buf = await getCardImageBuffer(card);
+    await sendImage(groupId, buf, caption);
   } catch (err) {
     logger.error({ err }, "Error spawning card");
-    await sendText(groupId, caption);
+    const fallback = await makeCardPlaceholder(card);
+    await sendImage(groupId, fallback, caption);
   }
 }
 
@@ -73,4 +69,37 @@ export async function handleGetCard(
     `🎉 @${senderId.split("@")[0]} claimed *${card.name}* (${getTierEmoji(card.tier)} ${card.tier})!`,
     [senderId]
   );
+}
+
+async function getCardImageBuffer(card: any): Promise<Buffer> {
+  if (card.image_data) {
+    return Buffer.isBuffer(card.image_data) ? card.image_data : Buffer.from(card.image_data);
+  }
+  return makeCardPlaceholder(card);
+}
+
+async function makeCardPlaceholder(card: any): Promise<Buffer> {
+  const name = escapeSvg(card.name || "Unknown Card");
+  const series = escapeSvg(card.series || "General");
+  const tier = escapeSvg(card.tier || "T?");
+  const svg = `<svg width="900" height="1260" xmlns="http://www.w3.org/2000/svg">
+    <defs>
+      <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
+        <stop offset="0%" stop-color="#111827"/>
+        <stop offset="55%" stop-color="#312e81"/>
+        <stop offset="100%" stop-color="#020617"/>
+      </linearGradient>
+    </defs>
+    <rect width="900" height="1260" rx="42" fill="url(#bg)"/>
+    <rect x="54" y="54" width="792" height="1152" rx="32" fill="none" stroke="#eab308" stroke-width="10"/>
+    <text x="450" y="210" fill="#f8fafc" font-size="64" font-family="Arial" font-weight="700" text-anchor="middle">ALPHA CARD</text>
+    <text x="450" y="560" fill="#fde68a" font-size="82" font-family="Arial" font-weight="700" text-anchor="middle">${name}</text>
+    <text x="450" y="680" fill="#dbeafe" font-size="48" font-family="Arial" text-anchor="middle">${series}</text>
+    <text x="450" y="930" fill="#f8fafc" font-size="72" font-family="Arial" font-weight="700" text-anchor="middle">${tier}</text>
+  </svg>`;
+  return sharp(Buffer.from(svg)).jpeg({ quality: 90 }).toBuffer();
+}
+
+function escapeSvg(value: string): string {
+  return String(value).replace(/[&<>"']/g, (ch) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&apos;" }[ch]!));
 }

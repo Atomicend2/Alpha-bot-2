@@ -2,6 +2,11 @@ import type { CommandContext } from "./index.js";
 import { sendText } from "../connection.js";
 import { logger } from "../../lib/logger.js";
 import { downloadMediaMessage } from "@whiskeysockets/baileys";
+import sharp from "sharp";
+import fs from "node:fs/promises";
+import path from "node:path";
+import { spawn } from "node:child_process";
+import { randomUUID } from "node:crypto";
 
 export async function handleConverter(ctx: CommandContext): Promise<void> {
   const { from, sender, args, command: cmd, msg, sock } = ctx;
@@ -26,11 +31,16 @@ export async function handleConverter(ctx: CommandContext): Promise<void> {
             message: quoted,
           };
       const downloaded = await downloadMediaMessage(target as any, "buffer", {}, { reuploadRequest: (sock as any).updateMediaMessage });
-      const buf = Buffer.isBuffer(downloaded) ? downloaded : Buffer.from(downloaded as any);
+      const input = Buffer.isBuffer(downloaded) ? downloaded : Buffer.from(downloaded as any);
+      const buf = await sharp(input, { animated: true })
+        .resize(512, 512, { fit: "inside", withoutEnlargement: true })
+        .webp({ quality: 85 })
+        .toBuffer();
       await sock.sendMessage(from, {
         sticker: buf,
       });
     } catch (err) {
+      logger.error({ err }, "Failed to create sticker");
       await sendText(from, "❌ Failed to create sticker.");
     }
     return;
@@ -98,7 +108,78 @@ export async function handleConverter(ctx: CommandContext): Promise<void> {
   if (cmd === "play") {
     const song = args.join(" ");
     if (!song) { await sendText(from, "❌ Usage: .play <song name>"); return; }
-    await sendText(from, `🎵 Audio download for "${song}" — Audio feature coming soon!`);
+    await sendText(from, `🔎 Searching YouTube for: *${song}*`);
+    try {
+      const play = await import("play-dl");
+      const results = await play.search(song, { limit: 1 });
+      const video = results[0];
+      if (!video?.url) {
+        await sendText(from, "❌ Song not found on YouTube.");
+        return;
+      }
+      const title = video.title || song;
+      const duration = video.durationRaw || "Unknown";
+      const channel = video.channel?.name || "Unknown channel";
+      const thumbnail = video.thumbnails?.[0]?.url;
+      const info = `🎵 *${title}*\n\n👤 Channel: ${channel}\n⏱️ Duration: ${duration}\n🔗 ${video.url}\n\n⬇️ Converting to audio...`;
+      if (thumbnail) {
+        await sock.sendMessage(from, { image: { url: thumbnail }, caption: info });
+      } else {
+        await sendText(from, info);
+      }
+      const streamInfo = await play.stream(video.url, { quality: 2 });
+      const sourceBuffer = await readStream(streamInfo.stream as any);
+      const mp3 = await convertToMp3(sourceBuffer);
+      await sock.sendMessage(from, {
+        audio: mp3,
+        mimetype: "audio/mpeg",
+        fileName: `${sanitizeFileName(title)}.mp3`,
+      });
+    } catch (err: any) {
+      logger.error({ err, song }, "Failed to play YouTube audio");
+      await sendText(from, `❌ Failed to fetch audio: ${err?.message || "YouTube request failed"}`);
+    }
     return;
   }
+}
+
+async function readStream(stream: NodeJS.ReadableStream): Promise<Buffer> {
+  const chunks: Buffer[] = [];
+  for await (const chunk of stream as any) {
+    chunks.push(Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk));
+  }
+  return Buffer.concat(chunks);
+}
+
+async function convertToMp3(input: Buffer): Promise<Buffer> {
+  const dir = path.join(process.cwd(), "data", "tmp");
+  await fs.mkdir(dir, { recursive: true });
+  const id = randomUUID();
+  const inputPath = path.join(dir, `${id}.input`);
+  const outputPath = path.join(dir, `${id}.mp3`);
+  await fs.writeFile(inputPath, input);
+  try {
+    await runFfmpeg(["-y", "-i", inputPath, "-vn", "-ar", "44100", "-ac", "2", "-b:a", "128k", outputPath]);
+    return await fs.readFile(outputPath);
+  } finally {
+    await fs.rm(inputPath, { force: true }).catch(() => {});
+    await fs.rm(outputPath, { force: true }).catch(() => {});
+  }
+}
+
+function runFfmpeg(args: string[]): Promise<void> {
+  return new Promise((resolve, reject) => {
+    const child = spawn("ffmpeg", args, { stdio: ["ignore", "ignore", "pipe"] });
+    let stderr = "";
+    child.stderr.on("data", (chunk) => { stderr += chunk.toString(); });
+    child.on("error", reject);
+    child.on("close", (code) => {
+      if (code === 0) resolve();
+      else reject(new Error(stderr.slice(-500) || `ffmpeg exited with ${code}`));
+    });
+  });
+}
+
+function sanitizeFileName(name: string): string {
+  return name.replace(/[\\/:*?"<>|]/g, "").slice(0, 80) || "audio";
 }

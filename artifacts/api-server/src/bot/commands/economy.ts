@@ -9,9 +9,10 @@ import { formatNumber, timeAgo } from "../utils.js";
 const DAILY_AMOUNT = 1000;
 const DAILY_COOLDOWN = 86400;
 const WORK_COOLDOWN = 3600;
-const DIG_COOLDOWN = 1800;
-const FISH_COOLDOWN = 1800;
+const DIG_COOLDOWN = 120;
+const FISH_COOLDOWN = 120;
 const BEG_COOLDOWN = 300;
+const DIG_FISH_DAILY_LIMIT = 20;
 
 const WORK_JOBS = [
   "You coded for 8 hours straight",
@@ -27,9 +28,9 @@ const WORK_JOBS = [
 const DIG_FINDS = [
   { item: "Ancient Coin", value: 200 },
   { item: "Rusty Sword", value: 300 },
-  { item: "Buried Treasure", value: 1000 },
+  { item: "Buried Treasure", value: 376 },
   { item: "Old Ring", value: 150 },
-  { item: "Gem Fragment", value: 500 },
+  { item: "Gem Fragment", value: 350 },
   { item: "Nothing", value: 0 },
   { item: "Worm", value: 10 },
 ];
@@ -37,10 +38,10 @@ const DIG_FINDS = [
 const FISH_CATCHES = [
   { item: "Common Fish", value: 50 },
   { item: "Rare Fish", value: 200 },
-  { item: "Legendary Fish", value: 1000 },
+  { item: "Legendary Fish", value: 376 },
   { item: "Boot", value: 5 },
   { item: "Trash Bag", value: 1 },
-  { item: "Pearl", value: 500 },
+  { item: "Pearl", value: 350 },
   { item: "Nothing", value: 0 },
 ];
 
@@ -176,18 +177,26 @@ export async function handleEconomy(ctx: CommandContext): Promise<void> {
   }
 
   if (cmd === "cds") {
+    const digUsage = getDailyUsage(user, "dig", now);
+    const fishUsage = getDailyUsage(user, "fish", now);
+    const gambleDay = new Date(now * 1000).toISOString().slice(0, 10);
+    const gambleUses = user.gamble_date === gambleDay ? Number(user.gamble_uses || 0) : 0;
     const cooldowns = [
       ["Daily", DAILY_COOLDOWN, user.last_daily || 0],
       ["Work", WORK_COOLDOWN, user.last_work || 0],
       ["Dig", DIG_COOLDOWN, user.last_dig || 0],
       ["Fish", FISH_COOLDOWN, user.last_fish || 0],
       ["Beg", BEG_COOLDOWN, user.last_beg || 0],
+      ["Gamble", 420, user.last_gamble || 0],
     ];
     let text = `╔═ ❰ ⏳ 𝗖𝗢𝗢𝗟𝗗𝗢𝗪𝗡𝗦 ❱ ═╗\n║ @${sender.split("@")[0]}\n║\n`;
     for (const [name, cooldown, last] of cooldowns) {
       const remaining = Math.max(0, Number(cooldown) - (now - Number(last)));
       text += `║ ➩ ${name}: ${remaining > 0 ? formatDuration(remaining) : "Ready"}\n`;
     }
+    text += `║\n║ ⛏️ Dig uses: ${digUsage.count}/${DIG_FISH_DAILY_LIMIT}\n`;
+    text += `║ 🎣 Fish uses: ${fishUsage.count}/${DIG_FISH_DAILY_LIMIT}\n`;
+    text += `║ 🎰 Gamble uses: ${gambleUses}/20\n`;
     text += "╚══════════════════╝";
     await sendText(from, text, [sender]);
     return;
@@ -377,6 +386,11 @@ export async function handleEconomy(ctx: CommandContext): Promise<void> {
   }
 
   if (cmd === "dig") {
+    const usage = getDailyUsage(user, "dig", now);
+    if (usage.count >= DIG_FISH_DAILY_LIMIT) {
+      await sendText(from, `⛔ Daily dig limit reached (${DIG_FISH_DAILY_LIMIT}/day). Try again tomorrow.`);
+      return;
+    }
     const lastDig = user.last_dig || 0;
     const diff = now - lastDig;
     if (diff < DIG_COOLDOWN) {
@@ -384,16 +398,24 @@ export async function handleEconomy(ctx: CommandContext): Promise<void> {
       return;
     }
     const find = DIG_FINDS[Math.floor(Math.random() * DIG_FINDS.length)];
+    const value = Math.min(376, find.value);
     updateUser(sender, {
-      balance: (user.balance || 0) + find.value,
+      balance: (user.balance || 0) + value,
       last_dig: now,
+      dig_uses: usage.count + 1,
+      dig_date: usage.day,
     });
-    if (find.value > 0) addToInventory(sender, find.item);
-    await sendText(from, `⛏️ You dug and found: *${find.item}*!\n${find.value > 0 ? `+$${formatNumber(find.value)}` : "Nothing of value..."}`);
+    if (value > 0) addToInventory(sender, find.item);
+    await sendText(from, `⛏️ You dug and found: *${find.item}*!\n${value > 0 ? `+$${formatNumber(value)}` : "Nothing of value..."}\nUses today: ${usage.count + 1}/${DIG_FISH_DAILY_LIMIT}`);
     return;
   }
 
   if (cmd === "fish") {
+    const usage = getDailyUsage(user, "fish", now);
+    if (usage.count >= DIG_FISH_DAILY_LIMIT) {
+      await sendText(from, `⛔ Daily fish limit reached (${DIG_FISH_DAILY_LIMIT}/day). Try again tomorrow.`);
+      return;
+    }
     const lastFish = user.last_fish || 0;
     const diff = now - lastFish;
     if (diff < FISH_COOLDOWN) {
@@ -401,12 +423,15 @@ export async function handleEconomy(ctx: CommandContext): Promise<void> {
       return;
     }
     const catch_ = FISH_CATCHES[Math.floor(Math.random() * FISH_CATCHES.length)];
+    const value = Math.min(376, catch_.value);
     updateUser(sender, {
-      balance: (user.balance || 0) + catch_.value,
+      balance: (user.balance || 0) + value,
       last_fish: now,
+      fish_uses: usage.count + 1,
+      fish_date: usage.day,
     });
-    if (catch_.value > 0) addToInventory(sender, catch_.item);
-    await sendText(from, `🎣 You fished and caught: *${catch_.item}*!\n${catch_.value > 0 ? `+$${formatNumber(catch_.value)}` : "Better luck next time..."}`);
+    if (value > 0) addToInventory(sender, catch_.item);
+    await sendText(from, `🎣 You fished and caught: *${catch_.item}*!\n${value > 0 ? `+$${formatNumber(value)}` : "Better luck next time..."}\nUses today: ${usage.count + 1}/${DIG_FISH_DAILY_LIMIT}`);
     return;
   }
 
@@ -474,4 +499,14 @@ function formatDuration(secs: number): string {
   if (secs < 60) return `${secs}s`;
   if (secs < 3600) return `${Math.floor(secs / 60)}m ${secs % 60}s`;
   return `${Math.floor(secs / 3600)}h ${Math.floor((secs % 3600) / 60)}m`;
+}
+
+function getDailyUsage(user: any, type: "dig" | "fish", now: number): { day: string; count: number } {
+  const day = new Date(now * 1000).toISOString().slice(0, 10);
+  const dateKey = `${type}_date`;
+  const usesKey = `${type}_uses`;
+  return {
+    day,
+    count: user[dateKey] === day ? Number(user[usesKey] || 0) : 0,
+  };
 }

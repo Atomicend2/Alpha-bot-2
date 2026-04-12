@@ -8,6 +8,7 @@ import {
   updateTradeStatus, createSellOffer, getPendingSellOffer, updateSellOfferStatus,
 } from "../db/queries.js";
 import { getTierEmoji, formatNumber, generateId } from "../utils.js";
+import sharp from "sharp";
 
 export async function handleCards(ctx: CommandContext): Promise<void> {
   const { from, sender, args, command: cmd, msg, sock } = ctx;
@@ -36,14 +37,10 @@ export async function handleCards(ctx: CommandContext): Promise<void> {
       return;
     }
     const c = cards[idx];
-    if (c.image_data) {
-      const buf = Buffer.isBuffer(c.image_data) ? c.image_data : Buffer.from(c.image_data);
-      await sendImage(sock as any, from, buf,
-        `${getTierEmoji(c.tier)} *${c.name}*\n📦 ${c.series} | Tier: ${c.tier}\n⚔️ ATK: ${c.attack} | 🛡️ DEF: ${c.defense} | 💨 SPD: ${c.speed}\n🆔 \`${c.id}\``
-      );
-    } else {
-      await sendText(from, `${getTierEmoji(c.tier)} *${c.name}*\n📦 ${c.series} | Tier: ${c.tier}\n⚔️ ATK: ${c.attack} | 🛡️ DEF: ${c.defense} | 💨 SPD: ${c.speed}\n🆔 \`${c.id}\``);
-    }
+    const buf = await getCardImageBuffer(c);
+    await sendImage(from, buf,
+      `${getTierEmoji(c.tier)} *${c.name}*\n📦 ${c.series} | Tier: ${c.tier}\n⚔️ ATK: ${c.attack} | 🛡️ DEF: ${c.defense} | 💨 SPD: ${c.speed}\n🆔 \`${c.id}\``
+    );
     return;
   }
 
@@ -55,16 +52,10 @@ export async function handleCards(ctx: CommandContext): Promise<void> {
       c.name.toLowerCase().includes(name.toLowerCase()) && (!tier || c.tier === tier)
     );
     if (!found) { await sendText(from, "❌ Card not found."); return; }
-    if (found.image_data) {
-      const buf = Buffer.isBuffer(found.image_data) ? found.image_data : Buffer.from(found.image_data);
-      await sendImage(sock as any, from, buf,
-        `${getTierEmoji(found.tier)} *${found.name}*\n📦 ${found.series} | Tier: ${found.tier}\n${found.description}\n⚔️ ATK: ${found.attack} | 🛡️ DEF: ${found.defense} | 💨 SPD: ${found.speed}\n🆔 \`${found.id}\``
-      );
-    } else {
-      await sendText(from,
-        `${getTierEmoji(found.tier)} *${found.name}*\n📦 ${found.series} | Tier: ${found.tier}\n${found.description}\n⚔️ ATK: ${found.attack} | 🛡️ DEF: ${found.defense} | 💨 SPD: ${found.speed}\n🆔 \`${found.id}\``
-      );
-    }
+    const buf = await getCardImageBuffer(found);
+    await sendImage(from, buf,
+      `${getTierEmoji(found.tier)} *${found.name}*\n📦 ${found.series} | Tier: ${found.tier}\n${found.description || ""}\n⚔️ ATK: ${found.attack} | 🛡️ DEF: ${found.defense} | 💨 SPD: ${found.speed}\n🆔 \`${found.id}\``
+    );
     return;
   }
 
@@ -345,4 +336,24 @@ export async function handleCards(ctx: CommandContext): Promise<void> {
     await sendText(from, "❌ No pending offer found.");
     return;
   }
+}
+
+async function getCardImageBuffer(card: any): Promise<Buffer> {
+  if (card.image_data) {
+    return Buffer.isBuffer(card.image_data) ? card.image_data : Buffer.from(card.image_data);
+  }
+  const svg = `<svg width="900" height="1260" xmlns="http://www.w3.org/2000/svg">
+    <defs><linearGradient id="bg" x1="0" y1="0" x2="1" y2="1"><stop offset="0%" stop-color="#111827"/><stop offset="55%" stop-color="#312e81"/><stop offset="100%" stop-color="#020617"/></linearGradient></defs>
+    <rect width="900" height="1260" rx="42" fill="url(#bg)"/>
+    <rect x="54" y="54" width="792" height="1152" rx="32" fill="none" stroke="#eab308" stroke-width="10"/>
+    <text x="450" y="210" fill="#f8fafc" font-size="64" font-family="Arial" font-weight="700" text-anchor="middle">ALPHA CARD</text>
+    <text x="450" y="560" fill="#fde68a" font-size="82" font-family="Arial" font-weight="700" text-anchor="middle">${escapeSvg(card.name || "Unknown Card")}</text>
+    <text x="450" y="680" fill="#dbeafe" font-size="48" font-family="Arial" text-anchor="middle">${escapeSvg(card.series || "General")}</text>
+    <text x="450" y="930" fill="#f8fafc" font-size="72" font-family="Arial" font-weight="700" text-anchor="middle">${escapeSvg(card.tier || "T?")}</text>
+  </svg>`;
+  return sharp(Buffer.from(svg)).jpeg({ quality: 90 }).toBuffer();
+}
+
+function escapeSvg(value: string): string {
+  return String(value).replace(/[&<>"']/g, (ch) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&apos;" }[ch]!));
 }

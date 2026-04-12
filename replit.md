@@ -31,6 +31,11 @@ pnpm workspace monorepo using TypeScript. Each package manages its own dependenc
 - Bot command responses are quoted to the command message where possible so the user can see who the reply is for.
 - Card uploads use `.upload T<tier> <name>. <series>` while replying to an image/sticker.
 - The menu sends the uploaded image as its header image with the Shadow Garden command styling.
+- Card spawns and `.card`/`.cardinfo` always send an image; old cards without stored images get a generated Alpha card placeholder.
+- Spawned cards can be claimed with either `.get <card_id>` or plain `get <card_id>`.
+- `.s` converts image replies/captions to webp stickers before sending.
+- `.play <song>` searches YouTube, sends song details with thumbnail, converts the audio to MP3 with ffmpeg, then sends it as an audio file.
+- Dig/fish rewards are capped at 376 coins, have 2-minute cooldowns, and are limited to 20 uses per day. Gambling has a 20-use daily limit and per-command cooldowns up to 7 minutes for casino.
 
 ## Key Commands
 
