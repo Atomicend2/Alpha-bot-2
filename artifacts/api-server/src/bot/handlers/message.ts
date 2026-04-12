@@ -507,6 +507,8 @@ async function dispatch(ctx: CommandContext): Promise<void> {
     case "join":
     case "setms":
     case "delms":
+    case "setpp":
+    case "setbg":
     case "exit":
     case "show":
     case "dc":

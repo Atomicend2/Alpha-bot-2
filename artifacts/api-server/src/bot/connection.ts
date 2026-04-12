@@ -33,6 +33,7 @@ let sock: WASocket | null = null;
 let isConnected = false;
 let pairingCode: string | null = null;
 let reconnectAttempts = 0;
+let ignoreMessagesBeforeMs = Math.floor(Date.now() / 1000) * 1000;
 const MAX_RECONNECT_DELAY = 30000;
 const replyContext = new AsyncLocalStorage<any>();
 
@@ -159,6 +160,7 @@ export async function connectToWhatsApp(phoneNumber?: string, options: ConnectOp
       isConnected = true;
       reconnectAttempts = 0;
       pairingCode = null;
+      ignoreMessagesBeforeMs = Math.floor(Date.now() / 1000) * 1000;
       logger.info("Connected to WhatsApp successfully");
     } else if (connection === "connecting") {
       logger.info("Connecting to WhatsApp...");
@@ -168,6 +170,19 @@ export async function connectToWhatsApp(phoneNumber?: string, options: ConnectOp
   sock.ev.on("messages.upsert", async (m) => {
     for (const msg of m.messages) {
       if (!msg.message) continue;
+      const sentAtMs = getMessageTimestampMs(msg);
+      if (sentAtMs > 0 && sentAtMs < ignoreMessagesBeforeMs) {
+        logger.info(
+          {
+            from: msg.key.remoteJid,
+            id: msg.key.id,
+            sentAt: new Date(sentAtMs).toISOString(),
+            onlineSince: new Date(ignoreMessagesBeforeMs).toISOString(),
+          },
+          "Ignoring WhatsApp message sent while bot was offline"
+        );
+        continue;
+      }
       try {
         await handleMessage(sock!, msg);
       } catch (err) {
@@ -213,4 +228,15 @@ export async function sendImage(jid: string, imageBuffer: Buffer, caption?: stri
 export async function sendReact(jid: string, msgKey: any, emoji: string) {
   if (!sock) throw new Error("Socket not initialized");
   return sock.sendMessage(jid, { react: { text: emoji, key: msgKey } });
+}
+
+function getMessageTimestampMs(msg: any): number {
+  const raw = msg.messageTimestamp;
+  const seconds =
+    typeof raw === "number"
+      ? raw
+      : typeof raw === "bigint"
+        ? Number(raw)
+        : Number(raw?.low || raw || 0);
+  return seconds > 0 ? seconds * 1000 : 0;
 }

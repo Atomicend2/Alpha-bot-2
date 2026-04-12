@@ -26,6 +26,7 @@ pnpm workspace monorepo using TypeScript. Each package manages its own dependenc
 - Pairing uses Baileys' latest fetched WhatsApp Web version and advertises the login device as Chrome on Ubuntu so WhatsApp can show the expected linked-device notification.
 - Saved WhatsApp auth lives under the workspace `data/auth` directory and is reused across workflow restarts.
 - Restart validation on 2026-04-12 confirmed the bot reconnected from the saved session without requesting a new pairing code.
+- On each fresh connection/reconnect, WhatsApp messages with timestamps before the bot came online are ignored so commands sent while the bot was offline are not processed later.
 
 ## Staff, Economy, and Stickers
 
@@ -40,6 +41,7 @@ pnpm workspace monorepo using TypeScript. Each package manages its own dependenc
 - Spawned cards can be claimed with either `.get <card_id>` or plain `get <card_id>`.
 - `.s` converts image replies/captions to 512×512 cropped WebP stickers with sticker name `Atomic` and pack name `𝐒𝐇𝚫𝐃𝐎𝐖 𝐆𝚫𝐑𝐃𝚵𝐍`, embedding WebP sticker metadata for sharing/favorites.
 - `.setms` saves a replied-to sticker as the sender's personal mention sticker. `.delms` removes the sender's mention sticker.
+- Owner-only `.setpp` and `.setbg` commands update the paired bot account's profile picture and business profile background from a replied image.
 - When someone tags an owner, mod, guardian, or active premium user who has a saved personal mention sticker, the bot replies with that specific user's sticker.
 - AFK messages use the red dot (`🔴`) indicator.
 - `.play <song>` searches YouTube, sends song details with thumbnail, tries the normal audio stream first, then falls back to `yt-dlp` for bot-check failures before sending MP3 audio.

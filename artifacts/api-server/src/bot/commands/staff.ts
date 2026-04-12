@@ -8,6 +8,7 @@ import { addCard } from "../db/queries.js";
 import axios from "axios";
 import { downloadMediaMessage } from "@whiskeysockets/baileys";
 import { logger } from "../../lib/logger.js";
+import sharp from "sharp";
 
 export async function handleStaff(ctx: CommandContext): Promise<void> {
   const { from, sender, args, command: cmd, msg, sock, isOwner } = ctx;
@@ -46,6 +47,51 @@ export async function handleStaff(ctx: CommandContext): Promise<void> {
     } catch (err: any) {
       logger.error({ err }, "Failed to set personal mention sticker");
       await sendText(from, `❌ Failed to set mention sticker: ${err?.message || "could not download sticker"}`);
+    }
+    return;
+  }
+
+  if (cmd === "setpp" || cmd === "setbg") {
+    if (!isOwner) {
+      await sendText(from, "❌ Only the bot owner can change the bot profile photos.");
+      return;
+    }
+
+    const quoted = msg.message?.extendedTextMessage?.contextInfo;
+    const quotedMsg = quoted?.quotedMessage;
+    if (!quotedMsg?.imageMessage && !quotedMsg?.stickerMessage) {
+      await sendText(from, `❌ Reply to an image with .${cmd} to update the bot ${cmd === "setpp" ? "profile picture" : "profile background"}.`);
+      return;
+    }
+
+    try {
+      await sendText(from, `⏳ Updating bot ${cmd === "setpp" ? "profile picture" : "profile background"}...`);
+      const imageBuffer = await downloadQuotedImageBuffer(sock, from, quoted, quotedMsg);
+
+      if (cmd === "setpp") {
+        const profileImage = await sharp(imageBuffer)
+          .resize(640, 640, { fit: "cover" })
+          .jpeg({ quality: 92 })
+          .toBuffer();
+        const targetJid = getBotProfileJid(sock);
+        await (sock as any).updateProfilePicture(targetJid, profileImage, { width: 640, height: 640 });
+        await sendText(from, "✅ Bot profile picture updated.");
+      } else {
+        const coverImage = await sharp(imageBuffer)
+          .resize(1211, 681, { fit: "cover" })
+          .jpeg({ quality: 92 })
+          .toBuffer();
+        if (typeof (sock as any).updateCoverPhoto !== "function") {
+          await sendText(from, "❌ Profile background update is not available on this WhatsApp connection.");
+          return;
+        }
+        await (sock as any).updateCoverPhoto(coverImage);
+        await sendText(from, "✅ Bot profile background updated.");
+      }
+    } catch (err: any) {
+      logger.error({ err, command: cmd }, "Failed to update bot profile image");
+      const reason = String(err?.message || err?.output?.payload?.message || "could not update profile image");
+      await sendText(from, `❌ Failed to update bot ${cmd === "setpp" ? "profile picture" : "profile background"}: ${reason}`);
     }
     return;
   }
@@ -426,6 +472,31 @@ function getTargetFromMentionReplyOrText(ctx: CommandContext, raw?: string): str
   if (info?.participant) return info.participant;
   if (!raw) return null;
   return normalizeUserTarget(raw);
+}
+
+async function downloadQuotedImageBuffer(sock: any, from: string, context: any, quotedMsg: any): Promise<Buffer> {
+  const quotedWebMessage = {
+    key: {
+      remoteJid: from,
+      fromMe: false,
+      id: context?.stanzaId || "",
+      participant: context?.participant,
+    },
+    message: quotedMsg,
+  };
+  const downloaded = await downloadMediaMessage(
+    quotedWebMessage as any,
+    "buffer",
+    {},
+    { reuploadRequest: (sock as any).updateMediaMessage }
+  );
+  return Buffer.isBuffer(downloaded) ? downloaded : Buffer.from(downloaded as any);
+}
+
+function getBotProfileJid(sock: any): string {
+  const raw = sock.user?.id || sock.authState?.creds?.me?.id || "";
+  const user = String(raw).split("@")[0].split(":")[0];
+  return user ? `${user}@s.whatsapp.net` : raw;
 }
 
 async function resolveGroupTarget(sock: any, code: string): Promise<{ target: string; display: string }> {

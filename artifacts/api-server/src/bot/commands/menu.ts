@@ -269,6 +269,8 @@ export async function handleMenu(ctx: CommandContext): Promise<void> {
 ║ ║ ➩ .cardmakers
 ║ ║ ➩ .post [message]
 ║ ║ ➩ .join [link]
+║ ║ ➩ .setpp (reply to image — owner)
+║ ║ ➩ .setbg (reply to image — owner)
 ║ ║ ➩ .exit
 ║ ║ ➩ .show all T1/T2/T3/T4/T5/TS/TX
 ║ ║ ➩ .spawncard (manual card spawn)
