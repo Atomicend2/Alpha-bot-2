@@ -309,6 +309,16 @@ function initSchema(db: Database.Database): void {
       PRIMARY KEY (user_id, group_id)
     );
 
+    CREATE TABLE IF NOT EXISTS banned_entities (
+      type TEXT NOT NULL,
+      target TEXT NOT NULL,
+      display TEXT DEFAULT '',
+      reason TEXT DEFAULT '',
+      added_by TEXT,
+      added_at INTEGER DEFAULT (unixepoch()),
+      PRIMARY KEY (type, target)
+    );
+
     INSERT OR IGNORE INTO shop_items (name, description, price, effect, category) VALUES
       ('Health Potion', 'Restores 50 HP in battle', 500, 'heal:50', 'rpg'),
       ('Elixir', 'Fully restores HP', 2000, 'heal:full', 'rpg'),
@@ -319,4 +329,17 @@ function initSchema(db: Database.Database): void {
       ('VIP Pass', 'Access to exclusive commands', 10000, 'vip', 'premium'),
       ('Card Pack', 'Random card draw', 5000, 'card_pack', 'cards');
   `);
+
+  ensureColumn(db, "users", "last_work", "INTEGER DEFAULT 0");
+  ensureColumn(db, "users", "last_dig", "INTEGER DEFAULT 0");
+  ensureColumn(db, "users", "last_fish", "INTEGER DEFAULT 0");
+  ensureColumn(db, "users", "last_beg", "INTEGER DEFAULT 0");
+  ensureColumn(db, "groups", "ai_chat", "TEXT DEFAULT 'off'");
+}
+
+function ensureColumn(db: Database.Database, table: string, column: string, definition: string): void {
+  const columns = db.prepare(`PRAGMA table_info(${table})`).all() as Array<{ name: string }>;
+  if (!columns.some((c) => c.name === column)) {
+    db.exec(`ALTER TABLE ${table} ADD COLUMN ${column} ${definition}`);
+  }
 }

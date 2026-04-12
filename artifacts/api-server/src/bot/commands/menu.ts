@@ -1,6 +1,4 @@
 import type { CommandContext } from "./index.js";
-import { sendText } from "../connection.js";
-import { getSocket } from "../connection.js";
 import fs from "fs";
 import path from "path";
 import { fileURLToPath } from "url";
@@ -14,7 +12,7 @@ export async function handleMenu(ctx: CommandContext): Promise<void> {
   const menuText = `┌─⟡ 『 𝗦𝗛𝗔𝗗𝗢𝗪 𝗚𝗔𝗥𝗗𝗘𝗡 』⟡
 ║
 ║ ┌────────────────────
-║ ║ 👋 𝗛𝗲𝘆    : @${senderName}
+║ ║ 👋 𝗛𝗲𝘆     : @${senderName}
 ║ ║ 👾 𝗕𝗼𝘁     : Alpha
 ║ ║ 👑 𝗖𝗿𝗲𝗮𝘁𝗼𝗿 : Ryuk
 ║ ║ 🔹 𝗣𝗿𝗲𝗳𝗶𝘅  : [ . ]
@@ -24,6 +22,8 @@ export async function handleMenu(ctx: CommandContext): Promise<void> {
 ║ ┌────────────────────
 ║ ║ ➩ .menu
 ║ ║ ➩ .ping
+║ ║ ➩ .website
+║ ║ ➩ .community
 ║ ║ ➩ .afk
 ║ ║ ➩ .help
 ║ ║ ➩ .info
@@ -32,58 +32,129 @@ export async function handleMenu(ctx: CommandContext): Promise<void> {
 ║
 ╠─⟡ ⚙️ 𝗔𝗗𝗠𝗜𝗡
 ║ ┌────────────────────
-║ ║ ➩ .kick | .delete
-║ ║ ➩ .antilink [on/off]
+║ ║ ➩ .kick
+║ ║ ➩ .delete
+║ ║ ➩ .antilink
+║ ║ ➩ .antilink set [action]
 ║ ║ ➩ .warn @user [reason]
-║ ║ ➩ .resetwarn | .groupstats
-║ ║ ➩ .welcome on/off | .leave on/off
-║ ║ ➩ .promote | .demote
-║ ║ ➩ .mute | .unmute | .open | .close
-║ ║ ➩ .tagall | .hidetag [msg]
-║ ║ ➩ .active | .inactive | .activity
-║ ║ ➩ .blacklist add/remove/list
+║ ║ ➩ .resetwarn
+║ ║ ➩ .groupinfo / .gi
+║ ║ ➩ .welcome on/off
+║ ║ ➩ .setwelcome
+║ ║ ➩ .leave on/off
+║ ║ ➩ .setleave
+║ ║ ➩ .promote
+║ ║ ➩ .demote
+║ ║ ➩ .mute
+║ ║ ➩ .unmute
+║ ║ ➩ .hidetag
+║ ║ ➩ .tagall
+║ ║ ➩ .activity
+║ ║ ➩ .active
+║ ║ ➩ .inactive
+║ ║ ➩ .open
+║ ║ ➩ .close
+║ ║ ➩ .purge [code]
+║ ║ ➩ .antism on/off
+║ ║ ➩ .blacklist add [word]
+║ ║ ➩ .blacklist remove [word]
+║ ║ ➩ .blacklist list
+║ ║ ➩ .groupstats / .gs
 ║ └────────────────────
 ║
 ╠─⟡ 💰 𝗘𝗖𝗢𝗡𝗢𝗠𝗬
 ║ ┌────────────────────
-║ ║ ➩ .bal | .daily | .work
-║ ║ ➩ .dig | .fish | .beg
-║ ║ ➩ .dep | .wid | .donate
-║ ║ ➩ .shop | .buy | .sell | .use
-║ ║ ➩ .inventory | .profile
-║ ║ ➩ .register | .leaderboard
-║ ║ ➩ .richlist | .richlg
+║ ║ ➩ .bal / .balance
+║ ║ ➩ .gems
+║ ║ ➩ .premiumbal / .pbal
+║ ║ ➩ .premium / .prem
+║ ║ ➩ .membership / .memb
+║ ║ ➩ .daily
+║ ║ ➩ .withdraw / .wid [amount]
+║ ║ ➩ .deposit / .dep [amount]
+║ ║ ➩ .donate [amount]
+║ ║ ➩ .lottery
+║ ║ ➩ .lp (lottery pool)
+║ ║ ➩ .richlist
+║ ║ ➩ .richlistglobal / .richlg
+║ ║ ➩ .register / .reg
+║ ║ ➩ .setname <name>
+║ ║ ➩ .profile / .p
+║ ║ ➩ .bio [bio]
+║ ║ ➩ .setage [age]
+║ ║ ➩ .inventory / .inv
+║ ║ ➩ .use [item name]
+║ ║ ➩ .sell [item name]
+║ ║ ➩ .buy [item name]
+║ ║ ➩ .shop
+║ ║ ➩ .leaderboard / .lb
+║ ║ ➩ .work
+║ ║ ➩ .dig
+║ ║ ➩ .fish
+║ ║ ➩ .beg
+║ ║ ➩ .roast
+║ ║ ➩ .cds
+║ ║ ➩ .stats
+║ ║ ➩ .lc (lent cash / lend card)
+║ ║ ➩ .bc (borrowed cash)
 ║ └────────────────────
 ║
 ╠─⟡ 🎴 𝗖𝗔𝗥𝗗𝗦
 ║ ┌────────────────────
-║ ║ ➩ .collection | .deck
-║ ║ ➩ .get [id] | .card [#]
-║ ║ ➩ .cardinfo [name] [tier]
-║ ║ ➩ .ctd [card #] | .vs @user
-║ ║ ➩ .auction | .listauc | .myauc
-║ ║ ➩ .cg @user [card #] (gift)
-║ ║ ➩ .lc @user [card #] (lend)
-║ ║ ➩ .lcd | .retrieve
+║ ║ ➩ .collection / .coll
+║ ║ ➩ .deck
+║ ║ ➩ .sdi (set deck background)
+║ ║ ➩ .card [index]
+║ ║ ➩ .cardinfo / .ci [name] [tier]
+║ ║ ➩ .mycollectionseries / .mycolls
+║ ║ ➩ .cardleaderboard / .cardlb
+║ ║ ➩ .cardshop
+║ ║ ➩ .get [id]
+║ ║ ➩ .stardust
+║ ║ ➩ .vs @user
+║ ║ ➩ .auction [card_id] [price]
+║ ║ ➩ .myauc
+║ ║ ➩ .listauc
+║ ║ ➩ .cg @user [card #] (gift card)
+║ ║ ➩ .spawncard
+║ ║ ➩ .ctd [card #] (add to deck)
+║ ║ ➩ .ctd remove [slot] / .ctd clear
+║ ║ ➩ .lc @user [card #] (lend card)
+║ ║ ➩ .lcd (lent cards)
+║ ║ ➩ .retrieve (get cards back)
 ║ ║ ➩ .sellc @user [card #] [price]
-║ ║ ➩ .tc [card #] [their #] (trade)
-║ ║ ➩ .accept | .decline
+║ ║ ➩ .tc [card #] [their #] (reply)
+║ ║ ➩ .accept / .decline (offers)
 ║ └────────────────────
 ║
 ╠─⟡ 🎮 𝗚𝗔𝗠𝗘𝗦
 ║ ┌────────────────────
-║ ║ ➩ .ttt @user | .c4 @user
-║ ║ ➩ .wcg start | .joinwcg | .wcg go
+║ ║ ➩ .tictactoe / .ttt @user
+║ ║ ➩ .connectfour / .c4 @user
+║ ║ ➩ .wcg start / .joinwcg / .wcg go
+║ ║ ➩ .wordchain / .wcg (solo)
 ║ ║ ➩ .startbattle @user
-║ ║ ➩ .uno | .startuno
-║ ║ ➩ .truthordare | .truth | .dare
+║ ║ ➩ .truthordare / .td
 ║ ║ ➩ .stopgame
+║ └────────────────────
+║
+╠─⟡ 🃏 𝗨𝗡𝗢
+║ ┌────────────────────
+║ ║ ➩ .uno
+║ ║ ➩ .startuno
+║ ║ ➩ .unoplay [number]
+║ ║ ➩ .unodraw
+║ ║ ➩ .unohand
 ║ └────────────────────
 ║
 ╠─⟡ 🎲 𝗚𝗔𝗠𝗕𝗟𝗘
 ║ ┌────────────────────
-║ ║ ➩ .slots | .dice | .casino
-║ ║ ➩ .cf [h/t] [amount]
+║ ║ ➩ .slots [amount]
+║ ║ ➩ .dice [amount]
+║ ║ ➩ .casino [amount]
+║ ║ ➩ .coinflip / .cf [h/t] [amount]
+║ ║ ➩ .doublebet / .db [amount]
+║ ║ ➩ .doublepayout / .dp [amount]
 ║ ║ ➩ .roulette [color] [amount]
 ║ ║ ➩ .horse [1-4] [amount]
 ║ ║ ➩ .spin [amount]
@@ -91,48 +162,124 @@ export async function handleMenu(ctx: CommandContext): Promise<void> {
 ║
 ╠─⟡ 👤 𝗜𝗡𝗧𝗘𝗥𝗔𝗖𝗧𝗜𝗢𝗡
 ║ ┌────────────────────
-║ ║ ➩ .hug | .kiss | .slap | .pat
-║ ║ ➩ .punch | .kill | .bonk
-║ ║ ➩ .wave | .dance | .sad | .laugh
+║ ║ ➩ .hug @user
+║ ║ ➩ .kiss @user
+║ ║ ➩ .slap @user
+║ ║ ➩ .wave
+║ ║ ➩ .pat @user
+║ ║ ➩ .dance
+║ ║ ➩ .sad
+║ ║ ➩ .smile
+║ ║ ➩ .laugh
+║ ║ ➩ .punch @user
+║ ║ ➩ .kill @user
+║ ║ ➩ .hit @user
+║ ║ ➩ .kidnap @user
+║ ║ ➩ .lick @user
+║ ║ ➩ .bonk @user
+║ ║ ➩ .tickle @user
+║ ║ ➩ .shrug
 ║ └────────────────────
 ║
 ╠─⟡ 🎉 𝗙𝗨𝗡
 ║ ┌────────────────────
-║ ║ ➩ .gay | .simp | .match @user
-║ ║ ➩ .ship @user | .character
-║ ║ ➩ .pov | .joke | .wyr
-║ ║ ➩ .truth | .dare | .td
+║ ║ ➩ .gay
+║ ║ ➩ .lesbian
+║ ║ ➩ .simp
+║ ║ ➩ .match @user
+║ ║ ➩ .ship @user
+║ ║ ➩ .character
+║ ║ ➩ .psize / .pp
+║ ║ ➩ .skill
+║ ║ ➩ .duality
+║ ║ ➩ .gen
+║ ║ ➩ .pov
+║ ║ ➩ .social
+║ ║ ➩ .relation
+║ ║ ➩ .wouldyourather / .wyr
+║ ║ ➩ .joke
+║ ║ ➩ .truth
+║ ║ ➩ .dare
+║ ║ ➩ .truthordare / .td
 ║ └────────────────────
 ║
 ╠─⟡ ⚔️ 𝗥𝗣𝗚
 ║ ┌────────────────────
-║ ║ ➩ .rpg | .class [name]
-║ ║ ➩ .adventure | .quest
-║ ║ ➩ .dungeon | .raid | .heal
+║ ║ ➩ .adventure
+║ ║ ➩ .rpg
+║ ║ ➩ .dungeon
+║ ║ ➩ .heal
+║ ║ ➩ .quest
+║ ║ ➩ .raid
+║ ║ ➩ .class
 ║ └────────────────────
 ║
 ╠─⟡ 🤖 𝗔𝗜
 ║ ┌────────────────────
 ║ ║ ➩ .ai / .gpt [question]
-║ ║ ➩ .translate [lang] [text]
+║ ║ ➩ .translate / .tt [lang] [text]
 ║ ║ ➩ .chat on/off
+║ └────────────────────
+║
+╠─⟡ 🔄 𝗖𝗢𝗡𝗩𝗘𝗥𝗧𝗘𝗥
+║ ┌────────────────────
+║ ║ ➩ .sticker / .s
+║ ║ ➩ .take <pack>, <name> (rename sticker)
+║ ║ ➩ .toimg / .turnimg
+║ ║ ➩ .play <song name>
+║ ║ ➩ .speech <text> (reply to img/sticker to add text)
+║ ║ ➩ .mood <tag> (upload mood sticker)
+║ ║ ➩ .pintimg <query> (9 Pinterest images)
+║ └────────────────────
+║
+╠─⟡ ☀️ 𝗦𝗨𝗠𝗠𝗘𝗥 𝗘𝗩𝗘𝗡𝗧
+║ ┌────────────────────
+║ ║ ➩ .summer
+║ ║ ➩ .token check
+║ ║ ➩ .token shop
+║ ║ ➩ .token buy [#]
+║ ║ ➩ .token top
 ║ └────────────────────
 ║
 ╠─⟡ 🏰 𝗚𝗨𝗜𝗟𝗗𝗦
 ║ ┌────────────────────
-║ ║ ➩ .guild create [name] (Lv 20)
-║ ║ ➩ .guild join/leave/info/list
+║ ║ ➩ .guild create [name] (Lvl 20)
+║ ║ ➩ .guild join [name]
+║ ║ ➩ .guild leave
+║ ║ ➩ .guild info [name]
+║ ║ ➩ .guild list
+║ ║ ➩ .guild desc [text] (owner)
+║ ║ ➩ .guild kick @user (owner)
+║ ║ ➩ .guild disband (owner)
 ║ └────────────────────
 ║
-╠─⟡ ☀️ 𝗦𝗨𝗠𝗠𝗘𝗥
+╠─⟡ 👑 𝗦𝗧𝗔𝗙𝗙 / 𝗠𝗢𝗗𝗦 / 𝗚𝗨𝗔𝗥𝗗𝗜𝗔𝗡𝗦
 ║ ┌────────────────────
-║ ║ ➩ .summer | .token check
-║ ║ ➩ .token shop | .token buy [#]
+║ ║ ➩ .addmod @user
+║ ║ ➩ .addguardian @user
+║ ║ ➩ .recruit @user
+║ ║ ➩ .ban <number>
+║ ║ ➩ .unban <number>
+║ ║ ➩ .ban <gc link>
+║ ║ ➩ .unban <gc link>
+║ ║ ➩ .banlist
+║ ║ ➩ .addpremium @user (owner)
+║ ║ ➩ .removepremium @user (owner)
+║ ║ ➩ .modlist
+║ ║ ➩ .cardmakers
+║ ║ ➩ .post [message]
+║ ║ ➩ .join [link]
+║ ║ ➩ .exit
+║ ║ ➩ .show all T1/T2/T3/T4/T5/TS/TX
+║ ║ ➩ .spawncard (manual card spawn)
+║ ║ ➩ .dc (delete card — reply to spawn)
+║ ║ ➩ .ac <amount> <number> (add cash)
+║ ║ ➩ .rc <amount> <number> (remove cash)
 ║ └────────────────────
 ║
 ╚─⟡ 🛡️ 𝑃𝑜𝑤𝑒𝑟 𝑏𝑒𝑙𝑜𝑛𝑔𝑠 𝑡𝑜 𝑡ℎ𝑜𝑠𝑒 𝑤ℎ𝑜 𝑟𝑢𝑙𝑒 𝑡ℎ𝑒 𝑠ℎ𝑎𝑑𝑜𝑤𝑠.`;
 
-  const imagePath = path.join(__dirname, "../menu-image.jpg");
+  const imagePath = path.join(__dirname, "menu-image.jpg");
 
   try {
     if (fs.existsSync(imagePath)) {
@@ -148,7 +295,7 @@ export async function handleMenu(ctx: CommandContext): Promise<void> {
         mentions: [sender],
       });
     }
-  } catch (err) {
+  } catch {
     await sock.sendMessage(from, {
       text: menuText,
       mentions: [sender],

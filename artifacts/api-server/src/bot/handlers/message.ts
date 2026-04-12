@@ -1,6 +1,6 @@
 import type { WASocket, proto } from "@whiskeysockets/baileys";
 import { BOT_OWNER_LID, PREFIX, sendText } from "../connection.js";
-import { ensureUser, ensureGroup, incrementMessageCount, getStaff } from "../db/queries.js";
+import { ensureUser, ensureGroup, incrementMessageCount, getStaff, isBanned } from "../db/queries.js";
 import { checkAntilink, checkAntispam, checkBlacklist } from "./antispam.js";
 import { checkAutoSpawn, handleGetCard } from "./cardspawn.js";
 import { checkAfkMention, handleAfk } from "../commands/afk.js";
@@ -38,6 +38,12 @@ export async function handleMessage(
   const sender = senderRaw;
 
   if (!sender) return;
+
+  if (isBanned("user", sender)) return;
+  if (isGroup && isBanned("group", from)) {
+    await sock.groupLeave(from).catch(() => {});
+    return;
+  }
 
   const msgType = Object.keys(msg.message)[0];
   const body =
@@ -221,7 +227,6 @@ async function dispatch(ctx: CommandContext): Promise<void> {
     case "gi":
     case "groupstats":
     case "gs":
-    case "addmod":
       return handleAdmin(ctx);
 
     case "balance":
@@ -414,6 +419,7 @@ async function dispatch(ctx: CommandContext): Promise<void> {
       return handleGuilds(ctx);
 
     case "addguardian":
+    case "addmod":
     case "recruit":
     case "addpremium":
     case "removepremium":
@@ -427,6 +433,9 @@ async function dispatch(ctx: CommandContext): Promise<void> {
     case "ac":
     case "rc":
     case "upload":
+    case "ban":
+    case "unban":
+    case "banlist":
       return handleStaff(ctx);
 
     case "cds":

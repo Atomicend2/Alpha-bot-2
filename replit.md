@@ -21,6 +21,13 @@ pnpm workspace monorepo using TypeScript. Each package manages its own dependenc
 - On startup, the WhatsApp bot prompts in the server console for a phone number when no saved auth session exists and `BOT_PHONE_NUMBER` is not set.
 - API-triggered bot starts do not prompt for console input; pass a phone number in the request body or use the console startup prompt.
 - Pairing uses Baileys' latest fetched WhatsApp Web version and advertises the login device as Chrome on Ubuntu so WhatsApp can show the expected linked-device notification.
+- Saved WhatsApp auth lives under the API server's `data/auth` directory and is reused across workflow restarts.
+
+## Staff and Bans
+
+- `.addmod`, `.addguardian`, and `.recruit` create global staff records shown by `.modlist`.
+- Mods and guardians can use `.ban <number>`, `.unban <number>`, `.ban <group link>`, `.unban <group link>`, and `.banlist`.
+- SQLite startup migrations add missing bot columns/tables in place so older `bot.db` files do not lose existing data.
 
 ## Key Commands
 

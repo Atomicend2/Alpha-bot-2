@@ -469,7 +469,7 @@ export function getStaff(userId: string) {
 
 export function getStaffList() {
   const db = getDb();
-  return db.prepare("SELECT * FROM staff").all() as any[];
+  return db.prepare("SELECT * FROM staff ORDER BY CASE role WHEN 'guardian' THEN 1 WHEN 'mod' THEN 2 WHEN 'recruit' THEN 3 ELSE 4 END, added_at DESC").all() as any[];
 }
 
 export function addMod(userId: string, groupId: string, addedBy: string) {
@@ -485,6 +485,34 @@ export function getMods(groupId: string) {
 export function isMod(userId: string, groupId: string) {
   const db = getDb();
   return !!db.prepare("SELECT 1 FROM mods WHERE user_id = ? AND group_id = ?").get(userId, groupId);
+}
+
+export function addBan(type: "user" | "group", target: string, display: string, reason: string, addedBy: string) {
+  const db = getDb();
+  db.prepare(`
+    INSERT INTO banned_entities (type, target, display, reason, added_by)
+    VALUES (?, ?, ?, ?, ?)
+    ON CONFLICT(type, target) DO UPDATE SET display = excluded.display, reason = excluded.reason, added_by = excluded.added_by, added_at = unixepoch()
+  `).run(type, target, display, reason, addedBy);
+}
+
+export function removeBan(type: "user" | "group", target: string) {
+  const db = getDb();
+  db.prepare("DELETE FROM banned_entities WHERE type = ? AND target = ?").run(type, target);
+}
+
+export function getBan(type: "user" | "group", target: string) {
+  const db = getDb();
+  return db.prepare("SELECT * FROM banned_entities WHERE type = ? AND target = ?").get(type, target) as any;
+}
+
+export function getBanList() {
+  const db = getDb();
+  return db.prepare("SELECT * FROM banned_entities ORDER BY added_at DESC").all() as any[];
+}
+
+export function isBanned(type: "user" | "group", target: string) {
+  return !!getBan(type, target);
 }
 
 export function getSummerTokens(userId: string) {

@@ -1,6 +1,6 @@
 import type { CommandContext } from "./index.js";
 import { sendText } from "../connection.js";
-import { addStaff, getStaffList, getStaff, ensureUser, getUser, updateUser, getCard, getAllCards } from "../db/queries.js";
+import { addStaff, getStaffList, getStaff, ensureUser, getUser, updateUser, getCard, getAllCards, addBan, removeBan, getBanList } from "../db/queries.js";
 import { getTierEmoji, isValidTier, generateId } from "../utils.js";
 import { getDb } from "../db/database.js";
 import { spawnCard } from "../handlers/cardspawn.js";
@@ -9,9 +9,72 @@ import axios from "axios";
 
 export async function handleStaff(ctx: CommandContext): Promise<void> {
   const { from, sender, args, command: cmd, msg, sock, isOwner } = ctx;
+  const staffRecord = getStaff(sender);
 
-  if (!isOwner && !getStaff(sender)) {
+  if (!isOwner && !staffRecord) {
     await sendText(from, "❌ This command requires staff access.");
+    return;
+  }
+
+  if (cmd === "ban" || cmd === "unban" || cmd === "banlist") {
+    const role = staffRecord?.role;
+    if (!isOwner && role !== "mod" && role !== "guardian") {
+      await sendText(from, "❌ Only mods, guardians, and the owner can use ban commands.");
+      return;
+    }
+
+    if (cmd === "banlist") {
+      const bans = getBanList();
+      if (bans.length === 0) {
+        await sendText(from, "✅ No banned users or groups.");
+        return;
+      }
+      const text = "╔═ ❰ 🚫 𝗕𝗔𝗡 𝗟𝗜𝗦𝗧 ❱ ═╗\n" +
+        bans.map((ban) => `║ ➩ ${ban.type.toUpperCase()}: ${ban.display || ban.target}${ban.reason ? ` — ${ban.reason}` : ""}`).join("\n") +
+        "\n╚══════════════════╝";
+      await sendText(from, text.slice(0, 3900));
+      return;
+    }
+
+    const rawTarget = args[0] || msg.message?.extendedTextMessage?.contextInfo?.mentionedJid?.[0] || "";
+    if (!rawTarget) {
+      await sendText(from, `❌ Usage: .${cmd} <number> or .${cmd} <group link>`);
+      return;
+    }
+
+    const groupCode = extractGroupInviteCode(rawTarget);
+    const reason = args.slice(1).join(" ");
+
+    if (groupCode) {
+      const groupTarget = await resolveGroupTarget(sock, groupCode);
+      if (cmd === "ban") {
+        addBan("group", groupTarget.target, groupTarget.display, reason, sender);
+        await sendText(from, `🚫 Banned group: ${groupTarget.display}`);
+        if (from === groupTarget.target) {
+          await sock.groupLeave(from).catch(() => {});
+        }
+      } else {
+        removeBan("group", groupTarget.target);
+        await sendText(from, `✅ Unbanned group: ${groupTarget.display}`);
+      }
+      return;
+    }
+
+    const userTarget = normalizeUserTarget(rawTarget);
+    if (!userTarget) {
+      await sendText(from, `❌ Usage: .${cmd} <number> or .${cmd} <group link>`);
+      return;
+    }
+
+    if (cmd === "ban") {
+      addBan("user", userTarget, `@${userTarget.split("@")[0]}`, reason, sender);
+      await sock.updateBlockStatus(userTarget, "block").catch(() => {});
+      await sendText(from, `🚫 Banned @${userTarget.split("@")[0]}.`, [userTarget]);
+    } else {
+      removeBan("user", userTarget);
+      await sock.updateBlockStatus(userTarget, "unblock").catch(() => {});
+      await sendText(from, `✅ Unbanned @${userTarget.split("@")[0]}.`, [userTarget]);
+    }
     return;
   }
 
@@ -226,5 +289,29 @@ export async function handleStaff(ctx: CommandContext): Promise<void> {
       await sendText(from, `❌ Failed to upload card: ${err.message}`);
     }
     return;
+  }
+}
+
+function normalizeUserTarget(input: string): string | null {
+  const jid = input.includes("@") ? input : "";
+  if (jid.endsWith("@s.whatsapp.net") || jid.endsWith("@lid")) return jid;
+  const digits = input.replace(/\D/g, "");
+  return digits ? `${digits}@s.whatsapp.net` : null;
+}
+
+function extractGroupInviteCode(input: string): string | null {
+  const match = input.match(/chat\.whatsapp\.com\/([A-Za-z0-9_-]+)/i);
+  return match?.[1] || null;
+}
+
+async function resolveGroupTarget(sock: any, code: string): Promise<{ target: string; display: string }> {
+  try {
+    const info = await sock.groupGetInviteInfo(code);
+    const id = String(info?.id || code);
+    const target = id.endsWith("@g.us") ? id : `${id}@g.us`;
+    const subject = info?.subject ? `${info.subject} (${code})` : code;
+    return { target, display: subject };
+  } catch {
+    return { target: `invite:${code}`, display: code };
   }
 }
