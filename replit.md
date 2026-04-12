@@ -43,7 +43,7 @@ pnpm workspace monorepo using TypeScript. Each package manages its own dependenc
 - `.setms` saves a replied-to sticker as the sender's personal mention sticker. `.delms` removes the sender's mention sticker.
 - `.setpp` and `.setbg` save a player's profile-card picture/background from a replied image or image caption; they do not change the paired WhatsApp account profile.
 - `.register` gives a $45,000 starter bonus.
-- When someone tags or replies to an owner, mod, guardian, or active premium user who has a saved personal mention sticker, the bot replies with that specific user's sticker.
+- When someone tags an owner, mod, guardian, or active premium user who has a saved personal mention sticker, the bot replies with that specific user's sticker. Replies without an explicit tag do not trigger mention stickers.
 - Interaction commands (`.hug`, `.kiss`, `.slap`, etc.) support staff GIF uploads by replying to a GIF/video/image with `.<interaction> upload`; saved GIFs persist in SQLite bot settings and are sent when that interaction is used.
 - Existing RPG databases are migrated with `last_dungeon` so `.dungeon` cooldown updates do not fail after reconnects/restarts. `.dungeon` has a 6-minute cooldown, supports multiple moves (`attack`, `guard`, `skill`, `rush`, `sneak`, `loot`, `scout`, `heal`, `focus`, `ambush`, `retreat`), and `.quest` has a 4-minute cooldown.
 - AFK messages use the red dot (`🔴`) indicator.

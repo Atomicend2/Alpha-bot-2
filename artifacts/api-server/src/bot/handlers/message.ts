@@ -62,11 +62,6 @@ export async function handleMessage(
 
   const mentionedJids: string[] =
     getContextInfo(messageContent)?.mentionedJid || [];
-  const repliedParticipant = getContextInfo(messageContent)?.participant;
-  const mentionStickerTargets = Array.from(new Set([
-    ...mentionedJids,
-    ...(repliedParticipant ? [repliedParticipant] : []),
-  ]));
 
   ensureUser(sender, msg.pushName || undefined);
   addUserXp(sender, 5);
@@ -120,10 +115,7 @@ export async function handleMessage(
 
   if (mentionedJids.length > 0) {
     await checkAfkMention(from, sender, mentionedJids, sock).catch(() => {});
-  }
-
-  if (mentionStickerTargets.length > 0) {
-    await sendMentionStickerIfNeeded(sock, from, mentionStickerTargets, normalizedMsg).catch((err) => {
+    await sendMentionStickerIfNeeded(sock, from, mentionedJids, normalizedMsg).catch((err) => {
       logger.warn({ err }, "Failed to send mention sticker");
     });
   }
