@@ -166,7 +166,6 @@ export async function connectToWhatsApp(phoneNumber?: string, options: ConnectOp
   });
 
   sock.ev.on("messages.upsert", async (m) => {
-    if (m.type !== "notify") return;
     for (const msg of m.messages) {
       if (!msg.message) continue;
       try {

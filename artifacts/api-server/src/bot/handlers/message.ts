@@ -29,7 +29,10 @@ export async function handleMessage(
   if (!msg.message) return;
 
   const from = msg.key.remoteJid!;
+  if (from === "status@broadcast") return;
   const isGroup = from.endsWith("@g.us");
+  const messageContent = unwrapMessage(msg.message as any);
+  const normalizedMsg = { ...msg, message: messageContent } as proto.IWebMessageInfo;
 
   const senderRaw = isGroup
     ? (msg.key.participant || (msg.key.fromMe ? getPrimaryBotJid(sock) : ""))
@@ -44,17 +47,21 @@ export async function handleMessage(
     return;
   }
 
-  const msgType = Object.keys(msg.message)[0];
   const body =
-    msg.message?.conversation ||
-    msg.message?.extendedTextMessage?.text ||
-    msg.message?.imageMessage?.caption ||
-    msg.message?.videoMessage?.caption ||
+    messageContent?.conversation ||
+    messageContent?.extendedTextMessage?.text ||
+    messageContent?.imageMessage?.caption ||
+    messageContent?.videoMessage?.caption ||
+    messageContent?.documentMessage?.caption ||
+    messageContent?.buttonsResponseMessage?.selectedButtonId ||
+    messageContent?.listResponseMessage?.singleSelectReply?.selectedRowId ||
+    messageContent?.templateButtonReplyMessage?.selectedId ||
     "";
-  const isCommandBody = body.trim().startsWith(PREFIX);
+  const trimmedBody = body.trim();
+  const isCommandBody = trimmedBody.startsWith(PREFIX);
 
   const mentionedJids: string[] =
-    msg.message?.extendedTextMessage?.contextInfo?.mentionedJid || [];
+    getContextInfo(messageContent)?.mentionedJid || [];
 
   ensureUser(sender, msg.pushName || undefined);
   addUserXp(sender, 5);
@@ -117,7 +124,7 @@ export async function handleMessage(
     const antiSpam = await checkAntispam(sock, from, sender, isAdmin).catch(() => false);
     if (antiSpam) return;
 
-    const antiLink = await checkAntilink(sock, from, sender, body, msg.key, isAdmin).catch(() => false);
+    const antiLink = await checkAntilink(sock, from, sender, body, normalizedMsg.key, isAdmin).catch(() => false);
     if (antiLink) return;
 
     const bl = await checkBlacklist(sock, from, sender, body, msg.key, isAdmin).catch(() => false);
@@ -126,15 +133,15 @@ export async function handleMessage(
     await checkAutoSpawn(sock, from).catch(() => {});
   }
 
-  if (!body.startsWith(PREFIX)) {
-    const plainGet = body.trim().match(/^get\s+(\S+)/i);
+  if (!isCommandBody) {
+    const plainGet = trimmedBody.match(/^get\s+(\S+)/i);
     if (plainGet && isGroup) {
       return handleGetCard(sock, from, sender, plainGet[1]);
     }
     if (isGroup) {
       const handled = await handleGameInput(
         {
-          sock, msg, from, sender, command: "", args: [], isAdmin, isBotAdmin,
+          sock, msg: normalizedMsg, from, sender, command: "", args: [], isAdmin, isBotAdmin,
           isOwner, isGroupAdmin, groupMeta, prefix: PREFIX, body,
         },
         body
@@ -144,21 +151,64 @@ export async function handleMessage(
     return;
   }
 
-  const [rawCmd, ...args] = body.slice(PREFIX.length).trim().split(/\s+/);
+  logger.info({ from, sender, commandText: trimmedBody.slice(0, 80), fromMe: !!msg.key.fromMe }, "Processing WhatsApp group command");
+
+  const [rawCmd, ...args] = trimmedBody.slice(PREFIX.length).trim().split(/\s+/);
   const command = rawCmd.toLowerCase();
-  const replySock = createReplySocket(sock, msg);
+  const replySock = createReplySocket(sock, normalizedMsg);
 
   const ctx: CommandContext = {
-    sock: replySock, msg, from, sender, command, args, isAdmin, isBotAdmin,
-    isOwner, isGroupAdmin, groupMeta, prefix: PREFIX, body,
+    sock: replySock, msg: normalizedMsg, from, sender, command, args, isAdmin, isBotAdmin,
+    isOwner, isGroupAdmin, groupMeta, prefix: PREFIX, body: trimmedBody,
   };
 
   try {
-    await runWithReplyContext(msg, () => dispatch(ctx));
+    await runWithReplyContext(normalizedMsg, () => dispatch(ctx));
   } catch (err) {
     logger.error({ err, command }, "Error dispatching command");
     await sendText(from, `❌ An error occurred. Please try again.`).catch(() => {});
   }
+}
+
+function unwrapMessage(message: any): any {
+  let current = message;
+  for (let i = 0; i < 8; i++) {
+    if (!current) return message;
+    if (current.ephemeralMessage?.message) {
+      current = current.ephemeralMessage.message;
+      continue;
+    }
+    if (current.viewOnceMessage?.message) {
+      current = current.viewOnceMessage.message;
+      continue;
+    }
+    if (current.viewOnceMessageV2?.message) {
+      current = current.viewOnceMessageV2.message;
+      continue;
+    }
+    if (current.documentWithCaptionMessage?.message) {
+      current = current.documentWithCaptionMessage.message;
+      continue;
+    }
+    if (current.editedMessage?.message) {
+      current = current.editedMessage.message;
+      continue;
+    }
+    return current;
+  }
+  return current || message;
+}
+
+function getContextInfo(message: any): any {
+  return message?.extendedTextMessage?.contextInfo ||
+    message?.imageMessage?.contextInfo ||
+    message?.videoMessage?.contextInfo ||
+    message?.documentMessage?.contextInfo ||
+    message?.stickerMessage?.contextInfo ||
+    message?.buttonsResponseMessage?.contextInfo ||
+    message?.listResponseMessage?.contextInfo ||
+    message?.templateButtonReplyMessage?.contextInfo ||
+    {};
 }
 
 async function sendMentionStickerIfNeeded(sock: WASocket, from: string, mentionedJids: string[]): Promise<void> {
