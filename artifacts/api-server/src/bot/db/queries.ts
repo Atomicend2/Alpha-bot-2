@@ -10,7 +10,7 @@ export function ensureUser(userId: string, name?: string) {
   const existing = getUser(userId);
   if (!existing) {
     db.prepare(
-      "INSERT OR IGNORE INTO users (id, name, balance) VALUES (?, ?, 500)"
+      "INSERT OR IGNORE INTO users (id, name, balance, bank) VALUES (?, ?, 500, 0)"
     ).run(userId, name || userId);
   } else if (name && existing.name !== name) {
     db.prepare("UPDATE users SET name = ? WHERE id = ?").run(name, userId);
@@ -20,6 +20,7 @@ export function ensureUser(userId: string, name?: string) {
 
 export function updateUser(userId: string, data: Record<string, any>) {
   const db = getDb();
+  ensureUser(userId);
   const keys = Object.keys(data);
   if (keys.length === 0) return;
   const set = keys.map((k) => `${k} = ?`).join(", ");
@@ -321,6 +322,30 @@ export function getRichList(groupId?: string, limit = 10) {
   `).all(limit) as any[];
 }
 
+export function addUserXp(userId: string, amount: number) {
+  const user = ensureUser(userId);
+  let xp = Number(user.xp || 0) + amount;
+  let level = Math.max(1, Number(user.level || 1));
+  while (xp >= level * 100) {
+    xp -= level * 100;
+    level += 1;
+  }
+  updateUser(userId, { xp, level });
+  return { xp, level, xpNeeded: level * 100 };
+}
+
+export function getUserRank(userId: string): number {
+  const db = getDb();
+  const user = ensureUser(userId);
+  const score = Number(user.level || 1) * 100000 + Number(user.xp || 0);
+  const row = db.prepare(`
+    SELECT COUNT(*) + 1 as rank
+    FROM users
+    WHERE (COALESCE(level, 1) * 100000 + COALESCE(xp, 0)) > ?
+  `).get(score) as any;
+  return Number(row?.rank || 1);
+}
+
 export function getCardLeaderboard(limit = 10) {
   const db = getDb();
   return db.prepare(`
@@ -529,6 +554,11 @@ export function getBotSetting(key: string): Buffer | null {
   const row = db.prepare("SELECT value FROM bot_settings WHERE key = ?").get(key) as any;
   if (!row?.value) return null;
   return Buffer.isBuffer(row.value) ? row.value : Buffer.from(row.value);
+}
+
+export function deleteBotSetting(key: string) {
+  const db = getDb();
+  db.prepare("DELETE FROM bot_settings WHERE key = ?").run(key);
 }
 
 export function getSummerTokens(userId: string) {

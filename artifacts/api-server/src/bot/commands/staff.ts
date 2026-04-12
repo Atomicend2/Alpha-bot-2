@@ -1,6 +1,6 @@
 import type { CommandContext } from "./index.js";
-import { sendText } from "../connection.js";
-import { addStaff, getStaffList, getStaff, ensureUser, getUser, updateUser, getCard, getAllCards, addBan, removeBan, getBanList, setBotSetting } from "../db/queries.js";
+import { BOT_OWNER_LID, sendText } from "../connection.js";
+import { addStaff, getStaffList, getStaff, ensureUser, getUser, updateUser, getCard, getAllCards, addBan, removeBan, getBanList, setBotSetting, deleteBotSetting } from "../db/queries.js";
 import { getTierEmoji, isValidTier, generateId } from "../utils.js";
 import { getDb } from "../db/database.js";
 import { spawnCard } from "../handlers/cardspawn.js";
@@ -12,6 +12,66 @@ import { logger } from "../../lib/logger.js";
 export async function handleStaff(ctx: CommandContext): Promise<void> {
   const { from, sender, args, command: cmd, msg, sock, isOwner } = ctx;
   const staffRecord = getStaff(sender);
+
+  if (cmd === "setms" || cmd === "delms") {
+    if (!canUsePrivilegedPersonalCommand(sender)) {
+      await sendText(from, "❌ Only owner, mods, guardians, and premium members can use this command.");
+      return;
+    }
+    if (cmd === "delms") {
+      deleteBotSetting(`mention_sticker:${sender}`);
+      await sendText(from, "✅ Your mention sticker was removed.");
+      return;
+    }
+    const quoted = msg.message?.extendedTextMessage?.contextInfo?.quotedMessage;
+    if (!quoted?.stickerMessage) {
+      await sendText(from, "❌ Reply to a sticker with .setms to save it as your mention sticker.");
+      return;
+    }
+    try {
+      const context = msg.message?.extendedTextMessage?.contextInfo;
+      const target = {
+        key: {
+          remoteJid: from,
+          fromMe: false,
+          id: context?.stanzaId || "",
+          participant: context?.participant,
+        },
+        message: quoted,
+      };
+      const downloaded = await downloadMediaMessage(target as any, "buffer", {}, { reuploadRequest: (sock as any).updateMediaMessage });
+      const stickerBuffer = Buffer.isBuffer(downloaded) ? downloaded : Buffer.from(downloaded as any);
+      setBotSetting(`mention_sticker:${sender}`, stickerBuffer);
+      await sendText(from, "✅ Your personal mention sticker is set.");
+    } catch (err: any) {
+      logger.error({ err }, "Failed to set personal mention sticker");
+      await sendText(from, `❌ Failed to set mention sticker: ${err?.message || "could not download sticker"}`);
+    }
+    return;
+  }
+
+  if (cmd === "ac" || cmd === "rc") {
+    if (!canUsePrivilegedPersonalCommand(sender)) {
+      await sendText(from, "❌ Only owner, mods, guardians, and premium members can use this command.");
+      return;
+    }
+    const amount = parseInt(args[0]);
+    const targetId = getTargetFromMentionReplyOrText(ctx, args[1]);
+    if (isNaN(amount) || amount <= 0 || !targetId) {
+      await sendText(from, `❌ Usage: .${cmd} <amount> @user\nYou can also reply to a user's message.`);
+      return;
+    }
+    const target = ensureUser(targetId);
+    const current = Number(target.balance || 0);
+    const nextBalance = cmd === "ac" ? current + amount : Math.max(0, current - amount);
+    updateUser(targetId, { balance: nextBalance, bank: Math.max(0, Number(target.bank || 0)) });
+    await sendText(
+      from,
+      `${cmd === "ac" ? "✅ Added" : "✅ Removed"} $${amount.toLocaleString()} ${cmd === "ac" ? "to" : "from"} @${targetId.split("@")[0]}.\nWallet: $${nextBalance.toLocaleString()}\nBank: $${Number(target.bank || 0).toLocaleString()}`,
+      [targetId]
+    );
+    return;
+  }
 
   if (!isOwner && !staffRecord) {
     await sendText(from, "❌ This command requires staff access.");
@@ -181,34 +241,6 @@ export async function handleStaff(ctx: CommandContext): Promise<void> {
     return;
   }
 
-  if (cmd === "setms") {
-    const quoted = msg.message?.extendedTextMessage?.contextInfo?.quotedMessage;
-    if (!quoted?.stickerMessage) {
-      await sendText(from, "❌ Reply to a sticker with .setms to save it as the mention sticker.");
-      return;
-    }
-    try {
-      const context = msg.message?.extendedTextMessage?.contextInfo;
-      const target = {
-        key: {
-          remoteJid: from,
-          fromMe: false,
-          id: context?.stanzaId || "",
-          participant: context?.participant,
-        },
-        message: quoted,
-      };
-      const downloaded = await downloadMediaMessage(target as any, "buffer", {}, { reuploadRequest: (sock as any).updateMediaMessage });
-      const stickerBuffer = Buffer.isBuffer(downloaded) ? downloaded : Buffer.from(downloaded as any);
-      setBotSetting("mention_sticker", stickerBuffer);
-      await sendText(from, "✅ Mention sticker set. I’ll send it when someone tags staff or a premium member.");
-    } catch (err: any) {
-      logger.error({ err }, "Failed to set mention sticker");
-      await sendText(from, `❌ Failed to set mention sticker: ${err?.message || "could not download sticker"}`);
-    }
-    return;
-  }
-
   if (cmd === "exit") {
     if (!from.endsWith("@g.us")) { await sendText(from, "❌ Must be in a group."); return; }
     await sendText(from, "👋 Leaving group...");
@@ -374,6 +406,26 @@ function normalizeGroupInviteCode(input: string): string | null {
   const raw = match?.[1] || trimmed;
   const code = raw.split(/[?#/]/)[0]?.trim();
   return code && /^[A-Za-z0-9_-]{16,}$/.test(code) ? code : null;
+}
+
+function canUsePrivilegedPersonalCommand(jid: string): boolean {
+  const phone = jid.split("@")[0];
+  if (phone === BOT_OWNER_LID || jid === `${BOT_OWNER_LID}@s.whatsapp.net` || jid === `${BOT_OWNER_LID}@lid`) return true;
+  const staff = getStaff(jid);
+  if (staff?.role === "mod" || staff?.role === "guardian") return true;
+  const user = ensureUser(jid);
+  if (!user?.premium) return false;
+  const expiry = Number(user.premium_expiry || 0);
+  return expiry === 0 || expiry > Math.floor(Date.now() / 1000);
+}
+
+function getTargetFromMentionReplyOrText(ctx: CommandContext, raw?: string): string | null {
+  const info = ctx.msg.message?.extendedTextMessage?.contextInfo;
+  const mentioned = info?.mentionedJid?.[0];
+  if (mentioned) return mentioned;
+  if (info?.participant) return info.participant;
+  if (!raw) return null;
+  return normalizeUserTarget(raw);
 }
 
 async function resolveGroupTarget(sock: any, code: string): Promise<{ target: string; display: string }> {

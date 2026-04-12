@@ -1,6 +1,6 @@
 import type { WASocket, proto } from "@whiskeysockets/baileys";
 import { BOT_OWNER_LID, PREFIX, sendText, runWithReplyContext } from "../connection.js";
-import { ensureUser, ensureGroup, incrementMessageCount, getStaff, isBanned, getBotSetting, getUser } from "../db/queries.js";
+import { ensureUser, ensureGroup, incrementMessageCount, getStaff, isBanned, getBotSetting, getUser, addUserXp } from "../db/queries.js";
 import { checkAntilink, checkAntispam, checkBlacklist } from "./antispam.js";
 import { checkAutoSpawn, handleGetCard } from "./cardspawn.js";
 import { checkAfkMention, handleAfk } from "../commands/afk.js";
@@ -57,6 +57,7 @@ export async function handleMessage(
     msg.message?.extendedTextMessage?.contextInfo?.mentionedJid || [];
 
   ensureUser(sender, msg.pushName || undefined);
+  addUserXp(sender, 5);
 
   if (isGroup) {
     incrementMessageCount(sender, from);
@@ -162,17 +163,23 @@ export async function handleMessage(
 }
 
 async function sendMentionStickerIfNeeded(sock: WASocket, from: string, mentionedJids: string[]): Promise<void> {
-  const shouldReply = mentionedJids.some((jid) => {
-    if (getStaff(jid)) return true;
-    const user = getUser(jid);
-    if (!user?.premium) return false;
-    const expiry = Number(user.premium_expiry || 0);
-    return expiry === 0 || expiry > Math.floor(Date.now() / 1000);
-  });
-  if (!shouldReply) return;
-  const sticker = getBotSetting("mention_sticker");
-  if (!sticker) return;
-  await sock.sendMessage(from, { sticker });
+  for (const jid of mentionedJids) {
+    if (!canUseMentionSticker(jid)) continue;
+    const sticker = getBotSetting(`mention_sticker:${jid}`);
+    if (!sticker) continue;
+    await sock.sendMessage(from, { sticker });
+  }
+}
+
+function canUseMentionSticker(jid: string): boolean {
+  const phone = jid.split("@")[0];
+  if (phone === BOT_OWNER_LID || jid === `${BOT_OWNER_LID}@s.whatsapp.net` || jid === `${BOT_OWNER_LID}@lid`) return true;
+  const staff = getStaff(jid);
+  if (staff?.role === "mod" || staff?.role === "guardian") return true;
+  const user = getUser(jid);
+  if (!user?.premium) return false;
+  const expiry = Number(user.premium_expiry || 0);
+  return expiry === 0 || expiry > Math.floor(Date.now() / 1000);
 }
 
 async function dispatch(ctx: CommandContext): Promise<void> {
@@ -450,6 +457,7 @@ async function dispatch(ctx: CommandContext): Promise<void> {
     case "post":
     case "join":
     case "setms":
+    case "delms":
     case "exit":
     case "show":
     case "dc":

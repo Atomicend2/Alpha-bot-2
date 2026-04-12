@@ -2,9 +2,11 @@ import type { CommandContext } from "./index.js";
 import { sendText } from "../connection.js";
 import {
   getUser, ensureUser, updateUser, getInventory, addToInventory, removeFromInventory,
-  getShop, getShopItem, getRichList, ensureRpg,
+  getShop, getShopItem, getRichList, ensureRpg, getUserRank, getUserGuild, isBanned,
 } from "../db/queries.js";
 import { formatNumber, timeAgo } from "../utils.js";
+import sharp from "sharp";
+import path from "node:path";
 
 const DAILY_AMOUNT = 1000;
 const DAILY_COOLDOWN = 86400;
@@ -241,25 +243,35 @@ export async function handleEconomy(ctx: CommandContext): Promise<void> {
   }
 
   if (cmd === "profile" || cmd === "p") {
-    const target = ctx.msg.message?.extendedTextMessage?.contextInfo?.mentionedJid?.[0]
-      ? ensureUser(ctx.msg.message.extendedTextMessage.contextInfo.mentionedJid[0])
-      : user;
-    const targetId = ctx.msg.message?.extendedTextMessage?.contextInfo?.mentionedJid?.[0] || sender;
+    const info = ctx.msg.message?.extendedTextMessage?.contextInfo;
+    const targetId = info?.mentionedJid?.[0] || info?.participant || sender;
+    const target = ensureUser(targetId);
     const rpg = ensureRpg(targetId);
+    const rank = getUserRank(targetId);
+    const guild = getUserGuild(targetId);
+    const role = getProfileRole(target);
+    const name = target.name || `@${targetId.split("@")[0]}`;
+    const age = target.age || "Not set";
+    const bio = target.bio || "No bio set";
+    const registered = formatProfileDate(Number(target.created_at || now));
+    const profileImage = await buildProfileImage(ctx, targetId, target, rpg, rank, role).catch(async () => null);
 
-    const text = `👤 *Profile — ${target.name || `@${targetId.split("@")[0]}`}*\n\n` +
-      `💰 Wallet: $${formatNumber(target.balance || 0)}\n` +
-      `🏦 Bank: $${formatNumber(target.bank || 0)}\n` +
-      `💎 Gems: ${target.gems || 0}\n` +
-      `🎖️ Level: ${target.level || 1}\n` +
-      `✨ XP: ${target.xp || 0}\n` +
-      `⭐ Premium: ${target.premium ? "Yes" : "No"}\n` +
-      `⚔️ RPG Class: ${rpg?.class || "Warrior"}\n` +
-      `❤️ HP: ${rpg?.hp || 100}/${rpg?.max_hp || 100}\n` +
-      `📝 Bio: ${target.bio || "(none)"}\n` +
-      `🎂 Age: ${target.age || "(not set)"}`;
+    const text =
+      `╭━━━✦ 𝙋𝙇𝘼𝙔𝙀𝙍 𝙋𝙍𝙊𝙁𝙄𝙇𝙀 ✦━━━╮\n` +
+      ` Welcome to your profile\n\n` +
+      `✧ 𝗡𝗮𝗺𝗲: ${name}\n` +
+      `✧ 𝗔𝗴𝗲: ${age}\n` +
+      `✧ 𝗕𝗶𝗼: ${bio}\n` +
+      `✧ 𝗥𝗲𝗴𝗶𝘀𝘁𝗲𝗿𝗲𝗱: ${registered}\n` +
+      `✧ 𝗥𝗼𝗹𝗲: ${role}\n` +
+      `✧ 𝗚𝘂𝗶𝗹𝗱: ${guild?.name || "None"}\n\n` +
+      `✧ 𝗕𝗮𝗻𝗻𝗲𝗱: ${isBanned("user", targetId) ? "Yes" : "No"}`;
 
-    await ctx.sock.sendMessage(from, { text, mentions: [targetId] });
+    if (profileImage) {
+      await ctx.sock.sendMessage(from, { image: profileImage, caption: text, mentions: [targetId] });
+    } else {
+      await ctx.sock.sendMessage(from, { text, mentions: [targetId] });
+    }
     return;
   }
 
@@ -509,4 +521,107 @@ function getDailyUsage(user: any, type: "dig" | "fish", now: number): { day: str
     day,
     count: user[dateKey] === day ? Number(user[usesKey] || 0) : 0,
   };
+}
+
+function getProfileRole(user: any): string {
+  const now = Math.floor(Date.now() / 1000);
+  if (user.premium && (!user.premium_expiry || Number(user.premium_expiry) > now)) return "Premium";
+  if (user.registered) return "Registered";
+  return "Unregistered";
+}
+
+function formatProfileDate(timestamp: number): string {
+  return new Date(timestamp * 1000).toLocaleString("en-US", {
+    month: "long",
+    day: "numeric",
+    hour: "numeric",
+    minute: "2-digit",
+  });
+}
+
+async function buildProfileImage(ctx: CommandContext, targetId: string, user: any, rpg: any, rank: number, role: string): Promise<Buffer> {
+  const templatePath = path.resolve(process.cwd(), "../../attached_assets/IMG-20260412-WA0616_1776007528987.jpg");
+  const width = 765;
+  const height = 850;
+  const level = Math.max(1, Number(user.level || 1));
+  const xp = Math.max(0, Number(user.xp || 0));
+  const xpNeeded = level * 100;
+  const progress = Math.max(0, Math.min(1, xp / xpNeeded));
+  const name = String(user.name || targetId.split("@")[0]).slice(0, 28);
+  const subtitle = `${role} ~ ${rpg?.class || "Warrior"}`;
+  const bio = String(user.bio || "").slice(0, 44);
+  const avatar = await getProfileAvatar(ctx, targetId);
+  const avatarSize = 190;
+  const avatarMask = Buffer.from(`<svg width="${avatarSize}" height="${avatarSize}"><circle cx="${avatarSize / 2}" cy="${avatarSize / 2}" r="${avatarSize / 2}" fill="#fff"/></svg>`);
+  const circularAvatar = await sharp(avatar)
+    .resize(avatarSize, avatarSize, { fit: "cover" })
+    .composite([{ input: avatarMask, blend: "dest-in" }])
+    .png()
+    .toBuffer();
+  const progressWidth = 342;
+  const progressFill = Math.round(progressWidth * progress);
+  const overlay = Buffer.from(`
+    <svg width="${width}" height="${height}" xmlns="http://www.w3.org/2000/svg">
+      <style>
+        text { font-family: Arial, Helvetica, sans-serif; fill: white; }
+        .shadow { paint-order: stroke; stroke: rgba(0,0,0,.72); stroke-width: 5px; stroke-linejoin: round; }
+      </style>
+      <rect x="0" y="0" width="${width}" height="${height}" fill="rgba(0,0,0,.20)"/>
+      <rect x="10" y="28" width="190" height="52" rx="8" fill="rgba(0,0,0,.25)"/>
+      <text x="18" y="48" font-size="18" font-weight="700" class="shadow">Wallet: ${formatNumber(Number(user.balance || 0))}</text>
+      <text x="18" y="70" font-size="18" font-weight="700" class="shadow">Bank: ${formatNumber(Number(user.bank || 0))}</text>
+      <circle cx="382" cy="246" r="101" fill="none" stroke="rgba(0,0,0,.85)" stroke-width="6"/>
+      <rect x="185" y="365" width="395" height="210" rx="28" fill="rgba(0,0,0,.26)"/>
+      <text x="382" y="407" text-anchor="middle" font-size="34" font-weight="800" class="shadow">${escapeXml(name)}</text>
+      <text x="382" y="448" text-anchor="middle" font-size="28" font-style="normal" class="shadow">${escapeXml(subtitle)}</text>
+      <text x="382" y="493" text-anchor="middle" font-size="27" class="shadow">Rank #${rank}   Level ${level}</text>
+      <rect x="211" y="520" width="${progressWidth}" height="27" rx="13" fill="#555" stroke="rgba(0,0,0,.85)" stroke-width="2"/>
+      <rect x="211" y="520" width="${progressFill}" height="27" rx="13" fill="#7252ff"/>
+      <text x="382" y="540" text-anchor="middle" font-size="17" font-weight="700" class="shadow">${xp}/${xpNeeded} XP</text>
+      ${bio ? `<text x="382" y="590" text-anchor="middle" font-size="21" class="shadow">${escapeXml(bio)}</text>` : ""}
+      <text x="382" y="826" text-anchor="middle" font-size="28" font-weight="800" font-style="italic" fill="rgba(255,255,255,.88)" class="shadow">SHADOW GARDEN</text>
+    </svg>
+  `);
+  return sharp(templatePath)
+    .resize(width, height, { fit: "cover" })
+    .composite([
+      { input: circularAvatar, left: 287, top: 146 },
+      { input: overlay, left: 0, top: 0 },
+    ])
+    .jpeg({ quality: 92 })
+    .toBuffer();
+}
+
+async function getProfileAvatar(ctx: CommandContext, targetId: string): Promise<Buffer> {
+  try {
+    const url = await (ctx.sock as any).profilePictureUrl(targetId, "image");
+    if (url) {
+      const res = await fetch(url);
+      if (res.ok) return Buffer.from(await res.arrayBuffer());
+    }
+  } catch {}
+  return sharp({
+    create: {
+      width: 300,
+      height: 300,
+      channels: 4,
+      background: "#161622",
+    },
+  })
+    .composite([{
+      input: Buffer.from(`<svg width="300" height="300" xmlns="http://www.w3.org/2000/svg"><rect width="300" height="300" fill="#151527"/><text x="150" y="176" text-anchor="middle" font-size="92" font-family="Arial" font-weight="700" fill="#ffffff">${escapeXml(targetId[0]?.toUpperCase() || "U")}</text></svg>`),
+      left: 0,
+      top: 0,
+    }])
+    .png()
+    .toBuffer();
+}
+
+function escapeXml(input: string): string {
+  return input
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&apos;");
 }
