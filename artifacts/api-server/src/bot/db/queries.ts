@@ -624,3 +624,76 @@ export function updateSellOfferStatus(id: number, status: string) {
   const db = getDb();
   db.prepare("UPDATE sell_offers SET status = ? WHERE id = ?").run(status, id);
 }
+
+export function getCardOwners(cardId: string) {
+  const db = getDb();
+  return db.prepare(`
+    SELECT uc.user_id, u.name, uc.id as user_card_id, uc.obtained_at,
+           ROW_NUMBER() OVER (ORDER BY uc.id ASC) as issue_num
+    FROM user_cards uc
+    LEFT JOIN users u ON u.id = uc.user_id
+    WHERE uc.card_id = ?
+    ORDER BY uc.id ASC
+  `).all(cardId) as any[];
+}
+
+export function getCardIssueNumber(userCardId: number, cardId: string): number {
+  const db = getDb();
+  const rows = db.prepare(
+    "SELECT id FROM user_cards WHERE card_id = ? ORDER BY id ASC"
+  ).all(cardId) as any[];
+  const idx = rows.findIndex((r) => r.id === userCardId);
+  return idx >= 0 ? idx + 1 : 1;
+}
+
+export function incrementGroupActivity(groupId: string) {
+  const db = getDb();
+  const now = Math.floor(Date.now() / 1000);
+  const WINDOW = 20 * 60;
+  const group = getGroup(groupId);
+  if (!group) return;
+  const windowStart = Number(group.recent_msg_window || 0);
+  if (now - windowStart > WINDOW) {
+    db.prepare("UPDATE groups SET recent_msg_count = 1, recent_msg_window = ? WHERE id = ?").run(now, groupId);
+  } else {
+    db.prepare("UPDATE groups SET recent_msg_count = recent_msg_count + 1 WHERE id = ?").run(groupId);
+  }
+}
+
+export function getGroupActivity(groupId: string): { count: number; percentage: number } {
+  const FULL_ACTIVITY = 500;
+  const WINDOW = 20 * 60;
+  const now = Math.floor(Date.now() / 1000);
+  const group = getGroup(groupId);
+  if (!group) return { count: 0, percentage: 0 };
+  const windowStart = Number(group.recent_msg_window || 0);
+  const count = (now - windowStart <= WINDOW) ? Number(group.recent_msg_count || 0) : 0;
+  const percentage = Math.min(100, Math.round((count / FULL_ACTIVITY) * 100));
+  return { count, percentage };
+}
+
+export function getTodaySpawnCount(groupId: string): number {
+  const today = new Date().toISOString().slice(0, 10);
+  const group = getGroup(groupId);
+  if (!group) return 0;
+  if (group.spawn_date !== today) return 0;
+  return Number(group.spawn_count_today || 0);
+}
+
+export function recordSpawnForGroup(groupId: string) {
+  const db = getDb();
+  const today = new Date().toISOString().slice(0, 10);
+  const group = getGroup(groupId);
+  const currentCount = group?.spawn_date === today ? Number(group.spawn_count_today || 0) : 0;
+  db.prepare("UPDATE groups SET spawn_count_today = ?, spawn_date = ? WHERE id = ?").run(currentCount + 1, today, groupId);
+}
+
+export function getNextSpawnTime(groupId: string): number {
+  const group = getGroup(groupId);
+  return Number(group?.next_spawn_time || 0);
+}
+
+export function setNextSpawnTime(groupId: string, time: number) {
+  const db = getDb();
+  db.prepare("UPDATE groups SET next_spawn_time = ? WHERE id = ?").run(time, groupId);
+}

@@ -6,6 +6,7 @@ import {
   getDeck, addToDeck, removeFromDeck, clearDeck, getCardLeaderboard,
   getAllCards, ensureUser, getUser, updateUser, createTradeOffer, getPendingTrade,
   updateTradeStatus, createSellOffer, getPendingSellOffer, updateSellOfferStatus,
+  getCardOwners, getCardIssueNumber,
 } from "../db/queries.js";
 import { getTierEmoji, formatNumber, generateId } from "../utils.js";
 import sharp from "sharp";
@@ -37,10 +38,19 @@ export async function handleCards(ctx: CommandContext): Promise<void> {
       return;
     }
     const c = cards[idx];
+    const issueNum = getCardIssueNumber(c.user_card_id, c.id);
     const buf = await getCardImageBuffer(c);
-    await sendImage(from, buf,
-      `${getTierEmoji(c.tier)} *${c.name}*\n📦 ${c.series} | Tier: ${c.tier}\n⚔️ ATK: ${c.attack} | 🛡️ DEF: ${c.defense} | 💨 SPD: ${c.speed}\n🆔 \`${c.id}\``
-    );
+    const caption =
+      `∘₊✦──────✦₊∘\n` +
+      `🎴 𝗖𝗔𝗥𝗗 𝗜𝗡𝗙𝗢\n` +
+      `∘₊✦──────✦₊∘\n\n` +
+      `𝗡𝗮𝗺𝗲: ${c.name}\n` +
+      `𝗖𝗮𝗿𝗱 𝗜𝗗: ${c.id}\n` +
+      `𝗗𝗲𝘀𝗰𝗿𝗶𝗽𝘁𝗶𝗼𝗻: ${c.description || c.name}\n` +
+      `𝗧𝗶𝗲𝗿: ${c.tier}\n` +
+      `𝗜𝘀𝘀𝘂𝗲: #${issueNum}\n\n` +
+      `∘₊✦──────✦₊∘`;
+    await sendImage(from, buf, caption);
     return;
   }
 
@@ -52,10 +62,30 @@ export async function handleCards(ctx: CommandContext): Promise<void> {
       c.name.toLowerCase().includes(name.toLowerCase()) && (!tier || c.tier === tier)
     );
     if (!found) { await sendText(from, "❌ Card not found."); return; }
+    const owners = getCardOwners(found.id);
     const buf = await getCardImageBuffer(found);
-    await sendImage(from, buf,
-      `${getTierEmoji(found.tier)} *${found.name}*\n📦 ${found.series} | Tier: ${found.tier}\n${found.description || ""}\n⚔️ ATK: ${found.attack} | 🛡️ DEF: ${found.defense} | 💨 SPD: ${found.speed}\n🆔 \`${found.id}\``
-    );
+    let ownersSection = "_⛔ No owners yet_";
+    if (owners.length > 0) {
+      ownersSection = owners.slice(0, 10).map((o) => {
+        const displayName = o.name || o.user_id.split("@")[0];
+        return `• ${displayName}`;
+      }).join("\n");
+      if (owners.length > 10) ownersSection += `\n...and ${owners.length - 10} more`;
+    }
+    const caption =
+      `∘₊✦────────✦₊∘\n` +
+      `🎴 𝗖𝗔𝗥𝗗 𝗜𝗡𝗙𝗢\n` +
+      `∘₊✦────────✦₊∘\n\n` +
+      `𝗡𝗮𝗺𝗲: ${found.name}\n` +
+      `𝗦𝗲𝗿𝗶𝗲𝘀: ${found.series || "General"}\n` +
+      `𝗧𝗶𝗲𝗿: ${found.tier}\n` +
+      `𝗧𝗼𝘁𝗮𝗹 𝗢𝘄𝗻𝗲𝗿𝘀: ${owners.length}\n\n` +
+      `✦────⋆⋅✧⋅⋆────✦\n` +
+      `👥 𝗢𝗪𝗡𝗘𝗥𝗦\n` +
+      `✦────⋆⋅✧⋅⋆────✦\n\n` +
+      `${ownersSection}\n\n` +
+      `∘₊✦────────✦₊∘`;
+    await sendImage(from, buf, caption);
     return;
   }
 

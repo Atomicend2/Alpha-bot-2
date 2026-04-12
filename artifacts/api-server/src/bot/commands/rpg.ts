@@ -1,6 +1,6 @@
 import type { CommandContext } from "./index.js";
 import { sendText } from "../connection.js";
-import { ensureRpg, updateRpg, addToInventory, getUser, updateUser } from "../db/queries.js";
+import { ensureRpg, updateRpg, addToInventory, getInventory, removeFromInventory, getUser, updateUser } from "../db/queries.js";
 import { formatNumber } from "../utils.js";
 
 const CLASSES = ["Warrior", "Mage", "Archer", "Rogue", "Paladin", "Assassin"];
@@ -29,33 +29,124 @@ const QUESTS = [
   { name: "Find the lost artifact", reward: 1200, xp: 200 },
 ];
 
-const DUNGEON_ENEMIES: Record<number, { name: string; hp: number; attack: number; reward: number }> = {
-  1: { name: "Slime King", hp: 50, attack: 10, reward: 200 },
-  2: { name: "Skeleton Warrior", hp: 80, attack: 18, reward: 400 },
-  3: { name: "Orc Champion", hp: 120, attack: 28, reward: 700 },
-  4: { name: "Shadow Beast", hp: 200, attack: 40, reward: 1200 },
-  5: { name: "Dark Dragon", hp: 350, attack: 60, reward: 2500 },
-};
+interface DungeonBattle {
+  groupId: string;
+  floor: number;
+  enemyName: string;
+  enemyHp: number;
+  enemyMaxHp: number;
+  enemyAttack: number;
+  enemyLevel: number;
+  enemyReward: number;
+  playerHp: number;
+  playerMaxHp: number;
+  playerAttack: number;
+  playerDefense: number;
+  healCooldown: number;
+  defendActive: boolean;
+  lastActivity: number;
+}
 
-const DUNGEON_MOVES: Record<string, { label: string; damage: number; incoming: number; reward: number; success: number; note: string }> = {
-  attack: { label: "Direct Attack", damage: 1.0, incoming: 1.0, reward: 1.0, success: 0, note: "Balanced strike with normal risk." },
-  guard: { label: "Guard Counter", damage: 0.75, incoming: 0.45, reward: 0.85, success: 0.08, note: "Safer move with reduced damage taken." },
-  skill: { label: "Class Skill", damage: 1.35, incoming: 1.1, reward: 1.15, success: -0.04, note: "High damage, slightly risky." },
-  rush: { label: "Rush", damage: 1.55, incoming: 1.35, reward: 1.25, success: -0.1, note: "Fast and dangerous." },
-  sneak: { label: "Sneak Strike", damage: 1.2, incoming: 0.75, reward: 1.1, success: 0.04, note: "Clever attack with better survival odds." },
-  loot: { label: "Loot Path", damage: 0.85, incoming: 0.95, reward: 1.5, success: -0.06, note: "Lower damage, bigger coin reward." },
-  scout: { label: "Scout", damage: 0.7, incoming: 0.55, reward: 0.8, success: 0.14, note: "Safe information-gathering route." },
-  heal: { label: "Drain Heal", damage: 0.9, incoming: 0.8, reward: 0.9, success: 0.06, note: "Recover a little HP if you survive." },
-  focus: { label: "Focus", damage: 1.15, incoming: 0.9, reward: 1.05, success: 0.07, note: "Steady technique and cleaner hits." },
-  ambush: { label: "Ambush", damage: 1.7, incoming: 1.4, reward: 1.35, success: -0.13, note: "Big reward if the ambush works." },
-  retreat: { label: "Tactical Retreat", damage: 0.45, incoming: 0.25, reward: 0.35, success: 0.2, note: "Very safe, very small reward." },
-};
+export const activeDungeonBattles = new Map<string, DungeonBattle>();
+const BATTLE_TIMEOUT = 15 * 60 * 1000;
+
+function getDungeonEnemy(floor: number) {
+  const enemies = [
+    { name: "Goblin", hp: 40, attack: 8, reward: 150, level: 1 },
+    { name: "Goblin", hp: 62, attack: 12, reward: 250, level: 1 },
+    { name: "Orc", hp: 90, attack: 18, reward: 400, level: 2 },
+    { name: "Dark Knight", hp: 130, attack: 28, reward: 700, level: 3 },
+    { name: "Shadow Wraith", hp: 180, attack: 38, reward: 1200, level: 4 },
+    { name: "Demon Lord", hp: 250, attack: 52, reward: 2000, level: 5 },
+  ];
+  const idx = Math.min(floor - 1, enemies.length - 1);
+  const base = { ...enemies[idx] };
+  if (floor > enemies.length) {
+    const scale = floor - enemies.length;
+    base.hp += scale * 30;
+    base.attack += scale * 6;
+    base.reward += scale * 300;
+    base.level += scale;
+  }
+  return base;
+}
+
+function getPlayerTitle(level: number): string {
+  if (level >= 50) return "Legend";
+  if (level >= 30) return "Champion";
+  if (level >= 20) return "Knight";
+  if (level >= 10) return "Warrior";
+  if (level >= 5) return "Apprentice";
+  return "Novice";
+}
+
+function makeHpBar(current: number, max: number, length = 10): string {
+  const pct = max > 0 ? Math.max(0, current) / max : 0;
+  const filled = Math.round(pct * length);
+  const empty = length - filled;
+  const bar = "█".repeat(Math.max(0, filled)) + "░".repeat(Math.max(0, empty));
+  const color = pct > 0.6 ? "🟢" : pct > 0.2 ? "🟡" : "🔴";
+  return `${color} ${bar}`;
+}
+
+function dungeonBattleDisplay(battle: DungeonBattle, rpgLevel: number, header?: string): string {
+  const title = getPlayerTitle(rpgLevel);
+  const healNote = battle.healCooldown > 0 ? ` (${battle.healCooldown}t CD)` : "";
+  let msg = "";
+  if (header) msg += `${header}\n\n`;
+  msg +=
+    `🏰 *DUNGEON FLOOR ${battle.floor}*  |  📊 Lv.${rpgLevel} ${title}\n` +
+    `A wild *${battle.enemyName}* lurks! (Lv.${battle.enemyLevel})\n\n` +
+    `⚔️ *You* ❤️ ${makeHpBar(battle.playerHp, battle.playerMaxHp)} \`${Math.max(0, battle.playerHp)}/${battle.playerMaxHp}\`\n` +
+    `👾 *${battle.enemyName}* 💀 ${makeHpBar(battle.enemyHp, battle.enemyMaxHp)} \`${Math.max(0, battle.enemyHp)}/${battle.enemyMaxHp}\`\n\n` +
+    `_Choose your move:_\n` +
+    `⚔️ *.attack* - Standard strike\n` +
+    `💥 *.heavy* - High-damage swing (65% hit)\n` +
+    `🛡️ *.defend* - Block 60% of next attack\n` +
+    `🌟 *.special* - Focus — deal 1.5x dmg\n` +
+    `🧪 *.heal* - Recover 20% HP${healNote}\n` +
+    `🎒 *.item* - Use a potion from inventory\n` +
+    `🏃 *.flee* - Try to escape (45%)\n` +
+    `🔍 *.explore* - Search for gold\n` +
+    `🏕️ *.rest* - Recover a bit of HP`;
+  return msg;
+}
+
+function calcDmg(base: number, multiplier: number): number {
+  const variance = 0.8 + Math.random() * 0.4;
+  return Math.max(1, Math.floor(base * multiplier * variance));
+}
 
 export async function handleRpg(ctx: CommandContext): Promise<void> {
   const { from, sender, args, command: cmd } = ctx;
   const rpg = ensureRpg(sender);
   const user = getUser(sender);
   const now = Math.floor(Date.now() / 1000);
+
+  const DUNGEON_MOVES = ["attack", "heavy", "defend", "special", "heal", "item", "flee", "explore", "rest"];
+
+  if (DUNGEON_MOVES.includes(cmd)) {
+    const battle = activeDungeonBattles.get(sender);
+
+    if (Date.now() - (battle?.lastActivity || 0) > BATTLE_TIMEOUT) {
+      activeDungeonBattles.delete(sender);
+    }
+
+    const currentBattle = activeDungeonBattles.get(sender);
+    if (!currentBattle) {
+      await sendText(from, "❌ You're not in an active dungeon battle. Use *.dungeon* to start one!");
+      return;
+    }
+
+    if (currentBattle.groupId !== from) {
+      await sendText(from, "❌ You can only continue your dungeon battle in the same group.");
+      return;
+    }
+
+    currentBattle.lastActivity = Date.now();
+    await processDungeonMove(ctx, currentBattle, rpg);
+    return;
+  }
 
   if (cmd === "rpg") {
     await sendText(from, `⚔️ *RPG Status — @${sender.split("@")[0]}*\n\n` +
@@ -98,7 +189,6 @@ export async function handleRpg(ctx: CommandContext): Promise<void> {
     const adv = ADVENTURES[Math.floor(Math.random() * ADVENTURES.length)];
     const successChance = Math.min(0.9, 0.4 + (rpg.level * 0.1) - (adv.difficulty * 0.1));
     const success = Math.random() < successChance;
-
     if (success) {
       const reward = adv.reward + Math.floor(Math.random() * adv.reward * 0.5);
       const xp = adv.difficulty * 50;
@@ -115,6 +205,12 @@ export async function handleRpg(ctx: CommandContext): Promise<void> {
   }
 
   if (cmd === "heal") {
+    const battle = activeDungeonBattles.get(sender);
+    if (battle && battle.groupId === from) {
+      battle.lastActivity = Date.now();
+      await processDungeonMove(ctx, battle, rpg);
+      return;
+    }
     if (rpg.hp >= rpg.max_hp) {
       await sendText(from, "❤️ You're already at full HP!");
       return;
@@ -151,40 +247,51 @@ export async function handleRpg(ctx: CommandContext): Promise<void> {
   }
 
   if (cmd === "dungeon") {
+    const existingBattle = activeDungeonBattles.get(sender);
+    if (existingBattle) {
+      if (Date.now() - existingBattle.lastActivity > BATTLE_TIMEOUT) {
+        activeDungeonBattles.delete(sender);
+      } else {
+        await sendText(from, dungeonBattleDisplay(existingBattle, rpg.level));
+        return;
+      }
+    }
+
     const cooldown = 360;
     if (now - (rpg.last_dungeon || 0) < cooldown) {
       await sendText(from, `⏳ Dungeon cooldown: ${formatDuration(cooldown - (now - rpg.last_dungeon))} left.`);
       return;
     }
-    const requestedMove = (args[0] || "").toLowerCase();
-    const moveKeys = Object.keys(DUNGEON_MOVES);
-    const moveKey = DUNGEON_MOVES[requestedMove] ? requestedMove : moveKeys[Math.floor(Math.random() * moveKeys.length)];
-    const move = DUNGEON_MOVES[moveKey];
-    const floor = rpg.dungeon_floor;
-    const enemy = DUNGEON_ENEMIES[Math.min(floor, 5)];
-    const playerDmg = Math.max(1, Math.floor((rpg.attack - Math.floor(enemy.attack * 0.3) + Math.floor(Math.random() * 15)) * move.damage));
-    const enemyDmg = Math.max(1, Math.floor((enemy.attack - Math.floor(rpg.defense * 0.5) + Math.floor(Math.random() * 10)) * move.incoming));
-    const turnsToKill = Math.ceil(enemy.hp / playerDmg);
-    const hpLost = enemyDmg * turnsToKill;
-    const survivalScore = rpg.hp / Math.max(1, hpLost);
-    const successChance = Math.max(0.15, Math.min(0.95, 0.45 + survivalScore * 0.28 + move.success));
-    const success = Math.random() < successChance;
-    const moveList = moveKeys.map((key) => `║ ${key.padEnd(8)} │ ${DUNGEON_MOVES[key].label}`).join("\n");
 
-    if (success) {
-      const newFloor = floor + 1;
-      const xp = floor * 80;
-      const reward = Math.floor(enemy.reward * move.reward);
-      const hpAfter = Math.min(rpg.max_hp, Math.max(1, rpg.hp - Math.floor(hpLost * 0.5) + (moveKey === "heal" ? Math.floor(rpg.max_hp * 0.15) : 0)));
-      updateRpg(sender, { dungeon_floor: newFloor, hp: hpAfter, last_dungeon: now, xp: rpg.xp + xp });
-      updateUser(sender, { balance: (user?.balance || 0) + reward });
-      addToInventory(sender, "Dungeon Key", 1);
-      checkLevelUp(sender, rpg.xp + xp, rpg.level);
-      await sendText(from, dungeonResult(sender, floor, enemy.name, moveKey, move.label, "✅ Victory", reward, xp, hpAfter, rpg.max_hp, newFloor, move.note, moveList), [sender]);
-    } else {
-      updateRpg(sender, { hp: 1, last_dungeon: now });
-      await sendText(from, dungeonResult(sender, floor, enemy.name, moveKey, move.label, "❌ Defeated", 0, 0, 1, rpg.max_hp, floor, "Barely escaped. Use .heal or a safer move next time.", moveList), [sender]);
+    if (rpg.hp < Math.floor(rpg.max_hp * 0.2)) {
+      await sendText(from, `❤️ You're too injured to enter the dungeon! HP: ${rpg.hp}/${rpg.max_hp}\n\nUse *.heal* or a potion first.`);
+      return;
     }
+
+    const floor = rpg.dungeon_floor;
+    const enemy = getDungeonEnemy(floor);
+
+    const battle: DungeonBattle = {
+      groupId: from,
+      floor,
+      enemyName: enemy.name,
+      enemyHp: enemy.hp,
+      enemyMaxHp: enemy.hp,
+      enemyAttack: enemy.attack,
+      enemyLevel: enemy.level,
+      enemyReward: enemy.reward,
+      playerHp: rpg.hp,
+      playerMaxHp: rpg.max_hp,
+      playerAttack: rpg.attack,
+      playerDefense: rpg.defense,
+      healCooldown: 0,
+      defendActive: false,
+      lastActivity: Date.now(),
+    };
+
+    activeDungeonBattles.set(sender, battle);
+    updateRpg(sender, { last_dungeon: now });
+    await sendText(from, dungeonBattleDisplay(battle, rpg.level, `⚔️ *Entering Dungeon Floor ${floor}...*`));
     return;
   }
 
@@ -211,6 +318,134 @@ export async function handleRpg(ctx: CommandContext): Promise<void> {
   }
 }
 
+async function processDungeonMove(ctx: CommandContext, battle: DungeonBattle, rpg: any): Promise<void> {
+  const { from, sender, command: cmd } = ctx;
+  const user = getUser(sender);
+
+  if (battle.healCooldown > 0) battle.healCooldown--;
+  const wasDefending = battle.defendActive;
+  battle.defendActive = false;
+
+  let resultLines: string[] = [];
+  let playerDmgDealt = 0;
+  let enemyDmgTaken = 0;
+  let ended = false;
+
+  if (cmd === "attack") {
+    playerDmgDealt = calcDmg(battle.playerAttack, 1.0);
+    battle.enemyHp -= playerDmgDealt;
+    resultLines.push(`⚔️ You struck *${battle.enemyName}* for *${playerDmgDealt} damage*!`);
+  } else if (cmd === "heavy") {
+    if (Math.random() < 0.65) {
+      playerDmgDealt = calcDmg(battle.playerAttack, 1.8);
+      battle.enemyHp -= playerDmgDealt;
+      resultLines.push(`💥 *HEAVY HIT!* You smashed *${battle.enemyName}* for *${playerDmgDealt} damage*!`);
+    } else {
+      resultLines.push(`💥 You swung hard but *missed*! Off-balance...`);
+      enemyDmgTaken = calcDmg(battle.enemyAttack, 1.5);
+    }
+  } else if (cmd === "defend") {
+    playerDmgDealt = calcDmg(battle.playerAttack, 0.5);
+    battle.enemyHp -= playerDmgDealt;
+    battle.defendActive = true;
+    resultLines.push(`🛡️ You defend and counter for *${playerDmgDealt} damage*! Blocking incoming attack...`);
+  } else if (cmd === "special") {
+    playerDmgDealt = calcDmg(battle.playerAttack, 1.5);
+    battle.enemyHp -= playerDmgDealt;
+    resultLines.push(`🌟 *Special attack!* You focused and dealt *${playerDmgDealt} damage*!`);
+  } else if (cmd === "heal") {
+    if (battle.healCooldown > 0) {
+      await sendText(from, `🧪 Heal is on cooldown! (${battle.healCooldown} turns left)`);
+      battle.healCooldown++;
+      return;
+    }
+    const healAmt = Math.floor(battle.playerMaxHp * 0.2);
+    battle.playerHp = Math.min(battle.playerMaxHp, battle.playerHp + healAmt);
+    battle.healCooldown = 3;
+    resultLines.push(`🧪 You recovered *${healAmt} HP*! (3-turn cooldown)`);
+  } else if (cmd === "item") {
+    const inv = getInventory(sender);
+    const potion = inv.find((i: any) =>
+      i.item.toLowerCase().includes("potion") || i.item.toLowerCase().includes("elixir")
+    );
+    if (!potion) {
+      await sendText(from, "🎒 No potions in your inventory! Use *.buy Health Potion* in the shop.");
+      return;
+    }
+    const healFull = potion.item.toLowerCase().includes("elixir");
+    const healAmt = healFull ? battle.playerMaxHp - battle.playerHp : 50;
+    battle.playerHp = Math.min(battle.playerMaxHp, battle.playerHp + healAmt);
+    removeFromInventory(sender, potion.item);
+    resultLines.push(`🎒 Used *${potion.item}* — recovered *${healAmt} HP*!`);
+  } else if (cmd === "flee") {
+    if (Math.random() < 0.45) {
+      activeDungeonBattles.delete(sender);
+      await sendText(from, "🏃 You fled from battle! No reward.\n\n_Use *.dungeon* to try again._");
+      return;
+    } else {
+      resultLines.push("🏃 You tried to flee but *couldn't escape*!");
+    }
+  } else if (cmd === "explore") {
+    const gold = 50 + Math.floor(Math.random() * 150);
+    updateUser(sender, { balance: (user?.balance || 0) + gold });
+    resultLines.push(`🔍 You found *$${formatNumber(gold)}* while exploring!`);
+    enemyDmgTaken = calcDmg(battle.enemyAttack, 0.8);
+  } else if (cmd === "rest") {
+    const restHeal = Math.floor(battle.playerMaxHp * 0.05);
+    battle.playerHp = Math.min(battle.playerMaxHp, battle.playerHp + restHeal);
+    resultLines.push(`🏕️ You rested and recovered *${restHeal} HP*.`);
+  }
+
+  const doesEnemyAttack = cmd !== "item" && cmd !== "flee";
+  if (doesEnemyAttack && battle.enemyHp > 0) {
+    const incomingMult = battle.defendActive ? 0.4 : (cmd === "heavy" && resultLines[0].includes("missed")) ? 1.5 : 1.0;
+    const dmg = enemyDmgTaken || calcDmg(battle.enemyAttack - Math.floor(battle.playerDefense * 0.3), incomingMult);
+    battle.playerHp -= dmg;
+    resultLines.push(`👾 *${battle.enemyName}* strikes back for *${dmg} damage*!`);
+  }
+
+  const rpgFresh = ensureRpg(sender);
+
+  if (battle.enemyHp <= 0) {
+    const xp = battle.floor * 80;
+    const reward = battle.enemyReward;
+    const newFloor = battle.floor + 1;
+    const hpAfter = Math.max(1, battle.playerHp);
+    updateRpg(sender, { dungeon_floor: newFloor, hp: hpAfter, xp: rpgFresh.xp + xp });
+    updateUser(sender, { balance: (user?.balance || 0) + reward });
+    addToInventory(sender, "Dungeon Key");
+    checkLevelUp(sender, rpgFresh.xp + xp, rpgFresh.level);
+    activeDungeonBattles.delete(sender);
+    const victoryMsg =
+      resultLines.join("\n") + "\n\n" +
+      `🏆 *VICTORY!* You defeated *${battle.enemyName}*!\n\n` +
+      `💰 Reward: $${formatNumber(reward)}\n` +
+      `✨ XP: +${xp}\n` +
+      `🗝️ Dungeon Key obtained!\n` +
+      `🏰 Next floor: *Floor ${newFloor}*\n\n` +
+      `_Use *.dungeon* to continue._`;
+    await sendText(from, victoryMsg);
+    return;
+  }
+
+  if (battle.playerHp <= 0) {
+    updateRpg(sender, { hp: 1 });
+    activeDungeonBattles.delete(sender);
+    const defeatMsg =
+      resultLines.join("\n") + "\n\n" +
+      `💀 *DEFEATED!* You were overcome by *${battle.enemyName}*...\n\n` +
+      `❤️ HP reduced to 1\n` +
+      `🏰 Floor ${battle.floor} — better luck next time!\n\n` +
+      `_Use *.heal* to recover then try *.dungeon* again._`;
+    await sendText(from, defeatMsg);
+    return;
+  }
+
+  updateRpg(sender, { hp: Math.max(1, battle.playerHp) });
+  const header = resultLines.join("\n");
+  await sendText(from, dungeonBattleDisplay(battle, rpgFresh.level, header));
+}
+
 function checkLevelUp(userId: string, xp: number, currentLevel: number) {
   const xpNeeded = currentLevel * 100;
   if (xp >= xpNeeded) {
@@ -222,37 +457,4 @@ function formatDuration(secs: number): string {
   if (secs < 60) return `${secs}s`;
   if (secs < 3600) return `${Math.floor(secs / 60)}m ${secs % 60}s`;
   return `${Math.floor(secs / 3600)}h ${Math.floor((secs % 3600) / 60)}m`;
-}
-
-function dungeonResult(
-  sender: string,
-  floor: number,
-  enemy: string,
-  moveKey: string,
-  moveLabel: string,
-  outcome: string,
-  reward: number,
-  xp: number,
-  hp: number,
-  maxHp: number,
-  nextFloor: number,
-  note: string,
-  moveList: string
-): string {
-  return `╔═ ❰ 🏰 𝗗𝗨𝗡𝗚𝗘𝗢𝗡 ❱ ═╗\n` +
-    `║ 👤 User     │ @${sender.split("@")[0]}\n` +
-    `║ 🧱 Floor    │ ${floor}\n` +
-    `║ 👹 Enemy    │ ${enemy}\n` +
-    `║ ⚔️ Move     │ ${moveKey} — ${moveLabel}\n` +
-    `║ 🎯 Result   │ ${outcome}\n` +
-    `║ ❤️ HP       │ ${hp}/${maxHp}\n` +
-    `║ 💰 Reward   │ $${formatNumber(reward)}\n` +
-    `║ ✨ XP       │ +${xp}\n` +
-    `║ 🚪 Next     │ Floor ${nextFloor}\n` +
-    `╠═ ❰ 𝗠𝗢𝗩𝗘𝗦 ❱ ═╗\n` +
-    `${moveList}\n` +
-    `╠═══════════════\n` +
-    `║ ${note}\n` +
-    `║ Use: .dungeon <move>\n` +
-    `╚══════════════╝`;
 }

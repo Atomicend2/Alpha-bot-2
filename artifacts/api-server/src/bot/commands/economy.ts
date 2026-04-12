@@ -62,14 +62,19 @@ export async function handleEconomy(ctx: CommandContext): Promise<void> {
   const now = Math.floor(Date.now() / 1000);
 
   if (cmd === "balance" || cmd === "bal") {
+    const displayName = user.name || sender.split("@")[0];
+    const wallet = user.balance || 0;
+    const bank = user.bank || 0;
+    const total = wallet + bank;
     await sendText(
       from,
-      `💰 *Balance — @${sender.split("@")[0]}*\n\n` +
-      `🏦 Bank: $${formatNumber(user.bank || 0)}\n` +
-      `👛 Wallet: $${formatNumber(user.balance || 0)}\n` +
-      `💎 Gems: ${user.gems || 0}\n` +
-      `📊 Total: $${formatNumber((user.balance || 0) + (user.bank || 0))}`,
-      [sender]
+      `💰 𝗔𝗖𝗖𝗢𝗨𝗡𝗧 𝗕𝗔𝗟𝗔𝗡𝗖𝗘 💰\n\n` +
+      `╭━✩ 𝐒𝐇𝚫𝐃𝐎𝐖 𝐆𝚫𝐑𝐃𝚵𝐍 ☆━╮\n\n` +
+      `🌟 𝗡𝗮𝗺𝗲: ${displayName}\n\n` +
+      `🪙 𝗪𝗮𝗹𝗹𝗲𝘁: \`⎾$${formatNumber(wallet)}⏌\`\n\n` +
+      `🏦 𝗕𝗮𝗻𝗸:   \`⎾$${formatNumber(bank)}⏌\`\n\n` +
+      `🌠  𝗧𝗼𝘁𝗮𝗹: \`⎾$${formatNumber(total)}⏌\`\n\n` +
+      `╰━━━━━━━━━━━━━━━━━╯`
     );
     return;
   }
@@ -180,36 +185,38 @@ export async function handleEconomy(ctx: CommandContext): Promise<void> {
   }
 
   if (cmd === "cds") {
-    const digUsage = getDailyUsage(user, "dig", now);
-    const fishUsage = getDailyUsage(user, "fish", now);
-    const gambleDay = new Date(now * 1000).toISOString().slice(0, 10);
-    const gambleUses = user.gamble_date === gambleDay ? Number(user.gamble_uses || 0) : 0;
-    const cooldowns = [
-      ["Daily", DAILY_COOLDOWN, user.last_daily || 0],
-      ["Work", WORK_COOLDOWN, user.last_work || 0],
-      ["Dig", DIG_COOLDOWN, user.last_dig || 0],
-      ["Fish", FISH_COOLDOWN, user.last_fish || 0],
-      ["Beg", BEG_COOLDOWN, user.last_beg || 0],
-      ["Slots", 180, user.last_slots || 0],
-      ["Dice", 120, user.last_dice || 0],
-      ["Coinflip", 120, user.last_coinflip || 0],
-      ["Casino", 420, user.last_casino || 0],
-      ["Doublebet", 240, user.last_doublebet || 0],
-      ["Doublepayout", 300, user.last_doublepayout || 0],
-      ["Roulette", 300, user.last_roulette || 0],
-      ["Horse", 240, user.last_horse || 0],
-      ["Spin", 180, user.last_spin || 0],
+    const rpg = ensureRpg(sender);
+    const allCooldowns: Array<{ emoji: string; name: string; cd: number; last: number }> = [
+      { emoji: "📅", name: "Daily",       cd: DAILY_COOLDOWN,   last: user.last_daily || 0 },
+      { emoji: "💼", name: "Work",        cd: WORK_COOLDOWN,    last: user.last_work || 0 },
+      { emoji: "⛏️", name: "Dig",         cd: DIG_COOLDOWN,     last: user.last_dig || 0 },
+      { emoji: "🎣", name: "Fish",        cd: FISH_COOLDOWN,    last: user.last_fish || 0 },
+      { emoji: "🙏", name: "Beg",         cd: BEG_COOLDOWN,     last: user.last_beg || 0 },
+      { emoji: "🎰", name: "Slots",       cd: 300,              last: user.last_slots || 0 },
+      { emoji: "🎲", name: "Dice",        cd: 120,              last: user.last_dice || 0 },
+      { emoji: "🪙", name: "Coinflip",    cd: 120,              last: user.last_coinflip || 0 },
+      { emoji: "🃏", name: "Casino",      cd: 420,              last: user.last_casino || 0 },
+      { emoji: "🎯", name: "Doublebet",   cd: 240,              last: user.last_doublebet || 0 },
+      { emoji: "💰", name: "Doublepayout",cd: 300,              last: user.last_doublepayout || 0 },
+      { emoji: "🎡", name: "Roulette",    cd: 300,              last: user.last_roulette || 0 },
+      { emoji: "🏇", name: "Horse",       cd: 240,              last: user.last_horse || 0 },
+      { emoji: "🌀", name: "Spin",        cd: 180,              last: user.last_spin || 0 },
+      { emoji: "🏰", name: "Raid",        cd: 21600,            last: rpg.last_raid || 0 },
+      { emoji: "📜", name: "Quest",       cd: 240,              last: rpg.last_quest || 0 },
     ];
-    let text = `╔═ ❰ ⏳ 𝗖𝗢𝗢𝗟𝗗𝗢𝗪𝗡𝗦 ❱ ═╗\n║ @${sender.split("@")[0]}\n║\n`;
-    for (const [name, cooldown, last] of cooldowns) {
-      const remaining = Math.max(0, Number(cooldown) - (now - Number(last)));
-      text += `║ ➩ ${name}: ${remaining > 0 ? formatDuration(remaining) : "Ready"}\n`;
+    const active = allCooldowns.filter((c) => now - c.last < c.cd);
+    let text = `˗ˏˋ★ᯓ 𝗔𝗖𝗧𝗜𝗩𝗘 𝗖𝗢𝗢𝗟𝗗𝗢𝗪𝗡𝗦 ᯓ★ˎˊ˗\n`;
+    if (active.length === 0) {
+      text += `\n✅ *No active cooldowns!* You're all good to go.\n`;
+    } else {
+      text += "\n";
+      for (const c of active) {
+        const rem = c.cd - (now - c.last);
+        text += `• \`${c.emoji} ${c.name}\`— \`${formatDuration(rem)}\` left\n`;
+      }
     }
-    text += `║\n║ ⛏️ Dig uses: ${digUsage.count}/${DIG_FISH_DAILY_LIMIT}\n`;
-    text += `║ 🎣 Fish uses: ${fishUsage.count}/${DIG_FISH_DAILY_LIMIT}\n`;
-    text += `║ 🎰 Gamble uses: ${gambleUses}/20\n`;
-    text += "╚══════════════════╝";
-    await sendText(from, text, [sender]);
+    text += `\n> *Wait until cooldown ends to use these commands again or contact mods/guardians for premium (20% cooldown reduction)*`;
+    await sendText(from, text);
     return;
   }
 
@@ -329,21 +336,45 @@ export async function handleEconomy(ctx: CommandContext): Promise<void> {
   }
 
   if (cmd === "shop") {
+    const ITEM_EMOJIS: Record<string, string> = {
+      "Health Potion": "🧪",
+      "Elixir": "⚗️",
+      "Sword": "⚔️",
+      "Shield": "🛡️",
+      "Speed Boots": "👟",
+      "Lucky Charm": "🍀",
+      "VIP Pass": "💎",
+      "Card Pack": "🎴",
+      "Dungeon Key": "🗝️",
+    };
+    const CAT_EMOJIS: Record<string, string> = {
+      rpg: "⚔️",
+      general: "🛍️",
+      premium: "👑",
+      cards: "🎴",
+    };
     const items = getShop();
+    const seen = new Set<string>();
     const categories: Record<string, any[]> = {};
     for (const item of items) {
+      if (seen.has(item.name)) continue;
+      seen.add(item.name);
       if (!categories[item.category]) categories[item.category] = [];
       categories[item.category].push(item);
     }
-    let text = "🏪 *SHOP*\n\n";
-    for (const [cat, items] of Object.entries(categories)) {
-      text += `📦 *${cat.toUpperCase()}*\n`;
-      for (const item of items) {
-        text += `  • ${item.name} — $${formatNumber(item.price)}\n    ${item.description}\n`;
+    let text = "┌─⟡ 『 🏪 𝗦𝗛𝗢𝗣 』⟡\n║\n";
+    for (const [cat, catItems] of Object.entries(categories)) {
+      const catEmoji = CAT_EMOJIS[cat] || "📦";
+      text += `╠─⟡ ${catEmoji} *${cat.toUpperCase()}*\n`;
+      text += `║ ┌────────────────────\n`;
+      for (const item of catItems) {
+        const emoji = ITEM_EMOJIS[item.name] || "•";
+        text += `║ ║ ${emoji} *${item.name}* — $${formatNumber(item.price)}\n`;
+        if (item.description) text += `║ ║    _${item.description}_\n`;
       }
-      text += "\n";
+      text += `║ └────────────────────\n║\n`;
     }
-    text += "Use .buy [item name] to purchase.";
+    text += `╚══════════════════╝\n> Use *.buy [item name]* to purchase`;
     await sendText(from, text);
     return;
   }

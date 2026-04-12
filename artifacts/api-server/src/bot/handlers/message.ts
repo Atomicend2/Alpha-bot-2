@@ -1,6 +1,6 @@
 import type { WASocket, proto } from "@whiskeysockets/baileys";
 import { BOT_OWNER_LID, PREFIX, sendText, runWithReplyContext } from "../connection.js";
-import { ensureUser, ensureGroup, incrementMessageCount, getStaff, isBanned, getBotSetting, getUser, addUserXp } from "../db/queries.js";
+import { ensureUser, ensureGroup, incrementMessageCount, incrementGroupActivity, getStaff, isBanned, getBotSetting, getUser, addUserXp } from "../db/queries.js";
 import { checkAntilink, checkAntispam, checkBlacklist } from "./antispam.js";
 import { checkAutoSpawn, handleGetCard } from "./cardspawn.js";
 import { checkAfkMention, handleAfk } from "../commands/afk.js";
@@ -68,6 +68,7 @@ export async function handleMessage(
 
   if (isGroup) {
     incrementMessageCount(sender, from);
+    incrementGroupActivity(from);
   }
 
   let groupMeta: any = null;
@@ -301,6 +302,8 @@ async function dispatch(ctx: CommandContext): Promise<void> {
     case "activity":
     case "active":
     case "inactive":
+    case "gamble":
+    case "cards":
     case "purge":
     case "blacklist":
     case "groupinfo":
@@ -473,6 +476,14 @@ async function dispatch(ctx: CommandContext): Promise<void> {
     case "quest":
     case "raid":
     case "class":
+    case "attack":
+    case "heavy":
+    case "defend":
+    case "special":
+    case "flee":
+    case "explore":
+    case "rest":
+    case "item":
       return handleRpg(ctx);
 
     case "ai":

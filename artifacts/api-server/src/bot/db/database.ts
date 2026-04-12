@@ -398,6 +398,11 @@ function initSchema(db: Database.Database): void {
   ensureColumn(db, "banned_entities", "added_by", "TEXT");
   ensureColumn(db, "banned_entities", "added_at", "INTEGER DEFAULT 0");
   ensureColumn(db, "rpg_characters", "last_dungeon", "INTEGER DEFAULT 0");
+  ensureColumn(db, "groups", "recent_msg_count", "INTEGER DEFAULT 0");
+  ensureColumn(db, "groups", "recent_msg_window", "INTEGER DEFAULT 0");
+  ensureColumn(db, "groups", "next_spawn_time", "INTEGER DEFAULT 0");
+  ensureColumn(db, "groups", "spawn_count_today", "INTEGER DEFAULT 0");
+  ensureColumn(db, "groups", "spawn_date", "TEXT DEFAULT ''");
 }
 
 function ensureColumn(db: Database.Database, table: string, column: string, definition: string): void {

@@ -1,6 +1,6 @@
 import type { CommandContext } from "./index.js";
 import { sendText } from "../connection.js";
-import { getUser, ensureUser, updateUser } from "../db/queries.js";
+import { getUser, ensureUser, updateUser, getGroup } from "../db/queries.js";
 import { formatNumber, coinFlip, rollDice, spin, checkSlotWin, getRouletteColor } from "../utils.js";
 
 export async function handleGambling(ctx: CommandContext): Promise<void> {
@@ -216,7 +216,7 @@ async function checkBet(from: string, user: any, amount: number): Promise<boolea
 
 const GAMBLE_DAILY_LIMIT = 20;
 const GAMBLE_COOLDOWNS: Record<string, number> = {
-  slots: 180,
+  slots: 300,
   dice: 120,
   coinflip: 120,
   cf: 120,
@@ -234,6 +234,15 @@ async function checkGamblingAccess(from: string, sender: string, user: any, cmd:
   const now = Math.floor(Date.now() / 1000);
   const day = new Date(now * 1000).toISOString().slice(0, 10);
   const count = user.gamble_date === day ? Number(user.gamble_uses || 0) : 0;
+
+  if (from.endsWith("@g.us")) {
+    const group = getGroup(from);
+    if (group && (group.gambling_enabled || "on") === "off") {
+      await sendText(from, "🎰 Gambling is currently *disabled* in this group.", [sender]);
+      return { allowed: false, now, day, count, field: "", label: "" };
+    }
+  }
+
   const canonical = canonicalGambleCommand(cmd);
   const field = `last_${canonical}`;
   const label = canonical.replace(/^\w/, (c) => c.toUpperCase());

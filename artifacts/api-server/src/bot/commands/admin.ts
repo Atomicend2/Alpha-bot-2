@@ -2,7 +2,7 @@ import type { WASocket } from "@whiskeysockets/baileys";
 import type { CommandContext } from "./index.js";
 import {
   ensureGroup, getGroup, updateGroup, getWarnings, addWarning, resetWarnings,
-  getActiveMembers, getInactiveMembers, getMods, addMod, isMod,
+  getActiveMembers, getInactiveMembers, getMods, addMod, isMod, getGroupActivity,
 } from "../db/queries.js";
 import { sendText } from "../connection.js";
 import { formatNumber, mentionTag } from "../utils.js";
@@ -224,17 +224,46 @@ export async function handleAdmin(ctx: CommandContext): Promise<void> {
   if (cmd === "tagall") {
     if (!canUse) return noPerms(from);
     const participants = groupMeta?.participants || [];
-    const mentions: string[] = [];
-    let text = "📣 Tagging everyone:\n\n";
+    const mentions: string[] = participants.map((p: any) => p.id);
+    const announcement = args.join(" ") || "📢 Attention everyone!";
+    let membersLine = "";
     for (const p of participants) {
-      text += `@${p.id.split("@")[0]} `;
-      mentions.push(p.id);
+      membersLine += `@${p.id.split("@")[0]} `;
     }
-    await sock.sendMessage(from, { text: text.trim(), mentions });
+    const text =
+      `┌─⟡ 『 📢 𝗧𝗔𝗚 𝗔𝗟𝗟 』⟡\n` +
+      `║\n` +
+      `║ ${announcement}\n` +
+      `║\n` +
+      `╠─⟡ 👥 𝗠𝗘𝗠𝗕𝗘𝗥𝗦 (${participants.length})\n` +
+      `║ ┌────────────────────\n` +
+      `║ ║ ${membersLine.trim()}\n` +
+      `║ └────────────────────\n` +
+      `╚══════════════════╝`;
+    await sock.sendMessage(from, { text, mentions });
     return;
   }
 
-  if (cmd === "activity" || cmd === "active" || cmd === "inactive") {
+  if (cmd === "activity") {
+    const activity = getGroupActivity(from);
+    const isActive = activity.percentage >= 30;
+    const statusLine = isActive
+      ? `📌 𝗦𝘁𝗮𝘁𝘂𝘀: ✅ 𝗔𝗰𝘁𝗶𝘃𝗲`
+      : `📌 𝗦𝘁𝗮𝘁𝘂𝘀: ❌ 𝗜𝗻𝗮𝗰𝘁𝗶𝘃𝗲`;
+    const footer = isActive
+      ? `> *✅ This group has enough activity for cards to be enabled 🎴*`
+      : `> *⚠️ This group needs to reach 30% in order for a mod/guardian to enable cards 🎴*`;
+    const text =
+      `📊 𝗚𝗥𝗢𝗨𝗣 𝗔𝗖𝗧𝗜𝗩𝗜𝗧𝗬 𝗥𝗘𝗣𝗢𝗥𝗧\n\n` +
+      `💬 𝗠𝗲𝘀𝘀𝗮𝗴𝗲𝘀 (20𝗺): ${activity.count}\n` +
+      `📈 𝗣𝗲𝗿𝗰𝗲𝗻𝘁𝗮𝗴𝗲: ${activity.percentage}%\n` +
+      `${statusLine}\n\n` +
+      `${footer}`;
+    await sendText(from, text);
+    return;
+  }
+
+  if (cmd === "active" || cmd === "inactive") {
     if (!canUse) return noPerms(from);
     const active = getActiveMembers(from);
     const counted = new Set(active.map((m) => m.user_id));
@@ -271,6 +300,48 @@ export async function handleAdmin(ctx: CommandContext): Promise<void> {
 
     const all = [...active, ...inactive].map((m) => m.user_id);
     await sock.sendMessage(from, { text, mentions: all });
+    return;
+  }
+
+  if (cmd === "gamble") {
+    if (!canUse) return noPerms(from);
+    const val = args[0]?.toLowerCase();
+    if (val === "on") {
+      updateGroup(from, { gambling_enabled: "on" });
+      await sendText(from, "🎰 Gambling commands are now *enabled*.");
+    } else if (val === "off") {
+      updateGroup(from, { gambling_enabled: "off" });
+      await sendText(from, "🎰 Gambling commands are now *disabled*.");
+    } else {
+      const g = getGroup(from);
+      await sendText(from, `🎰 Gambling is currently: *${g?.gambling_enabled || "on"}*\nUsage: .gamble on/off`);
+    }
+    return;
+  }
+
+  if (cmd === "cards") {
+    if (!canUse) return noPerms(from);
+    const val = args[0]?.toLowerCase();
+    if (val === "on") {
+      const activity = getGroupActivity(from);
+      if (activity.percentage < 30) {
+        await sendText(from,
+          `❌ Cannot enable cards yet!\n\n` +
+          `📈 Current activity: *${activity.percentage}%* (need 30%)\n` +
+          `💬 Messages in 20min: ${activity.count}/150\n\n` +
+          `> Use *.activity* to check group activity status.`
+        );
+        return;
+      }
+      updateGroup(from, { cards_enabled: "on", spawn_enabled: "on" });
+      await sendText(from, "🎴 Card spawning is now *enabled*!");
+    } else if (val === "off") {
+      updateGroup(from, { cards_enabled: "off", spawn_enabled: "off" });
+      await sendText(from, "🎴 Card spawning is now *disabled*.");
+    } else {
+      const g = getGroup(from);
+      await sendText(from, `🎴 Cards are currently: *${g?.cards_enabled || "on"}*\nUsage: .cards on/off`);
+    }
     return;
   }
 
