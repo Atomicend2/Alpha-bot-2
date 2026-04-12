@@ -1,12 +1,13 @@
 import type { CommandContext } from "./index.js";
 import { sendText } from "../connection.js";
-import { addStaff, getStaffList, getStaff, ensureUser, getUser, updateUser, getCard, getAllCards, addBan, removeBan, getBanList } from "../db/queries.js";
+import { addStaff, getStaffList, getStaff, ensureUser, getUser, updateUser, getCard, getAllCards, addBan, removeBan, getBanList, setBotSetting } from "../db/queries.js";
 import { getTierEmoji, isValidTier, generateId } from "../utils.js";
 import { getDb } from "../db/database.js";
 import { spawnCard } from "../handlers/cardspawn.js";
 import { addCard } from "../db/queries.js";
 import axios from "axios";
 import { downloadMediaMessage } from "@whiskeysockets/baileys";
+import { logger } from "../../lib/logger.js";
 
 export async function handleStaff(ctx: CommandContext): Promise<void> {
   const { from, sender, args, command: cmd, msg, sock, isOwner } = ctx;
@@ -163,12 +164,47 @@ export async function handleStaff(ctx: CommandContext): Promise<void> {
   if (cmd === "join") {
     const link = args[0];
     if (!link) { await sendText(from, "❌ Provide a group link."); return; }
+    const code = normalizeGroupInviteCode(link);
+    if (!code) {
+      await sendText(from, "❌ Send a valid WhatsApp group invite link or invite code.");
+      return;
+    }
     try {
-      const code = link.split("chat.whatsapp.com/").pop() || link;
+      const info = await sock.groupGetInviteInfo(code).catch(() => null);
       await sock.groupAcceptInvite(code);
-      await sendText(from, "✅ Joined group!");
-    } catch {
-      await sendText(from, "❌ Failed to join group.");
+      await sendText(from, `✅ Joined group${info?.subject ? `: *${info.subject}*` : "!"}`);
+    } catch (err: any) {
+      logger.error({ err, code }, "Failed to join group from invite");
+      const reason = String(err?.message || err?.output?.payload?.message || "").trim();
+      await sendText(from, `❌ Failed to join group${reason ? `: ${reason}` : ". Make sure the invite link is active and the bot is allowed to join."}`);
+    }
+    return;
+  }
+
+  if (cmd === "setms") {
+    const quoted = msg.message?.extendedTextMessage?.contextInfo?.quotedMessage;
+    if (!quoted?.stickerMessage) {
+      await sendText(from, "❌ Reply to a sticker with .setms to save it as the mention sticker.");
+      return;
+    }
+    try {
+      const context = msg.message?.extendedTextMessage?.contextInfo;
+      const target = {
+        key: {
+          remoteJid: from,
+          fromMe: false,
+          id: context?.stanzaId || "",
+          participant: context?.participant,
+        },
+        message: quoted,
+      };
+      const downloaded = await downloadMediaMessage(target as any, "buffer", {}, { reuploadRequest: (sock as any).updateMediaMessage });
+      const stickerBuffer = Buffer.isBuffer(downloaded) ? downloaded : Buffer.from(downloaded as any);
+      setBotSetting("mention_sticker", stickerBuffer);
+      await sendText(from, "✅ Mention sticker set. I’ll send it when someone tags staff or a premium member.");
+    } catch (err: any) {
+      logger.error({ err }, "Failed to set mention sticker");
+      await sendText(from, `❌ Failed to set mention sticker: ${err?.message || "could not download sticker"}`);
     }
     return;
   }
@@ -330,6 +366,14 @@ function normalizeUserTarget(input: string): string | null {
 function extractGroupInviteCode(input: string): string | null {
   const match = input.match(/chat\.whatsapp\.com\/([A-Za-z0-9_-]+)/i);
   return match?.[1] || null;
+}
+
+function normalizeGroupInviteCode(input: string): string | null {
+  const trimmed = input.trim();
+  const match = trimmed.match(/(?:https?:\/\/)?(?:www\.)?chat\.whatsapp\.com\/([A-Za-z0-9_-]+)/i);
+  const raw = match?.[1] || trimmed;
+  const code = raw.split(/[?#/]/)[0]?.trim();
+  return code && /^[A-Za-z0-9_-]{16,}$/.test(code) ? code : null;
 }
 
 async function resolveGroupTarget(sock: any, code: string): Promise<{ target: string; display: string }> {

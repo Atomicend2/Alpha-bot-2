@@ -7,7 +7,7 @@ export async function handleAfk(ctx: CommandContext): Promise<void> {
   const { from, sender, args } = ctx;
   const reason = args.join(" ") || "AFK";
   setAfk(sender, reason);
-  await sendText(from, `💤 @${sender.split("@")[0]} is now AFK: ${reason}`, [sender]);
+  await sendText(from, `🔴 @${sender.split("@")[0]} is now AFK: ${reason}`, [sender]);
 }
 
 export async function checkAfkMention(
@@ -29,7 +29,7 @@ export async function checkAfkMention(
     const afk = getAfk(m);
     if (afk) {
       await sock.sendMessage(from, {
-        text: `💤 @${m.split("@")[0]} is AFK: "${afk.reason}" (since ${timeAgo(afk.started_at)})`,
+        text: `🔴 @${m.split("@")[0]} is AFK: "${afk.reason}" (since ${timeAgo(afk.started_at)})`,
         mentions: [m],
       });
     }

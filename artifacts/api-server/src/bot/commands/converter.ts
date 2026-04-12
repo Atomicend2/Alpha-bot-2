@@ -8,6 +8,9 @@ import path from "node:path";
 import { spawn } from "node:child_process";
 import { randomUUID } from "node:crypto";
 
+const DEFAULT_STICKER_NAME = "Atomic";
+const DEFAULT_STICKER_PACK = "𝐒𝐇𝚫𝐃𝐎𝐖 𝐆𝚫𝐑𝐃𝚵𝐍";
+
 export async function handleConverter(ctx: CommandContext): Promise<void> {
   const { from, sender, args, command: cmd, msg, sock } = ctx;
 
@@ -32,12 +35,15 @@ export async function handleConverter(ctx: CommandContext): Promise<void> {
           };
       const downloaded = await downloadMediaMessage(target as any, "buffer", {}, { reuploadRequest: (sock as any).updateMediaMessage });
       const input = Buffer.isBuffer(downloaded) ? downloaded : Buffer.from(downloaded as any);
-      const buf = await sharp(input, { animated: true })
-        .resize(512, 512, { fit: "inside", withoutEnlargement: true })
+      const webp = await sharp(input, { animated: true })
+        .resize(512, 512, { fit: "cover", position: "centre" })
         .webp({ quality: 85 })
         .toBuffer();
+      const buf = addWebpExif(webp, DEFAULT_STICKER_PACK, DEFAULT_STICKER_NAME);
       await sock.sendMessage(from, {
         sticker: buf,
+        packname: DEFAULT_STICKER_PACK,
+        author: DEFAULT_STICKER_NAME,
       });
     } catch (err) {
       logger.error({ err }, "Failed to create sticker");
@@ -127,9 +133,15 @@ export async function handleConverter(ctx: CommandContext): Promise<void> {
       } else {
         await sendText(from, info);
       }
-      const streamInfo = await play.stream(video.url, { quality: 2 });
-      const sourceBuffer = await readStream(streamInfo.stream as any);
-      const mp3 = await convertToMp3(sourceBuffer);
+      let mp3: Buffer;
+      try {
+        const streamInfo = await play.stream(video.url, { quality: 2 });
+        const sourceBuffer = await readStream(streamInfo.stream as any);
+        mp3 = await convertToMp3(sourceBuffer);
+      } catch (streamErr) {
+        logger.warn({ err: streamErr, url: video.url }, "play-dl stream failed; trying yt-dlp fallback");
+        mp3 = await downloadAudioWithYtDlp(video.url);
+      }
       await sock.sendMessage(from, {
         audio: mp3,
         mimetype: "audio/mpeg",
@@ -178,6 +190,86 @@ function runFfmpeg(args: string[]): Promise<void> {
       else reject(new Error(stderr.slice(-500) || `ffmpeg exited with ${code}`));
     });
   });
+}
+
+async function downloadAudioWithYtDlp(url: string): Promise<Buffer> {
+  const dir = path.join(process.cwd(), "data", "tmp");
+  await fs.mkdir(dir, { recursive: true });
+  const id = randomUUID();
+  const outputPath = path.join(dir, `${id}.mp3`);
+  try {
+    await runCommand("yt-dlp", [
+      "--no-playlist",
+      "--extract-audio",
+      "--audio-format",
+      "mp3",
+      "--audio-quality",
+      "128K",
+      "-o",
+      outputPath,
+      url,
+    ]);
+    return await fs.readFile(outputPath);
+  } finally {
+    await fs.rm(outputPath, { force: true }).catch(() => {});
+  }
+}
+
+function runCommand(command: string, args: string[]): Promise<void> {
+  return new Promise((resolve, reject) => {
+    const child = spawn(command, args, { stdio: ["ignore", "ignore", "pipe"] });
+    let stderr = "";
+    child.stderr.on("data", (chunk) => { stderr += chunk.toString(); });
+    child.on("error", reject);
+    child.on("close", (code) => {
+      if (code === 0) resolve();
+      else reject(new Error(stderr.slice(-800) || `${command} exited with ${code}`));
+    });
+  });
+}
+
+function addWebpExif(webp: Buffer, packName: string, stickerName: string): Buffer {
+  if (webp.length < 12 || webp.toString("ascii", 0, 4) !== "RIFF" || webp.toString("ascii", 8, 12) !== "WEBP") {
+    return webp;
+  }
+  const exif = buildStickerExif(packName, stickerName);
+  const exifSize = Buffer.alloc(4);
+  exifSize.writeUInt32LE(exif.length, 0);
+  const exifChunk = Buffer.concat([
+    Buffer.from("EXIF", "ascii"),
+    exifSize,
+    exif,
+    exif.length % 2 ? Buffer.from([0]) : Buffer.alloc(0),
+  ]);
+  const chunks: Buffer[] = [];
+  let offset = 12;
+  while (offset + 8 <= webp.length) {
+    const type = webp.toString("ascii", offset, offset + 4);
+    const size = webp.readUInt32LE(offset + 4);
+    const end = offset + 8 + size + (size % 2);
+    if (end > webp.length) break;
+    if (type !== "EXIF") chunks.push(webp.subarray(offset, end));
+    offset = end;
+  }
+  const output = Buffer.concat([webp.subarray(0, 12), ...chunks, exifChunk]);
+  output.writeUInt32LE(output.length - 8, 4);
+  return output;
+}
+
+function buildStickerExif(packName: string, stickerName: string): Buffer {
+  const json = Buffer.from(JSON.stringify({
+    "sticker-pack-id": "atomic-shadow-garden",
+    "sticker-pack-name": packName,
+    "sticker-pack-publisher": stickerName,
+    emojis: [""],
+  }), "utf-8");
+  const header = Buffer.from([
+    0x49, 0x49, 0x2a, 0x00, 0x08, 0x00, 0x00, 0x00,
+    0x01, 0x00, 0x41, 0x57, 0x07, 0x00, 0x00, 0x00,
+    0x00, 0x00, 0x16, 0x00, 0x00, 0x00,
+  ]);
+  header.writeUInt32LE(json.length, 14);
+  return Buffer.concat([header, json]);
 }
 
 function sanitizeFileName(name: string): string {

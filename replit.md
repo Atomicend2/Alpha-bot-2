@@ -21,7 +21,8 @@ pnpm workspace monorepo using TypeScript. Each package manages its own dependenc
 - On startup, the WhatsApp bot prompts in the server console for a phone number when no saved auth session exists and `BOT_PHONE_NUMBER` is not set.
 - API-triggered bot starts do not prompt for console input; pass a phone number in the request body or use the console startup prompt.
 - Pairing uses Baileys' latest fetched WhatsApp Web version and advertises the login device as Chrome on Ubuntu so WhatsApp can show the expected linked-device notification.
-- Saved WhatsApp auth lives under the API server's `data/auth` directory and is reused across workflow restarts.
+- Saved WhatsApp auth lives under the workspace `data/auth` directory and is reused across workflow restarts.
+- Restart validation on 2026-04-12 confirmed the bot reconnected from the saved session without requesting a new pairing code.
 
 ## Staff and Bans
 
@@ -33,8 +34,10 @@ pnpm workspace monorepo using TypeScript. Each package manages its own dependenc
 - The menu sends the uploaded image as its header image with the Shadow Garden command styling.
 - Card spawns and `.card`/`.cardinfo` always send an image; old cards without stored images get a generated Alpha card placeholder.
 - Spawned cards can be claimed with either `.get <card_id>` or plain `get <card_id>`.
-- `.s` converts image replies/captions to webp stickers before sending.
-- `.play <song>` searches YouTube, sends song details with thumbnail, converts the audio to MP3 with ffmpeg, then sends it as an audio file.
+- `.s` converts image replies/captions to 512×512 cropped WebP stickers with sticker name `Atomic` and pack name `𝐒𝐇𝚫𝐃𝐎𝐖 𝐆𝚫𝐑𝐃𝚵𝐍`.
+- `.setms` saves a replied-to sticker as the mention sticker. When someone tags a staff member or active premium member, the bot replies with that saved sticker.
+- AFK messages use the red dot (`🔴`) indicator.
+- `.play <song>` searches YouTube, sends song details with thumbnail, tries the normal audio stream first, then falls back to `yt-dlp` for bot-check failures before sending MP3 audio.
 - Dig/fish rewards are capped at 376 coins, have 2-minute cooldowns, and are limited to 20 uses per day. Gambling has a 20-use daily limit and per-command cooldowns up to 7 minutes for casino.
 
 ## Key Commands

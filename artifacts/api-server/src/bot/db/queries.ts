@@ -515,6 +515,22 @@ export function isBanned(type: "user" | "group", target: string) {
   return !!getBan(type, target);
 }
 
+export function setBotSetting(key: string, value: Buffer | string) {
+  const db = getDb();
+  db.prepare(`
+    INSERT INTO bot_settings (key, value, updated_at)
+    VALUES (?, ?, unixepoch())
+    ON CONFLICT(key) DO UPDATE SET value = excluded.value, updated_at = unixepoch()
+  `).run(key, value);
+}
+
+export function getBotSetting(key: string): Buffer | null {
+  const db = getDb();
+  const row = db.prepare("SELECT value FROM bot_settings WHERE key = ?").get(key) as any;
+  if (!row?.value) return null;
+  return Buffer.isBuffer(row.value) ? row.value : Buffer.from(row.value);
+}
+
 export function getSummerTokens(userId: string) {
   const db = getDb();
   const row = db.prepare("SELECT * FROM summer_tokens WHERE user_id = ?").get(userId) as any;

@@ -319,6 +319,12 @@ function initSchema(db: Database.Database): void {
       PRIMARY KEY (type, target)
     );
 
+    CREATE TABLE IF NOT EXISTS bot_settings (
+      key TEXT PRIMARY KEY,
+      value BLOB NOT NULL,
+      updated_at INTEGER DEFAULT (unixepoch())
+    );
+
     INSERT OR IGNORE INTO shop_items (name, description, price, effect, category) VALUES
       ('Health Potion', 'Restores 50 HP in battle', 500, 'heal:50', 'rpg'),
       ('Elixir', 'Fully restores HP', 2000, 'heal:full', 'rpg'),
