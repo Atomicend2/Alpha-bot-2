@@ -14,7 +14,7 @@ router.post("/start", async (req, res) => {
   const { phone } = req.body;
   try {
     botStarted = true;
-    connectToWhatsApp(phone).catch((err) => {
+    connectToWhatsApp(phone, { promptForPhone: false }).catch((err) => {
       logger.error({ err }, "Bot connection error");
     });
     res.json({ success: true, message: "Bot starting...", phone: phone || null });

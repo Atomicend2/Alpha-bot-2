@@ -16,6 +16,11 @@ pnpm workspace monorepo using TypeScript. Each package manages its own dependenc
 - **API codegen**: Orval (from OpenAPI spec)
 - **Build**: esbuild (CJS bundle)
 
+## Bot Pairing
+
+- On startup, the WhatsApp bot prompts in the server console for a phone number when no saved auth session exists and `BOT_PHONE_NUMBER` is not set.
+- API-triggered bot starts do not prompt for console input; pass a phone number in the request body or use the console startup prompt.
+
 ## Key Commands
 
 - `pnpm run typecheck` — full typecheck across all packages

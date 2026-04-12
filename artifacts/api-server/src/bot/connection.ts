@@ -10,6 +10,8 @@ import {
 import { Boom } from "@hapi/boom";
 import path from "path";
 import fs from "fs";
+import readline from "node:readline/promises";
+import { stdin as input, stdout as output } from "node:process";
 import { fileURLToPath } from "url";
 import { logger } from "../lib/logger.js";
 import { handleMessage } from "./handlers/message.js";
@@ -31,6 +33,10 @@ let pairingCode: string | null = null;
 let reconnectAttempts = 0;
 const MAX_RECONNECT_DELAY = 30000;
 
+type ConnectOptions = {
+  promptForPhone?: boolean;
+};
+
 export function getSocket(): WASocket | null {
   return sock;
 }
@@ -43,7 +49,22 @@ export function getPairingCode(): string | null {
   return pairingCode;
 }
 
-export async function connectToWhatsApp(phoneNumber?: string): Promise<WASocket> {
+function normalizePhoneNumber(phoneNumber?: string): string | undefined {
+  const normalized = phoneNumber?.replace(/\D/g, "");
+  return normalized || undefined;
+}
+
+async function askForPairingPhoneNumber(): Promise<string | undefined> {
+  const rl = readline.createInterface({ input, output });
+  try {
+    const answer = await rl.question("Enter WhatsApp phone number to pair with country code, or press Enter to skip: ");
+    return normalizePhoneNumber(answer);
+  } finally {
+    rl.close();
+  }
+}
+
+export async function connectToWhatsApp(phoneNumber?: string, options: ConnectOptions = {}): Promise<WASocket> {
   const { state, saveCreds } = await useMultiFileAuthState(AUTH_DIR);
   const { version } = await fetchLatestBaileysVersion();
 
@@ -77,14 +98,22 @@ export async function connectToWhatsApp(phoneNumber?: string): Promise<WASocket>
     keepAliveIntervalMs: 30000,
   });
 
-  if (!state.creds.registered && phoneNumber) {
-    await new Promise((resolve) => setTimeout(resolve, 3000));
-    try {
-      const code = await sock.requestPairingCode(phoneNumber.replace(/\D/g, ""));
-      pairingCode = code;
-      logger.info({ code }, "Pairing code generated");
-    } catch (err) {
-      logger.error({ err }, "Failed to request pairing code");
+  if (!state.creds.registered) {
+    const normalizedPhoneNumber =
+      normalizePhoneNumber(phoneNumber) || (options.promptForPhone === false ? undefined : await askForPairingPhoneNumber());
+
+    if (!normalizedPhoneNumber) {
+      logger.warn("No phone number provided; skipping pairing code request");
+    } else {
+      await new Promise((resolve) => setTimeout(resolve, 3000));
+      try {
+        const code = await sock.requestPairingCode(normalizedPhoneNumber);
+        pairingCode = code;
+        logger.info({ code }, "Pairing code generated");
+        console.log(`WhatsApp pairing code: ${code}`);
+      } catch (err) {
+        logger.error({ err }, "Failed to request pairing code");
+      }
     }
   }
 
