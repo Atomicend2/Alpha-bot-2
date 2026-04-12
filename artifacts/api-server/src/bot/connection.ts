@@ -4,6 +4,7 @@ import {
   DisconnectReason,
   makeCacheableSignalKeyStore,
   fetchLatestBaileysVersion,
+  Browsers,
   type WASocket,
   type BaileysEventMap,
 } from "@whiskeysockets/baileys";
@@ -66,7 +67,9 @@ async function askForPairingPhoneNumber(): Promise<string | undefined> {
 
 export async function connectToWhatsApp(phoneNumber?: string, options: ConnectOptions = {}): Promise<WASocket> {
   const { state, saveCreds } = await useMultiFileAuthState(AUTH_DIR);
-  const { version } = await fetchLatestBaileysVersion();
+  const { version, isLatest } = await fetchLatestBaileysVersion();
+  const browser = Browsers.ubuntu("Chrome");
+  logger.info({ version, isLatest, browser }, "Using WhatsApp Web pairing identity");
 
   const silentLogger = {
     level: "silent" as const,
@@ -87,7 +90,7 @@ export async function connectToWhatsApp(phoneNumber?: string, options: ConnectOp
     },
     printQRInTerminal: false,
     logger: silentLogger,
-    browser: ["Shadow Garden Bot", "Chrome", "1.0.0"],
+    browser,
     generateHighQualityLinkPreview: true,
     syncFullHistory: false,
     markOnlineOnConnect: true,
