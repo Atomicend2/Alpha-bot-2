@@ -237,7 +237,16 @@ export async function handleAdmin(ctx: CommandContext): Promise<void> {
   if (cmd === "activity" || cmd === "active" || cmd === "inactive") {
     if (!canUse) return noPerms(from);
     const active = getActiveMembers(from);
-    const inactive = getInactiveMembers(from);
+    const counted = new Set(active.map((m) => m.user_id));
+    const inactiveFromCounts = getInactiveMembers(from);
+    const inactiveMap = new Map<string, any>();
+    for (const member of inactiveFromCounts) inactiveMap.set(member.user_id, member);
+    for (const participant of groupMeta?.participants || []) {
+      if (!counted.has(participant.id) && !inactiveMap.has(participant.id)) {
+        inactiveMap.set(participant.id, { user_id: participant.id, count: 0 });
+      }
+    }
+    const inactive = [...inactiveMap.values()];
 
     let text = `╔═ ❰ 👥 𝗠𝗘𝗠𝗕𝗘𝗥 𝗦𝗧𝗔𝗧𝗦 ❱ ═╗\n`;
     text += `║ 🟢 Active Members: ${active.length}\n`;
@@ -245,21 +254,17 @@ export async function handleAdmin(ctx: CommandContext): Promise<void> {
 
     if (cmd !== "inactive") {
       text += `╠═ 🟢 𝗔𝗖𝗧𝗜𝗩𝗘\n`;
-      const activeSlice = active.slice(0, 20);
-      for (const m of activeSlice) {
+      for (const m of active) {
         text += `║ ○ @${m.user_id.split("@")[0]}\n`;
       }
-      if (active.length > 20) text += `║ ...and ${active.length - 20} more\n`;
       text += "║\n";
     }
 
     if (cmd !== "active") {
       text += `╠═ 🔴 𝗜𝗡𝗔𝗖𝗧𝗜𝗩𝗘\n`;
-      const inactiveSlice = inactive.slice(0, 20);
-      for (const m of inactiveSlice) {
+      for (const m of inactive) {
         text += `║ ○ @${m.user_id.split("@")[0]}\n`;
       }
-      if (inactive.length > 20) text += `║ ...and ${inactive.length - 20} more\n`;
     }
 
     text += "╚══════════════════╝";

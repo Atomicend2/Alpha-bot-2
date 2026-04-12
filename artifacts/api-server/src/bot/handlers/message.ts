@@ -1,5 +1,5 @@
 import type { WASocket, proto } from "@whiskeysockets/baileys";
-import { BOT_OWNER_LID, PREFIX, sendText } from "../connection.js";
+import { BOT_OWNER_LID, PREFIX, sendText, runWithReplyContext } from "../connection.js";
 import { ensureUser, ensureGroup, incrementMessageCount, getStaff, isBanned } from "../db/queries.js";
 import { checkAntilink, checkAntispam, checkBlacklist } from "./antispam.js";
 import { checkAutoSpawn, handleGetCard } from "./cardspawn.js";
@@ -139,14 +139,15 @@ export async function handleMessage(
 
   const [rawCmd, ...args] = body.slice(PREFIX.length).trim().split(/\s+/);
   const command = rawCmd.toLowerCase();
+  const replySock = createReplySocket(sock, msg);
 
   const ctx: CommandContext = {
-    sock, msg, from, sender, command, args, isAdmin, isBotAdmin,
+    sock: replySock, msg, from, sender, command, args, isAdmin, isBotAdmin,
     isOwner, isGroupAdmin, groupMeta, prefix: PREFIX, body,
   };
 
   try {
-    await dispatch(ctx);
+    await runWithReplyContext(msg, () => dispatch(ctx));
   } catch (err) {
     logger.error({ err, command }, "Error dispatching command");
     await sendText(from, `❌ An error occurred. Please try again.`).catch(() => {});
@@ -154,14 +155,14 @@ export async function handleMessage(
 }
 
 async function dispatch(ctx: CommandContext): Promise<void> {
-  const { command, from, sender } = ctx;
+  const { command, from, sender, msg } = ctx;
 
   switch (command) {
     case "menu":
       return handleMenu(ctx);
 
     case "ping":
-      await sendText(from, "🏓 Pong! Bot is online ✅");
+      await sendText(from, `Alpha's here!\n> ${getPingMs(msg)}ms`);
       return;
 
     case "uptime": {
@@ -439,10 +440,34 @@ async function dispatch(ctx: CommandContext): Promise<void> {
       return handleStaff(ctx);
 
     case "cds":
-      await sendText(from, "🎴 Card Drops: Auto-spawn enabled! Cards drop every 15+ messages.");
+      return handleEconomy(ctx);
       return;
 
     default:
       break;
   }
+}
+
+function createReplySocket(sock: WASocket, msg: proto.IWebMessageInfo): WASocket {
+  return new Proxy(sock as any, {
+    get(target, prop) {
+      if (prop !== "sendMessage") {
+        const value = target[prop];
+        return typeof value === "function" ? value.bind(target) : value;
+      }
+      return (jid: string, content: any, options?: any) => {
+        if (content?.delete || content?.react) {
+          return target.sendMessage(jid, content, options);
+        }
+        return target.sendMessage(jid, content, { quoted: msg, ...(options || {}) });
+      };
+    },
+  }) as WASocket;
+}
+
+function getPingMs(msg: proto.IWebMessageInfo): number {
+  const raw = msg.messageTimestamp as any;
+  const seconds = typeof raw === "number" ? raw : Number(raw?.low || raw || 0);
+  const sent = seconds > 0 ? seconds * 1000 : Date.now();
+  return Math.max(1, Date.now() - sent);
 }

@@ -12,10 +12,10 @@ export async function handleMenu(ctx: CommandContext): Promise<void> {
   const menuText = `┌─⟡ 『 𝗦𝗛𝗔𝗗𝗢𝗪 𝗚𝗔𝗥𝗗𝗘𝗡 』⟡
 ║
 ║ ┌────────────────────
-║ ║ 👋 𝗛𝗲𝘆     : @${senderName}
-║ ║ 👾 𝗕𝗼𝘁     : Alpha
+║ ║ 👋 𝗛𝗲𝘆 : @${senderName}
+║ ║ 👾 𝗕𝗼𝘁 : Alpha
 ║ ║ 👑 𝗖𝗿𝗲𝗮𝘁𝗼𝗿 : Ryuk
-║ ║ 🔹 𝗣𝗿𝗲𝗳𝗶𝘅  : [ . ]
+║ ║ 🔹 𝗣𝗿𝗲𝗳𝗶𝘅 : [ . ]
 ║ └────────────────────
 ║
 ╠─⟡ 📋 𝗠𝗔𝗜𝗡
@@ -273,6 +273,7 @@ export async function handleMenu(ctx: CommandContext): Promise<void> {
 ║ ║ ➩ .show all T1/T2/T3/T4/T5/TS/TX
 ║ ║ ➩ .spawncard (manual card spawn)
 ║ ║ ➩ .dc (delete card — reply to spawn)
+║ ║ ➩ .upload T<tier> <name>. <series>
 ║ ║ ➩ .ac <amount> <number> (add cash)
 ║ ║ ➩ .rc <amount> <number> (remove cash)
 ║ └────────────────────

@@ -28,6 +28,9 @@ pnpm workspace monorepo using TypeScript. Each package manages its own dependenc
 - `.addmod`, `.addguardian`, and `.recruit` create global staff records shown by `.modlist`.
 - Mods and guardians can use `.ban <number>`, `.unban <number>`, `.ban <group link>`, `.unban <group link>`, and `.banlist`.
 - SQLite startup migrations add missing bot columns/tables in place so older `bot.db` files do not lose existing data.
+- Bot command responses are quoted to the command message where possible so the user can see who the reply is for.
+- Card uploads use `.upload T<tier> <name>. <series>` while replying to an image/sticker.
+- The menu sends the uploaded image as its header image with the Shadow Garden command styling.
 
 ## Key Commands
 

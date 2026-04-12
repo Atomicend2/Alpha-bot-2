@@ -61,6 +61,7 @@ export async function handleInteraction(ctx: CommandContext): Promise<void> {
   const { from, sender, command: cmd, msg, sock } = ctx;
   const name = sender.split("@")[0];
   const mentioned = msg.message?.extendedTextMessage?.contextInfo?.mentionedJid?.[0];
+  await sendText(from, `┌─⟡ 『 𝗔𝗟𝗣𝗛𝗔 𝗟𝗢𝗔𝗗𝗜𝗡𝗚 』⟡\n║\n║ ➩ Action: .${cmd}\n║ ➩ Target: preparing...\n║\n└────────────────────`, [sender, ...(mentioned ? [mentioned] : [])]);
 
   if (SOLO_ACTIONS[cmd]) {
     const actions = SOLO_ACTIONS[cmd];

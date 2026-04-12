@@ -71,6 +71,7 @@ export async function handleFun(ctx: CommandContext): Promise<void> {
   const { from, sender, args, command: cmd, msg, sock } = ctx;
   const name = sender.split("@")[0];
   const mentioned = msg.message?.extendedTextMessage?.contextInfo?.mentionedJid?.[0];
+  await sendText(from, loadingText(cmd), [sender]);
 
   if (cmd === "gay") {
     const pct = Math.floor(Math.random() * 101);
@@ -180,4 +181,8 @@ export async function handleFun(ctx: CommandContext): Promise<void> {
     await sendText(from, `😂 ${JOKES[Math.floor(Math.random() * JOKES.length)]}`);
     return;
   }
+}
+
+function loadingText(command: string): string {
+  return `┌─⟡ 『 𝗔𝗟𝗣𝗛𝗔 𝗟𝗢𝗔𝗗𝗜𝗡𝗚 』⟡\n║\n║ ➩ Command: .${command}\n║ ➩ Target: calculating...\n║\n└────────────────────`;
 }

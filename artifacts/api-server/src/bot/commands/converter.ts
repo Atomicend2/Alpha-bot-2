@@ -1,6 +1,7 @@
 import type { CommandContext } from "./index.js";
 import { sendText } from "../connection.js";
 import { logger } from "../../lib/logger.js";
+import { downloadMediaMessage } from "@whiskeysockets/baileys";
 
 export async function handleConverter(ctx: CommandContext): Promise<void> {
   const { from, sender, args, command: cmd, msg, sock } = ctx;
@@ -13,13 +14,19 @@ export async function handleConverter(ctx: CommandContext): Promise<void> {
       return;
     }
     try {
-      const target = msg.message?.imageMessage ? msg : { message: quoted };
-      const stream = await sock.downloadMediaMessage(target as any);
-      const chunks: Buffer[] = [];
-      for await (const chunk of stream as any) {
-        chunks.push(Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk));
-      }
-      const buf = Buffer.concat(chunks);
+      const target = msg.message?.imageMessage
+        ? msg
+        : {
+            key: {
+              remoteJid: from,
+              fromMe: false,
+              id: msg.message?.extendedTextMessage?.contextInfo?.stanzaId || "",
+              participant: msg.message?.extendedTextMessage?.contextInfo?.participant,
+            },
+            message: quoted,
+          };
+      const downloaded = await downloadMediaMessage(target as any, "buffer", {}, { reuploadRequest: (sock as any).updateMediaMessage });
+      const buf = Buffer.isBuffer(downloaded) ? downloaded : Buffer.from(downloaded as any);
       await sock.sendMessage(from, {
         sticker: buf,
       });
@@ -36,12 +43,17 @@ export async function handleConverter(ctx: CommandContext): Promise<void> {
       return;
     }
     try {
-      const stream = await sock.downloadMediaMessage({ message: quoted, key: { id: "", remoteJid: from, fromMe: false } } as any);
-      const chunks: Buffer[] = [];
-      for await (const chunk of stream as any) {
-        chunks.push(Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk));
-      }
-      const buf = Buffer.concat(chunks);
+      const target = {
+        key: {
+          remoteJid: from,
+          fromMe: false,
+          id: msg.message?.extendedTextMessage?.contextInfo?.stanzaId || "",
+          participant: msg.message?.extendedTextMessage?.contextInfo?.participant,
+        },
+        message: quoted,
+      };
+      const downloaded = await downloadMediaMessage(target as any, "buffer", {}, { reuploadRequest: (sock as any).updateMediaMessage });
+      const buf = Buffer.isBuffer(downloaded) ? downloaded : Buffer.from(downloaded as any);
       await sock.sendMessage(from, { image: buf, caption: "Here's your image! 🖼️" });
     } catch {
       await sendText(from, "❌ Failed to convert sticker.");

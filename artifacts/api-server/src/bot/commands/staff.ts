@@ -6,6 +6,7 @@ import { getDb } from "../db/database.js";
 import { spawnCard } from "../handlers/cardspawn.js";
 import { addCard } from "../db/queries.js";
 import axios from "axios";
+import { downloadMediaMessage } from "@whiskeysockets/baileys";
 
 export async function handleStaff(ctx: CommandContext): Promise<void> {
   const { from, sender, args, command: cmd, msg, sock, isOwner } = ctx;
@@ -239,7 +240,7 @@ export async function handleStaff(ctx: CommandContext): Promise<void> {
     }
     const tier = args[0]?.toUpperCase();
     if (!tier || !isValidTier(tier)) {
-      await sendText(from, "❌ Usage: .upload [T1/T2/T3/T4/T5/TS/TX] (reply to image)\nOptionally: .upload T4 CardName | Series | description");
+      await sendText(from, "❌ Usage: .upload T<tier> <name>. <series>\nExample: .upload T4 Shadow Monarch. Solo Leveling\nReply to an image/sticker.");
       return;
     }
     const quoted = msg.message?.extendedTextMessage?.contextInfo;
@@ -254,22 +255,33 @@ export async function handleStaff(ctx: CommandContext): Promise<void> {
       return;
     }
 
-    const extraArgs = args.slice(1).join(" ").split("|").map((s) => s.trim());
-    const cardName = extraArgs[0] || `Card_${Date.now()}`;
-    const cardSeries = extraArgs[1] || "General";
-    const cardDesc = extraArgs[2] || "";
+    const parsed = parseUploadDetails(args.slice(1).join(" "));
+    const cardName = parsed.name || `Card_${Date.now()}`;
+    const cardSeries = parsed.series || "General";
+    const cardDesc = parsed.description || "";
 
     const db = getDb();
     const existingIds = new Set(db.prepare("SELECT id FROM cards").all().map((r: any) => r.id));
 
     try {
       await sendText(from, "⏳ Downloading image and saving card...");
-      const stream = await sock.downloadMediaMessage({ message: quotedMsg, key: { id: "", remoteJid: from, fromMe: false } } as any);
-      const chunks: Buffer[] = [];
-      for await (const chunk of stream as any) {
-        chunks.push(Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk));
-      }
-      const imageBuffer = Buffer.concat(chunks);
+      const context = msg.message?.extendedTextMessage?.contextInfo;
+      const quotedWebMessage = {
+        key: {
+          remoteJid: from,
+          fromMe: false,
+          id: context?.stanzaId || "",
+          participant: context?.participant,
+        },
+        message: quotedMsg,
+      };
+      const downloaded = await downloadMediaMessage(
+        quotedWebMessage as any,
+        "buffer",
+        {},
+        { reuploadRequest: (sock as any).updateMediaMessage }
+      );
+      const imageBuffer = Buffer.isBuffer(downloaded) ? downloaded : Buffer.from(downloaded as any);
 
       const { generateUniqueCardId } = await import("../utils.js");
       const cardId = generateUniqueCardId(existingIds);
@@ -290,6 +302,22 @@ export async function handleStaff(ctx: CommandContext): Promise<void> {
     }
     return;
   }
+}
+
+function parseUploadDetails(input: string): { name: string; series: string; description: string } {
+  const trimmed = input.trim();
+  if (!trimmed) return { name: "", series: "General", description: "" };
+  if (trimmed.includes("|")) {
+    const [name, series, description] = trimmed.split("|").map((s) => s.trim());
+    return { name: name || "", series: series || "General", description: description || "" };
+  }
+  const dotIndex = trimmed.indexOf(".");
+  if (dotIndex >= 0) {
+    const name = trimmed.slice(0, dotIndex).trim();
+    const series = trimmed.slice(dotIndex + 1).trim();
+    return { name, series: series || "General", description: "" };
+  }
+  return { name: trimmed, series: "General", description: "" };
 }
 
 function normalizeUserTarget(input: string): string | null {

@@ -334,7 +334,41 @@ function initSchema(db: Database.Database): void {
   ensureColumn(db, "users", "last_dig", "INTEGER DEFAULT 0");
   ensureColumn(db, "users", "last_fish", "INTEGER DEFAULT 0");
   ensureColumn(db, "users", "last_beg", "INTEGER DEFAULT 0");
+  ensureColumn(db, "users", "premium_balance", "INTEGER DEFAULT 0");
+  ensureColumn(db, "users", "premium", "INTEGER DEFAULT 0");
+  ensureColumn(db, "users", "premium_expiry", "INTEGER DEFAULT 0");
+  ensureColumn(db, "users", "registered", "INTEGER DEFAULT 0");
+  ensureColumn(db, "users", "warn_count", "INTEGER DEFAULT 0");
   ensureColumn(db, "groups", "ai_chat", "TEXT DEFAULT 'off'");
+  ensureColumn(db, "groups", "antilink_action", "TEXT DEFAULT 'delete'");
+  ensureColumn(db, "groups", "antispam", "TEXT DEFAULT 'off'");
+  ensureColumn(db, "groups", "anti_admin", "TEXT DEFAULT 'off'");
+  ensureColumn(db, "groups", "anti_bot", "TEXT DEFAULT 'off'");
+  ensureColumn(db, "groups", "anti_camping", "TEXT DEFAULT 'off'");
+  ensureColumn(db, "groups", "welcome", "TEXT DEFAULT 'off'");
+  ensureColumn(db, "groups", "welcome_msg", "TEXT DEFAULT ''");
+  ensureColumn(db, "groups", "leave", "TEXT DEFAULT 'off'");
+  ensureColumn(db, "groups", "leave_msg", "TEXT DEFAULT ''");
+  ensureColumn(db, "groups", "muted", "INTEGER DEFAULT 0");
+  ensureColumn(db, "groups", "cards_enabled", "TEXT DEFAULT 'on'");
+  ensureColumn(db, "groups", "spawn_enabled", "TEXT DEFAULT 'on'");
+  ensureColumn(db, "groups", "games_enabled", "TEXT DEFAULT 'on'");
+  ensureColumn(db, "groups", "gambling_enabled", "TEXT DEFAULT 'on'");
+  ensureColumn(db, "groups", "blacklist", "TEXT DEFAULT '[]'");
+  ensureColumn(db, "cards", "series", "TEXT DEFAULT 'General'");
+  ensureColumn(db, "cards", "image_url", "TEXT DEFAULT ''");
+  ensureColumn(db, "cards", "image_data", "BLOB");
+  ensureColumn(db, "cards", "description", "TEXT DEFAULT ''");
+  ensureColumn(db, "cards", "attack", "INTEGER DEFAULT 50");
+  ensureColumn(db, "cards", "defense", "INTEGER DEFAULT 50");
+  ensureColumn(db, "cards", "speed", "INTEGER DEFAULT 50");
+  ensureColumn(db, "cards", "uploaded_by", "TEXT");
+  ensureColumn(db, "staff", "added_by", "TEXT");
+  ensureColumn(db, "staff", "added_at", "INTEGER DEFAULT 0");
+  ensureColumn(db, "banned_entities", "display", "TEXT DEFAULT ''");
+  ensureColumn(db, "banned_entities", "reason", "TEXT DEFAULT ''");
+  ensureColumn(db, "banned_entities", "added_by", "TEXT");
+  ensureColumn(db, "banned_entities", "added_at", "INTEGER DEFAULT 0");
 }
 
 function ensureColumn(db: Database.Database, table: string, column: string, definition: string): void {

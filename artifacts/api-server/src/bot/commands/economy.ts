@@ -157,10 +157,11 @@ export async function handleEconomy(ctx: CommandContext): Promise<void> {
   }
 
   if (cmd === "donate") {
-    const mentioned = ctx.msg.message?.extendedTextMessage?.contextInfo?.mentionedJid?.[0];
+    const info = ctx.msg.message?.extendedTextMessage?.contextInfo;
+    const mentioned = info?.mentionedJid?.[0] || info?.participant;
     const amount = parseInt(args[args.length - 1]);
     if (!mentioned || isNaN(amount) || amount <= 0) {
-      await sendText(from, "❌ Usage: .donate @user [amount]");
+      await sendText(from, "❌ Usage: .donate @user [amount] or reply with .donate [amount]");
       return;
     }
     if (amount > (user.balance || 0)) {
@@ -171,6 +172,24 @@ export async function handleEconomy(ctx: CommandContext): Promise<void> {
     updateUser(sender, { balance: (user.balance || 0) - amount });
     updateUser(mentioned, { balance: (target.balance || 0) + amount });
     await sendText(from, `💸 @${sender.split("@")[0]} donated $${formatNumber(amount)} to @${mentioned.split("@")[0]}!`, [sender, mentioned]);
+    return;
+  }
+
+  if (cmd === "cds") {
+    const cooldowns = [
+      ["Daily", DAILY_COOLDOWN, user.last_daily || 0],
+      ["Work", WORK_COOLDOWN, user.last_work || 0],
+      ["Dig", DIG_COOLDOWN, user.last_dig || 0],
+      ["Fish", FISH_COOLDOWN, user.last_fish || 0],
+      ["Beg", BEG_COOLDOWN, user.last_beg || 0],
+    ];
+    let text = `╔═ ❰ ⏳ 𝗖𝗢𝗢𝗟𝗗𝗢𝗪𝗡𝗦 ❱ ═╗\n║ @${sender.split("@")[0]}\n║\n`;
+    for (const [name, cooldown, last] of cooldowns) {
+      const remaining = Math.max(0, Number(cooldown) - (now - Number(last)));
+      text += `║ ➩ ${name}: ${remaining > 0 ? formatDuration(remaining) : "Ready"}\n`;
+    }
+    text += "╚══════════════════╝";
+    await sendText(from, text, [sender]);
     return;
   }
 

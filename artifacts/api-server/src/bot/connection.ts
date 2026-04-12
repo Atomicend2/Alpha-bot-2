@@ -14,6 +14,7 @@ import fs from "fs";
 import readline from "node:readline/promises";
 import { stdin as input, stdout as output } from "node:process";
 import { fileURLToPath } from "url";
+import { AsyncLocalStorage } from "node:async_hooks";
 import { logger } from "../lib/logger.js";
 import { handleMessage } from "./handlers/message.js";
 import { handleGroupUpdate, handleGroupParticipantsUpdate } from "./handlers/group.js";
@@ -33,6 +34,7 @@ let isConnected = false;
 let pairingCode: string | null = null;
 let reconnectAttempts = 0;
 const MAX_RECONNECT_DELAY = 30000;
+const replyContext = new AsyncLocalStorage<any>();
 
 type ConnectOptions = {
   promptForPhone?: boolean;
@@ -48,6 +50,16 @@ export function isSocketConnected(): boolean {
 
 export function getPairingCode(): string | null {
   return pairingCode;
+}
+
+export async function runWithReplyContext<T>(msg: any, fn: () => Promise<T>): Promise<T> {
+  return replyContext.run(msg, fn);
+}
+
+function withReplyOptions(options?: any) {
+  const quoted = replyContext.getStore();
+  if (!quoted) return options;
+  return { quoted, ...(options || {}) };
 }
 
 function normalizePhoneNumber(phoneNumber?: string): string | undefined {
@@ -186,17 +198,17 @@ export async function connectToWhatsApp(phoneNumber?: string, options: ConnectOp
 
 export async function sendMessage(jid: string, content: any, options?: any) {
   if (!sock) throw new Error("Socket not initialized");
-  return sock.sendMessage(jid, content, options);
+  return sock.sendMessage(jid, content, withReplyOptions(options));
 }
 
 export async function sendText(jid: string, text: string, mentions?: string[]) {
   if (!sock) throw new Error("Socket not initialized");
-  return sock.sendMessage(jid, { text, mentions: mentions || [] });
+  return sock.sendMessage(jid, { text, mentions: mentions || [] }, withReplyOptions());
 }
 
 export async function sendImage(jid: string, imageBuffer: Buffer, caption?: string) {
   if (!sock) throw new Error("Socket not initialized");
-  return sock.sendMessage(jid, { image: imageBuffer, caption: caption || "" });
+  return sock.sendMessage(jid, { image: imageBuffer, caption: caption || "" }, withReplyOptions());
 }
 
 export async function sendReact(jid: string, msgKey: any, emoji: string) {
