@@ -33,7 +33,6 @@ let sock: WASocket | null = null;
 let isConnected = false;
 let pairingCode: string | null = null;
 let reconnectAttempts = 0;
-let ignoreMessagesBeforeMs = Math.floor(Date.now() / 1000) * 1000;
 const MAX_RECONNECT_DELAY = 30000;
 const replyContext = new AsyncLocalStorage<any>();
 
@@ -160,7 +159,6 @@ export async function connectToWhatsApp(phoneNumber?: string, options: ConnectOp
       isConnected = true;
       reconnectAttempts = 0;
       pairingCode = null;
-      ignoreMessagesBeforeMs = Math.floor(Date.now() / 1000) * 1000;
       logger.info("Connected to WhatsApp successfully");
     } else if (connection === "connecting") {
       logger.info("Connecting to WhatsApp...");
@@ -168,21 +166,10 @@ export async function connectToWhatsApp(phoneNumber?: string, options: ConnectOp
   });
 
   sock.ev.on("messages.upsert", async (m) => {
+    if (m.type !== "notify") return;
     for (const msg of m.messages) {
       if (!msg.message) continue;
-      const sentAtMs = getMessageTimestampMs(msg);
-      if (sentAtMs > 0 && sentAtMs < ignoreMessagesBeforeMs) {
-        logger.info(
-          {
-            from: msg.key.remoteJid,
-            id: msg.key.id,
-            sentAt: new Date(sentAtMs).toISOString(),
-            onlineSince: new Date(ignoreMessagesBeforeMs).toISOString(),
-          },
-          "Ignoring WhatsApp message sent while bot was offline"
-        );
-        continue;
-      }
+      if (msg.key.fromMe) continue;
       try {
         await handleMessage(sock!, msg);
       } catch (err) {
@@ -210,19 +197,42 @@ export async function connectToWhatsApp(phoneNumber?: string, options: ConnectOp
   return sock;
 }
 
+async function sendWithRetry(fn: () => Promise<any>, retries = 4): Promise<any> {
+  for (let attempt = 0; attempt <= retries; attempt++) {
+    try {
+      return await fn();
+    } catch (err: any) {
+      const isRateLimit =
+        err?.message?.includes("rate-overlimit") ||
+        err?.output?.payload?.message?.includes("rate-overlimit") ||
+        err?.data === 429;
+      if (isRateLimit && attempt < retries) {
+        const delay = Math.min(2000 * Math.pow(2, attempt), 30000);
+        logger.warn({ attempt, delay, jid: err?.jid }, "Rate-overlimit hit, retrying after delay");
+        await new Promise((r) => setTimeout(r, delay));
+        continue;
+      }
+      throw err;
+    }
+  }
+}
+
 export async function sendMessage(jid: string, content: any, options?: any) {
   if (!sock) throw new Error("Socket not initialized");
-  return sock.sendMessage(jid, content, withReplyOptions(options));
+  const s = sock;
+  return sendWithRetry(() => s.sendMessage(jid, content, withReplyOptions(options)));
 }
 
 export async function sendText(jid: string, text: string, mentions?: string[]) {
   if (!sock) throw new Error("Socket not initialized");
-  return sock.sendMessage(jid, { text, mentions: mentions || [] }, withReplyOptions());
+  const s = sock;
+  return sendWithRetry(() => s.sendMessage(jid, { text, mentions: mentions || [] }, withReplyOptions()));
 }
 
 export async function sendImage(jid: string, imageBuffer: Buffer, caption?: string) {
   if (!sock) throw new Error("Socket not initialized");
-  return sock.sendMessage(jid, { image: imageBuffer, caption: caption || "" }, withReplyOptions());
+  const s = sock;
+  return sendWithRetry(() => s.sendMessage(jid, { image: imageBuffer, caption: caption || "" }, withReplyOptions()));
 }
 
 export async function sendReact(jid: string, msgKey: any, emoji: string) {

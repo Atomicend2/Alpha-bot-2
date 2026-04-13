@@ -556,6 +556,26 @@ async function dispatch(ctx: CommandContext): Promise<void> {
   }
 }
 
+async function sendWithRetry(fn: () => Promise<any>, retries = 4): Promise<any> {
+  for (let attempt = 0; attempt <= retries; attempt++) {
+    try {
+      return await fn();
+    } catch (err: any) {
+      const isRateLimit =
+        err?.message?.includes("rate-overlimit") ||
+        err?.output?.payload?.message?.includes("rate-overlimit") ||
+        err?.data === 429;
+      if (isRateLimit && attempt < retries) {
+        const delay = Math.min(2000 * Math.pow(2, attempt), 30000);
+        logger.warn({ attempt, delay }, "Rate-overlimit on reply socket, retrying");
+        await new Promise((r) => setTimeout(r, delay));
+        continue;
+      }
+      throw err;
+    }
+  }
+}
+
 function createReplySocket(sock: WASocket, msg: proto.IWebMessageInfo): WASocket {
   return new Proxy(sock as any, {
     get(target, prop) {
@@ -565,9 +585,9 @@ function createReplySocket(sock: WASocket, msg: proto.IWebMessageInfo): WASocket
       }
       return (jid: string, content: any, options?: any) => {
         if (content?.delete || content?.react) {
-          return target.sendMessage(jid, content, options);
+          return sendWithRetry(() => target.sendMessage(jid, content, options));
         }
-        return target.sendMessage(jid, content, { quoted: msg, ...(options || {}) });
+        return sendWithRetry(() => target.sendMessage(jid, content, { quoted: msg, ...(options || {}) }));
       };
     },
   }) as WASocket;
