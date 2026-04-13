@@ -168,37 +168,37 @@ export async function handleStaff(ctx: CommandContext): Promise<void> {
 
   if (cmd === "addmod") {
     if (!isOwner) { await sendText(from, "❌ Only the bot owner can add mods."); return; }
-    const mentioned = msg.message?.extendedTextMessage?.contextInfo?.mentionedJid?.[0];
-    if (!mentioned) { await sendText(from, "❌ Mention someone."); return; }
-    addStaff(mentioned, "mod", sender);
+    const target = resolveStaffTarget(args[0], msg);
+    if (!target) { await sendText(from, "❌ Usage: .addmod <phone number> or .addmod @user"); return; }
+    addStaff(target, "mod", sender);
     await sock.sendMessage(from, {
-      text: `✅ @${mentioned.split("@")[0]} added as mod.`,
-      mentions: [mentioned],
+      text: `✅ @${target.split("@")[0]} added as mod.`,
+      mentions: [target],
     });
     return;
   }
 
   if (cmd === "addguardian") {
     if (!isOwner) { await sendText(from, "❌ Only the bot owner can add guardians."); return; }
-    const mentioned = msg.message?.extendedTextMessage?.contextInfo?.mentionedJid?.[0];
-    if (!mentioned) { await sendText(from, "❌ Mention someone."); return; }
-    addStaff(mentioned, "guardian", sender);
+    const target = resolveStaffTarget(args[0], msg);
+    if (!target) { await sendText(from, "❌ Usage: .addguardian <phone number> or .addguardian @user"); return; }
+    addStaff(target, "guardian", sender);
     await sock.sendMessage(from, {
-      text: `🛡️ @${mentioned.split("@")[0]} added as guardian.`,
-      mentions: [mentioned],
+      text: `🛡️ @${target.split("@")[0]} added as guardian.`,
+      mentions: [target],
     });
     return;
   }
 
   if (cmd === "removemod" || cmd === "removeguardian") {
     if (!isOwner) { await sendText(from, `❌ Only the bot owner can remove ${cmd === "removemod" ? "mods" : "guardians"}.`); return; }
-    const mentioned = msg.message?.extendedTextMessage?.contextInfo?.mentionedJid?.[0];
-    if (!mentioned) { await sendText(from, `❌ Usage: .${cmd} @user`); return; }
+    const target = resolveStaffTarget(args[0], msg);
+    if (!target) { await sendText(from, `❌ Usage: .${cmd} <phone number> or .${cmd} @user`); return; }
     const role = cmd === "removemod" ? "mod" : "guardian";
-    removeStaffAllVariants(mentioned, role);
+    removeStaffAllVariants(target, role);
     await sock.sendMessage(from, {
-      text: `✅ Removed @${mentioned.split("@")[0]} from ${role}s.`,
-      mentions: [mentioned],
+      text: `✅ Removed @${target.split("@")[0]} from ${role}s.`,
+      mentions: [target],
     });
     return;
   }
@@ -431,6 +431,15 @@ export async function handleStaff(ctx: CommandContext): Promise<void> {
     }
     return;
   }
+}
+
+function resolveStaffTarget(rawArg: string | undefined, msg: any): string | null {
+  const mentioned = msg.message?.extendedTextMessage?.contextInfo?.mentionedJid?.[0];
+  if (mentioned) return mentioned;
+  if (!rawArg) return null;
+  const digits = rawArg.replace(/\D/g, "");
+  if (digits.length >= 7) return `${digits}@s.whatsapp.net`;
+  return null;
 }
 
 function removeStaffAllVariants(jid: string, role?: string): void {

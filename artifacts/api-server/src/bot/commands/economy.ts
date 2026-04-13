@@ -233,20 +233,30 @@ export async function handleEconomy(ctx: CommandContext): Promise<void> {
 
   if (cmd === "richlist") {
     const list = getRichList(from.endsWith("@g.us") ? from : undefined, 10);
-    let text = "👑 *Rich List (Group)*\n\n";
+    const MEDALS = ["🥇", "🥈", "🥉"];
+    let text = "╔ ❰ 🏆 Gᴄ Rɪᴄʜʟɪsᴛ ❱ ╗\n║  💰 Tᴏᴘ Mᴇᴍʙᴇʀs\n║\n";
     list.forEach((u, i) => {
-      text += `${i + 1}. @${u.id.split("@")[0]} — $${formatNumber(u.total)}\n`;
+      const num = String(i + 1).padStart(2, "0");
+      const medal = MEDALS[i] || `${num}.`;
+      const name = u.name || u.id.split("@")[0];
+      text += `║ ${medal} ${num}. ${name}\n║     └─ 💰 Bᴀʟ: $${formatNumber(u.total)}\n║\n`;
     });
+    text += "╚══════════════════╝";
     await ctx.sock.sendMessage(from, { text, mentions: list.map((u) => u.id) });
     return;
   }
 
   if (cmd === "richlistglobal" || cmd === "richlg") {
     const list = getRichList(undefined, 10);
-    let text = "👑 *Rich List (Global)*\n\n";
+    const MEDALS = ["🥇", "🥈", "🥉"];
+    let text = "╔ ❰ 🏆 Gʟᴏʙᴀʟ Rɪᴄʜʟɪsᴛ ❱ ╗\n║ 🌍 Tᴏᴘ Pʟᴀʏᴇʀs\n║\n";
     list.forEach((u, i) => {
-      text += `${i + 1}. @${u.id.split("@")[0]} — $${formatNumber(u.total)}\n`;
+      const num = String(i + 1).padStart(2, "0");
+      const medal = MEDALS[i] || `${num}.`;
+      const name = u.name || u.id.split("@")[0];
+      text += `║ ${medal} ${num}. ${name}\n║     └─ 💰 Bᴀʟ: $${formatNumber(u.total)}\n║\n`;
     });
+    text += "╚══════════════════╝";
     await ctx.sock.sendMessage(from, { text, mentions: list.map((u) => u.id) });
     return;
   }
@@ -444,12 +454,15 @@ export async function handleEconomy(ctx: CommandContext): Promise<void> {
 
   if (cmd === "sell") {
     const itemName = args.join(" ");
-    const removed = removeFromInventory(sender, itemName);
-    if (!removed) { await sendText(from, "❌ You don't have that item."); return; }
-    const item = getShopItem(itemName);
+    const inv = getInventory(sender);
+    const invEntry = inv.find((i) => i.item.toLowerCase() === itemName.toLowerCase());
+    if (!invEntry) { await sendText(from, "❌ You don't have that item."); return; }
+    const removed = removeFromInventory(sender, invEntry.item);
+    if (!removed) { await sendText(from, "❌ Could not remove item."); return; }
+    const item = getShopItem(invEntry.item);
     const sellPrice = Math.floor((item?.price || 100) * 0.5);
     updateUser(sender, { balance: (user.balance || 0) + sellPrice });
-    await sendText(from, `✅ Sold *${itemName}* for $${formatNumber(sellPrice)}.`);
+    await sendText(from, `✅ Sold *${invEntry.item}* for $${formatNumber(sellPrice)}.`);
     return;
   }
 

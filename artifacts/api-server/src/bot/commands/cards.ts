@@ -105,10 +105,16 @@ export async function handleCards(ctx: CommandContext): Promise<void> {
 
   if (cmd === "cardleaderboard" || cmd === "cardlb") {
     const lb = getCardLeaderboard(10);
-    let text = "🃏 *Card Leaderboard*\n\n";
+    const MEDALS = ["🥇", "🥈", "🥉"];
+    let text = "╔ ❰ 🎴 Cᴀʀᴅ Lᴇᴀᴅᴇʀʙᴏᴀʀᴅ ❱ ╗\n║ 🃏 Tᴏᴘ Cᴏʟʟᴇᴄᴛᴏʀs\n║\n";
     lb.forEach((e, i) => {
-      text += `${i + 1}. @${e.user_id.split("@")[0]} — ${e.card_count} cards\n`;
+      const num = String(i + 1).padStart(2, "0");
+      const medal = MEDALS[i] || `${num}.`;
+      const u = getUser(e.user_id);
+      const name = u?.name || e.user_id.split("@")[0];
+      text += `║ ${medal} ${num}. ${name}\n║     └─ 🃏 Cᴀʀᴅs: ${e.card_count}\n║\n`;
     });
+    text += "╚══════════════════╝";
     await sock.sendMessage(from, { text, mentions: lb.map((e) => e.user_id) });
     return;
   }
