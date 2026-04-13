@@ -2,6 +2,7 @@ import type { CommandContext } from "./index.js";
 import { BOT_OWNER_LID, sendText } from "../connection.js";
 import { addStaff, removeStaff, getStaffList, getStaff, ensureUser, getUser, updateUser, getCard, getAllCards, addBan, removeBan, getBanList, setBotSetting, deleteBotSetting, resetUserBalance, resetUserProfile, isBanned } from "../db/queries.js";
 import { getTierEmoji, isValidTier, generateId } from "../utils.js";
+import { INTERACTION_NAMES, uploadInteractionGif } from "./interactions.js";
 import { getDb } from "../db/database.js";
 import { spawnCard } from "../handlers/cardspawn.js";
 import { addCard } from "../db/queries.js";
@@ -367,9 +368,13 @@ export async function handleStaff(ctx: CommandContext): Promise<void> {
       await sendText(from, "❌ Only staff can upload cards.");
       return;
     }
+    const firstArg = args[0]?.toLowerCase();
+    if (firstArg && INTERACTION_NAMES.has(firstArg)) {
+      return uploadInteractionGif(ctx, firstArg);
+    }
     const tier = args[0]?.toUpperCase();
     if (!tier || !isValidTier(tier)) {
-      await sendText(from, "❌ Usage: .upload T<tier> <name>. <series>\nExample: .upload T4 Shadow Monarch. Solo Leveling\nReply to an image/sticker.");
+      await sendText(from, "❌ Usage: .upload T<tier> <name>. <series>\nExample: .upload T4 Shadow Monarch. Solo Leveling\nReply to an image/sticker.\n\nFor interaction GIFs: .upload hug/kiss/slap/etc (reply to GIF)");
       return;
     }
     const quoted = msg.message?.extendedTextMessage?.contextInfo;

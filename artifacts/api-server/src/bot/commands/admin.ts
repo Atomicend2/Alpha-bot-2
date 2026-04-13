@@ -395,6 +395,22 @@ export async function handleAdmin(ctx: CommandContext): Promise<void> {
     return;
   }
 
+  if (cmd === "antibot") {
+    if (!canUse) return noPerms(from);
+    const val = args[0]?.toLowerCase();
+    if (val === "on") {
+      updateGroup(from, { anti_bot: "on" });
+      await sendText(from, "🤖 Anti-Bot enabled. Bot accounts joining will be automatically kicked.");
+    } else if (val === "off") {
+      updateGroup(from, { anti_bot: "off" });
+      await sendText(from, "🤖 Anti-Bot disabled.");
+    } else {
+      const g = getGroup(from);
+      await sendText(from, `🤖 Anti-Bot is currently: *${g?.anti_bot || "off"}*\nUsage: .antibot on/off`);
+    }
+    return;
+  }
+
   if (cmd === "purge") {
     if (!canUse) return noPerms(from);
     await sendText(from, "⚠️ Purge command is not available via WhatsApp API.");

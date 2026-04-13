@@ -13,16 +13,19 @@ export async function handleAfk(ctx: CommandContext): Promise<void> {
 export async function checkSenderReturnedFromAfk(
   from: string,
   sender: string,
-  sock: any
+  sock: any,
+  msg?: any
 ): Promise<void> {
   const senderAfk = getAfk(sender);
   if (!senderAfk) return;
   removeAfk(sender);
   const elapsed = timeAgo(senderAfk.started_at);
-  await sock.sendMessage(from, {
-    text: `Welcome back! You were AFK for ${elapsed}\n> *${senderAfk.reason}*`,
+  const msgOpts: any = {
+    text: `👋 @${sender.split("@")[0]} is back! Was AFK for ${elapsed}\n> *${senderAfk.reason}*`,
     mentions: [sender],
-  });
+  };
+  if (msg) msgOpts.quoted = msg;
+  await sock.sendMessage(from, msgOpts);
 }
 
 export async function checkAfkMention(

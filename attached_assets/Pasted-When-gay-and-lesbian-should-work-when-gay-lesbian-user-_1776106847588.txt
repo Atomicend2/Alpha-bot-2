@@ -1,0 +1,56 @@
+When .gay and .lesbian should work when ".gay/.lesbian @user" or if message is replied to. Bring out the gay or lesbian status of the user tagged or the user who's message was replied to, not the sender. Except if they don't tag or reply to anyone, then you fetch status for sender.
+
+2. When .dep <amount> is used, deposit amount to bank, but when .dep alone is used, deposit all money in wallet to bank.
+3. For all commands under interaction, use ".upload punch/kiss/slap/etc" when gif is replied to, to upload it as response. So when interaction is used, gif will be sent with message @user (sender) kissed @user (tagged user or user who's message was replied to)
+4. Use .rpg on/off to toggle on and off all commands under rpg. This can be used by owner, mods and guardians only. When rpg off and someone uses rpg command, reply "RPG commands are unavailable in this group❌
+Want to battle? Join https://chat.whatsapp.com/EaLPA8uKdr9F8TeH6Fvn9o?mode=gi_t
+
+5. Admin promote is not working. When someone is tagged ".promote/.demote @user" not should promote/demote user to admin.
+6. When cards spawn, to claim use .get <card id>. Do not respawn second or third issue of card until 20 or 30 spawns after the issue one appeared. Note, there are only three issues and issue three should have one percent spawn rate. Issue 3 is applicable to only T5 and T6. All other cards are just two issues. Right now, empty coll of all current card holders. Display in coll should be <card name> Tier <tier no.>
+7. .cg is not working. 
+8. When showing card, don't put on black background, just transparent background.
+9. When someone returns from afk, tag the message they returned with when welcoming back.
+10. Use this layout for lb,
+╔ ❰ 🏆 Gʟᴏʙᴀʟ Lᴇᴀᴅᴇʀʙᴏᴀʀᴅ ❱ ╗
+║ 🌍 Tᴏᴘ Pʟᴀʏᴇʀs
+║
+║ 🥇 01. <name1>
+║     └─ ⭐ Xᴘ: <xp1>
+║
+║ 🥈 02. <name2>
+║     └─ ⭐ Xᴘ: <xp2>
+║
+║ 🥉 03. <name3>
+║     └─ ⭐ Xᴘ: <xp3>
+║
+║ 04. <name4>
+║     └─ ⭐ Xᴘ: <xp4>
+║
+║ 05. <name5>
+║     └─ ⭐ Xᴘ: <xp5>
+║
+║ 06. <name6>
+║     └─ ⭐ Xᴘ: <xp6>
+║
+║ 07. <name7>
+║     └─ ⭐ Xᴘ: <xp7>
+║
+║ 08. <name8>
+║     └─ ⭐ Xᴘ: <xp8>
+║
+║ 09. <name9>
+║     └─ ⭐ Xᴘ: <xp9>
+║
+║ 10. <name10>
+║     └─ ⭐ Xᴘ: <xp10>
+║
+╚══════════════════╝
+It'll show Leaderboard for all players globally. 
+
+11. Only owner can add mod or guardian.
+12. Only card creators.. owner, mods and guardians can check available cards 
+13. Add the .antibot on/off with five warnings before kicking bot user out of gc. 
+14. When a bot joins a gc the cards cannot spawn... Cards are turned off automatically until a staff turns it back on.
+
+
+Fix all this while keeping number paired and session running

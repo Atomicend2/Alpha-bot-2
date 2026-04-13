@@ -23,7 +23,9 @@ export async function handleCards(ctx: CommandContext): Promise<void> {
     }
     let text = `*🎴 Your card collection:*\n\n`;
     cards.slice(0, 30).forEach((c, i) => {
-      text += `${i + 1}. 🃏 ${c.name} T${c.tier.replace(/^T/, "")}\n`;
+      const tierNum = c.tier.replace(/^T/, "");
+      const tierLabel = c.tier.startsWith("T") && !isNaN(Number(tierNum)) ? `Tier ${tierNum}` : c.tier;
+      text += `${i + 1}. 🃏 ${c.name} ${tierLabel}\n`;
     });
     if (cards.length > 30) text += `\n_...and ${cards.length - 30} more_`;
     await sock.sendMessage(from, { text, mentions: [target] });
@@ -199,7 +201,7 @@ export async function handleCards(ctx: CommandContext): Promise<void> {
 
   if (cmd === "cg") {
     const mentioned = msg.message?.extendedTextMessage?.contextInfo?.mentionedJid?.[0];
-    const cardNum = parseInt(args[1] || args[0]);
+    const cardNum = parseInt(args.find((a) => !isNaN(parseInt(a)) && !a.startsWith("@")) || "");
     if (!mentioned || isNaN(cardNum)) { await sendText(from, "❌ Usage: .cg @user [card #]"); return; }
     const cards = getUserCards(sender);
     if (cardNum < 1 || cardNum > cards.length) { await sendText(from, "❌ Invalid card number."); return; }

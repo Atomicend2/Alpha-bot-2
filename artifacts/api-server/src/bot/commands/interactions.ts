@@ -4,6 +4,11 @@ import { getBotSetting, getStaff, setBotSetting } from "../db/queries.js";
 import { downloadMediaMessage } from "@whiskeysockets/baileys";
 import { logger } from "../../lib/logger.js";
 
+export const INTERACTION_NAMES = new Set([
+  "hug","kiss","slap","pat","punch","kill","hit","kidnap","lick","bonk","tickle",
+  "wave","dance","sad","smile","laugh","shrug",
+]);
+
 const ACTIONS: Record<string, { with: string[]; self: string[] }> = {
   hug: {
     with: ["hugs {target} tightly! 🤗", "wraps {target} in a warm hug 💕"],
@@ -63,7 +68,8 @@ const SOLO_ACTIONS: Record<string, string[]> = {
 export async function handleInteraction(ctx: CommandContext): Promise<void> {
   const { from, sender, args, command: cmd, msg, sock, isOwner } = ctx;
   const name = sender.split("@")[0];
-  const mentioned = msg.message?.extendedTextMessage?.contextInfo?.mentionedJid?.[0];
+  const info = msg.message?.extendedTextMessage?.contextInfo;
+  const mentioned = info?.mentionedJid?.[0] || info?.participant || undefined;
 
   if (args[0]?.toLowerCase() === "upload") {
     if (!isOwner && !getStaff(sender)) {
@@ -118,6 +124,21 @@ async function sendInteractionResult(ctx: CommandContext, text: string, mentions
     return;
   }
   await ctx.sock.sendMessage(ctx.from, { text, mentions });
+}
+
+export async function uploadInteractionGif(ctx: CommandContext, interactionName: string): Promise<void> {
+  const { from, sender, isOwner } = ctx;
+  if (!isOwner && !getStaff(sender)) {
+    await sendText(from, "❌ Only staff can upload interaction GIFs.");
+    return;
+  }
+  const uploaded = await getInteractionUpload(ctx).catch(() => null);
+  if (!uploaded) {
+    await sendText(from, `❌ Reply to a GIF/video with .upload ${interactionName} to save it.`);
+    return;
+  }
+  setBotSetting(`interaction_gif:${interactionName}`, uploaded);
+  await sendText(from, `✅ GIF saved for *.${interactionName}*! It will now be sent whenever someone uses this interaction.`);
 }
 
 async function getInteractionUpload(ctx: CommandContext): Promise<Buffer | null> {

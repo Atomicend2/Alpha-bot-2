@@ -301,6 +301,36 @@ export function getLastSpawnedCardId(groupId: string): string {
   return group?.last_spawned_card_id || "";
 }
 
+export function getRecentSpawnedCardIds(groupId: string): string[] {
+  const group = getGroup(groupId);
+  try {
+    return JSON.parse(group?.recent_spawned_cards || "[]");
+  } catch {
+    return [];
+  }
+}
+
+export function recordRecentSpawnedCard(groupId: string, cardId: string, maxHistory = 25) {
+  const db = getDb();
+  const recent = getRecentSpawnedCardIds(groupId);
+  recent.push(cardId);
+  while (recent.length > maxHistory) recent.shift();
+  db.prepare("UPDATE groups SET recent_spawned_cards = ? WHERE id = ?").run(JSON.stringify(recent), groupId);
+}
+
+export function getCardOwnerCount(cardId: string): number {
+  const db = getDb();
+  const row = db.prepare("SELECT COUNT(*) as cnt FROM user_cards WHERE card_id = ?").get(cardId) as any;
+  return row?.cnt || 0;
+}
+
+export function getXpLeaderboard(limit = 10) {
+  const db = getDb();
+  return db.prepare(
+    "SELECT id, name, xp, level FROM users ORDER BY xp DESC LIMIT ?"
+  ).all(limit) as any[];
+}
+
 export function claimSpawn(spawnId: number, userId: string) {
   const db = getDb();
   db.prepare(

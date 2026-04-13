@@ -116,7 +116,7 @@ export async function handleMessage(
   }
 
   if (isGroup && !msg.key.fromMe) {
-    await checkSenderReturnedFromAfk(from, sender, sock).catch(() => {});
+    await checkSenderReturnedFromAfk(from, sender, sock, normalizedMsg).catch(() => {});
   }
 
   if (mentionedJids.length > 0) {
@@ -309,6 +309,7 @@ async function dispatch(ctx: CommandContext): Promise<void> {
     case "inactive":
     case "gamble":
     case "cards":
+    case "antibot":
     case "purge":
     case "blacklist":
     case "groupinfo":

@@ -1,6 +1,6 @@
 import type { CommandContext } from "./index.js";
 import { sendText } from "../connection.js";
-import { ensureRpg, updateRpg, addToInventory, getInventory, removeFromInventory, getUser, updateUser } from "../db/queries.js";
+import { ensureRpg, updateRpg, addToInventory, getInventory, removeFromInventory, getUser, updateUser, getGroup, updateGroup } from "../db/queries.js";
 import { formatNumber } from "../utils.js";
 
 const CLASSES = ["Warrior", "Mage", "Archer", "Rogue", "Paladin", "Assassin"];
@@ -117,8 +117,28 @@ function calcDmg(base: number, multiplier: number): number {
   return Math.max(1, Math.floor(base * multiplier * variance));
 }
 
+const RPG_GROUP_LINK = "https://chat.whatsapp.com/EaLPA8uKdr9F8TeH6Fvn9o";
+
 export async function handleRpg(ctx: CommandContext): Promise<void> {
-  const { from, sender, args, command: cmd } = ctx;
+  const { from, sender, args, command: cmd, isAdmin, isOwner } = ctx;
+
+  if (cmd === "rpg" && (args[0]?.toLowerCase() === "on" || args[0]?.toLowerCase() === "off")) {
+    if (!isAdmin && !isOwner && !ctx.isBotAdmin) {
+      await sendText(from, "❌ Only group admins can toggle RPG.");
+      return;
+    }
+    const toggle = args[0].toLowerCase() as "on" | "off";
+    updateGroup(from, { rpg_enabled: toggle });
+    await sendText(from, `✅ RPG commands ${toggle === "on" ? "enabled" : "disabled"} for this group.`);
+    return;
+  }
+
+  const group = from.endsWith("@g.us") ? getGroup(from) : null;
+  if (group && (group.rpg_enabled || "on") === "off") {
+    await sendText(from, `❌ RPG commands are unavailable in this group.\nWant to battle? Join ${RPG_GROUP_LINK}`);
+    return;
+  }
+
   const rpg = ensureRpg(sender);
   const user = getUser(sender);
   const now = Math.floor(Date.now() / 1000);

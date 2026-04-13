@@ -1,5 +1,5 @@
 import type { WASocket } from "@whiskeysockets/baileys";
-import { ensureGroup, getGroup, isBanned } from "../db/queries.js";
+import { ensureGroup, getGroup, isBanned, updateGroup } from "../db/queries.js";
 import { sendText } from "../connection.js";
 import { mentionTag } from "../utils.js";
 
@@ -28,6 +28,15 @@ export async function handleGroupParticipantsUpdate(
 
   for (const participant of participants) {
     if (action === "add") {
+      const isLikelyBot = participant.endsWith("@lid") || participant.includes(".bot@");
+      if (isLikelyBot && (group.anti_bot || "off") === "on") {
+        try {
+          await sock.groupParticipantsUpdate(groupId, [participant], "remove");
+          await sendText(groupId, `🤖 Suspected bot account was automatically removed.`);
+        } catch {}
+        updateGroup(groupId, { cards_enabled: "off", spawn_enabled: "off" });
+        continue;
+      }
       if (group.welcome === "on") {
         const template = group.welcome_msg || "Welcome to the group, @mention! 👋";
         const msg = replaceWelcomeMention(template, participant);

@@ -421,6 +421,8 @@ function initSchema(db: Database.Database): void {
   ensureColumn(db, "groups", "spawn_count_today", "INTEGER DEFAULT 0");
   ensureColumn(db, "groups", "spawn_date", "TEXT DEFAULT ''");
   ensureColumn(db, "groups", "last_spawned_card_id", "TEXT DEFAULT ''");
+  ensureColumn(db, "groups", "recent_spawned_cards", "TEXT DEFAULT '[]'");
+  ensureColumn(db, "groups", "rpg_enabled", "TEXT DEFAULT 'on'");
   ensureColumn(db, "card_spawns", "spawn_token", "TEXT");
 }
 

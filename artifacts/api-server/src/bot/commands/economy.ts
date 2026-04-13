@@ -3,6 +3,7 @@ import { BOT_OWNER_LID, sendText } from "../connection.js";
 import {
   getUser, ensureUser, updateUser, getInventory, addToInventory, removeFromInventory,
   getShop, getShopItem, getRichList, ensureRpg, getUserRank, getUserGuild, isBanned, getStaff, isMod,
+  getXpLeaderboard,
 } from "../db/queries.js";
 import { formatNumber, timeAgo } from "../utils.js";
 import sharp from "sharp";
@@ -162,16 +163,18 @@ export async function handleEconomy(ctx: CommandContext): Promise<void> {
   }
 
   if (cmd === "deposit" || cmd === "dep") {
-    const amount = parseInt(args[0]);
-    if (isNaN(amount) || amount <= 0) {
-      await sendText(from, "❌ Enter a valid amount. Usage: .deposit [amount]");
+    const wallet = user.balance || 0;
+    const parsed = parseInt(args[0]);
+    const amount = (isNaN(parsed) || !args[0]) ? wallet : parsed;
+    if (amount <= 0) {
+      await sendText(from, "❌ Your wallet is empty.");
       return;
     }
-    if (amount > (user.balance || 0)) {
-      await sendText(from, `❌ Not enough in wallet. Wallet: $${formatNumber(user.balance || 0)}`);
+    if (amount > wallet) {
+      await sendText(from, `❌ Not enough in wallet. Wallet: $${formatNumber(wallet)}`);
       return;
     }
-    updateUser(sender, { balance: (user.balance || 0) - amount, bank: (user.bank || 0) + amount });
+    updateUser(sender, { balance: wallet - amount, bank: (user.bank || 0) + amount });
     await sendText(from, `✅ Deposited $${formatNumber(amount)} to bank.\nBank: $${formatNumber((user.bank || 0) + amount)}`);
     return;
   }
@@ -493,12 +496,17 @@ export async function handleEconomy(ctx: CommandContext): Promise<void> {
   }
 
   if (cmd === "leaderboard" || cmd === "lb") {
-    const list = getRichList(from.endsWith("@g.us") ? from : undefined, 10);
-    let text = "🏆 *Leaderboard*\n\n";
+    const list = getXpLeaderboard(10);
+    const MEDALS = ["🥇", "🥈", "🥉"];
+    let text = "╔ ❰ 🏆 Xᴘ Lᴇᴀᴅᴇʀʙᴏᴀʀᴅ ❱ ╗\n║  🌟 Tᴏᴘ Pʟᴀʏᴇʀs\n║\n";
     list.forEach((u, i) => {
-      const medal = i === 0 ? "🥇" : i === 1 ? "🥈" : i === 2 ? "🥉" : `${i + 1}.`;
-      text += `${medal} @${u.id.split("@")[0]} — $${formatNumber(u.total)}\n`;
+      const num = String(i + 1).padStart(2, "0");
+      const medal = MEDALS[i];
+      const name = u.name || u.id.split("@")[0];
+      const prefix = medal ? `${medal} ${num}.` : `${num}.`;
+      text += `║ ${prefix} ${name}\n║     └─ ⭐ Lᴠ ${u.level || 1} · ${formatNumber(u.xp || 0)} XP\n║\n`;
     });
+    text += "╚══════════════════╝";
     await ctx.sock.sendMessage(from, { text, mentions: list.map((u) => u.id) });
     return;
   }

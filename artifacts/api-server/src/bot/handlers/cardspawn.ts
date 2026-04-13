@@ -3,7 +3,7 @@ import {
   getAllCards, getActiveSpawn, getActiveSpawnByToken, claimSpawn, spawnCardInGroup, giveCard, getCard,
   ensureUser, getUser, getGroup, ensureGroup, getUserCards,
   getTodaySpawnCount, recordSpawnForGroup, getNextSpawnTime, setNextSpawnTime,
-  getGroupActivity, getLastSpawnedCardId,
+  getGroupActivity, getLastSpawnedCardId, getRecentSpawnedCardIds, recordRecentSpawnedCard, getCardOwnerCount,
 } from "../db/queries.js";
 import { sendText, sendImage } from "../connection.js";
 import { getTierEmoji, getWeightedRandomCard, formatNumber } from "../utils.js";
@@ -65,40 +65,49 @@ export async function checkAutoSpawn(sock: WASocket, groupId: string): Promise<v
   }
 }
 
-function generateSpawnToken(): string {
-  const chars = "abcdefghijklmnopqrstuvwxyz0123456789";
-  return Array.from({ length: 6 }, () => chars[Math.floor(Math.random() * chars.length)]).join("");
+const HIGH_TIER_MAX_ISSUES = 3;
+const NORMAL_MAX_ISSUES = 2;
+
+function getMaxIssues(tier: string): number {
+  return (tier === "T5" || tier === "TS") ? HIGH_TIER_MAX_ISSUES : NORMAL_MAX_ISSUES;
 }
 
 export async function spawnCard(sock: WASocket, groupId: string, specific?: string): Promise<void> {
   const existing = getActiveSpawn(groupId);
   if (existing) return;
 
-  const cards = getAllCards();
-  if (cards.length === 0) return;
+  const allCards = getAllCards();
+  if (allCards.length === 0) return;
 
   let card: any;
   if (specific) {
-    card = cards.find((c) => c.id === specific) || getWeightedRandomCard(cards);
+    card = allCards.find((c) => c.id === specific) || getWeightedRandomCard(allCards);
   } else {
-    const lastCardId = getLastSpawnedCardId(groupId);
-    let candidate = getWeightedRandomCard(cards);
-    if (candidate?.id === lastCardId && cards.length > 1) {
-      if (Math.random() > 0.30) {
-        let attempts = 0;
-        while (candidate?.id === lastCardId && attempts < 10) {
-          candidate = getWeightedRandomCard(cards);
-          attempts++;
-        }
-      }
-    }
-    card = candidate;
+    const recentIds = getRecentSpawnedCardIds(groupId);
+    const nonRecentCards = allCards.filter((c) => !recentIds.includes(c.id));
+    const pool = nonRecentCards.length > 0 ? nonRecentCards : allCards;
+    card = getWeightedRandomCard(pool);
   }
   if (!card) return;
 
-  const token = generateSpawnToken();
+  const maxIssues = getMaxIssues(card.tier);
+  const ownerCount = getCardOwnerCount(card.id);
+  const issueNum = ownerCount + 1;
+
+  if (issueNum > maxIssues) {
+    const fallbackPool = allCards.filter((c) => getCardOwnerCount(c.id) < getMaxIssues(c.tier));
+    if (fallbackPool.length === 0) return;
+    card = getWeightedRandomCard(fallbackPool);
+    if (!card) return;
+  }
+
+  const currentIssue = getCardOwnerCount(card.id) + 1;
+  const maxIssuesFinal = getMaxIssues(card.tier);
+
+  const token = card.id;
   spawnCardInGroup(groupId, card.id, token);
   recordSpawnForGroup(groupId);
+  recordRecentSpawnedCard(groupId, card.id);
 
   const tierPrice = TIER_PRICES[card.tier] || 500;
 
@@ -107,8 +116,9 @@ export async function spawnCard(sock: WASocket, groupId: string, specific?: stri
     `*🎴 Name:* ${card.name}\n` +
     `*🃏 Series:* ${card.series || "General"}\n` +
     `*⭐ Tier:* ${card.tier}\n` +
+    `*📋 Issue:* ${currentIssue}/${maxIssuesFinal}\n` +
     `*🏷️ Price:* $${formatNumber(tierPrice)}\n\n` +
-    `> Type \`get ${token}\` to claim!`;
+    `> Type \`.get ${card.id}\` to claim!`;
 
   try {
     const buf = await getCardImageBuffer(card);
@@ -124,15 +134,15 @@ export async function handleGetCard(
   sock: WASocket,
   groupId: string,
   senderId: string,
-  token: string
+  cardId: string
 ): Promise<void> {
-  const spawn = getActiveSpawnByToken(groupId, token);
+  const spawn = getActiveSpawnByToken(groupId, cardId);
   if (!spawn) {
     const anySpawn = getActiveSpawn(groupId);
     if (!anySpawn) {
       await sendText(groupId, "❌ There's no active card spawn right now.");
     } else {
-      await sendText(groupId, "❌ Invalid claim token. Check the spawn message for the correct code!");
+      await sendText(groupId, "❌ Wrong card ID. Check the spawn message for the correct code!");
     }
     return;
   }
@@ -145,18 +155,29 @@ export async function handleGetCard(
     return;
   }
 
+  const card = getCard(spawn.card_id);
+  const maxIssues = getMaxIssues(card?.tier || "T1");
+  const currentOwners = getCardOwnerCount(spawn.card_id);
+
+  if (currentOwners >= maxIssues) {
+    await sendText(groupId, `❌ This card has reached its maximum issues (${maxIssues}/${maxIssues}).`);
+    return;
+  }
+
   claimSpawn(spawn.id, senderId);
   giveCard(senderId, spawn.card_id);
 
-  const card = getCard(spawn.card_id);
+  const issueNum = currentOwners + 1;
   const tierPrice = TIER_PRICES[card?.tier] || 500;
 
   await sendText(
     groupId,
-    `🎉 You have successfully claimed this card!\n\n` +
+    `🎉 @${senderId.split("@")[0]} claimed the card!\n\n` +
     `*🎴 Name:* ${card?.name || spawn.card_id}\n` +
     `*⭐ Tier:* ${card?.tier || "T?"}\n` +
-    `*🏷️ Price:* $${formatNumber(tierPrice)}`
+    `*📋 Issue:* #${issueNum}\n` +
+    `*🏷️ Price:* $${formatNumber(tierPrice)}`,
+    [senderId]
   );
 }
 
@@ -186,7 +207,7 @@ async function makeCardPlaceholder(card: any): Promise<Buffer> {
     <text x="450" y="680" fill="#dbeafe" font-size="48" font-family="Arial" text-anchor="middle">${series}</text>
     <text x="450" y="930" fill="#f8fafc" font-size="72" font-family="Arial" font-weight="700" text-anchor="middle">${tier}</text>
   </svg>`;
-  return sharp(Buffer.from(svg)).jpeg({ quality: 90 }).toBuffer();
+  return sharp(Buffer.from(svg)).png().toBuffer();
 }
 
 function escapeSvg(value: string): string {
