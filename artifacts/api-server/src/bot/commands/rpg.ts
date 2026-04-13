@@ -123,12 +123,12 @@ export async function handleRpg(ctx: CommandContext): Promise<void> {
   const user = getUser(sender);
   const now = Math.floor(Date.now() / 1000);
 
-  const DUNGEON_MOVES = ["attack", "heavy", "defend", "special", "heal", "item", "flee", "explore", "rest"];
+  const DUNGEON_MOVES = ["attack", "heavy", "defend", "special", "item", "flee", "explore", "rest"];
 
   if (DUNGEON_MOVES.includes(cmd)) {
     const battle = activeDungeonBattles.get(sender);
 
-    if (Date.now() - (battle?.lastActivity || 0) > BATTLE_TIMEOUT) {
+    if (battle && Date.now() - battle.lastActivity > BATTLE_TIMEOUT) {
       activeDungeonBattles.delete(sender);
     }
 

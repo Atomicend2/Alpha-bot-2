@@ -1,9 +1,9 @@
 import type { WASocket } from "@whiskeysockets/baileys";
 import {
-  getAllCards, getActiveSpawn, claimSpawn, spawnCardInGroup, giveCard, getCard,
+  getAllCards, getActiveSpawn, getActiveSpawnByToken, claimSpawn, spawnCardInGroup, giveCard, getCard,
   ensureUser, getUser, getGroup, ensureGroup,
   getTodaySpawnCount, recordSpawnForGroup, getNextSpawnTime, setNextSpawnTime,
-  getGroupActivity,
+  getGroupActivity, getLastSpawnedCardId,
 } from "../db/queries.js";
 import { sendText, sendImage } from "../connection.js";
 import { getTierEmoji, getWeightedRandomCard, formatNumber } from "../utils.js";
@@ -65,6 +65,11 @@ export async function checkAutoSpawn(sock: WASocket, groupId: string): Promise<v
   }
 }
 
+function generateSpawnToken(): string {
+  const chars = "abcdefghijklmnopqrstuvwxyz0123456789";
+  return Array.from({ length: 6 }, () => chars[Math.floor(Math.random() * chars.length)]).join("");
+}
+
 export async function spawnCard(sock: WASocket, groupId: string, specific?: string): Promise<void> {
   const existing = getActiveSpawn(groupId);
   if (existing) return;
@@ -72,11 +77,27 @@ export async function spawnCard(sock: WASocket, groupId: string, specific?: stri
   const cards = getAllCards();
   if (cards.length === 0) return;
 
-  let card = specific ? cards.find((c) => c.id === specific) : getWeightedRandomCard(cards);
-  if (!card) card = getWeightedRandomCard(cards);
+  let card: any;
+  if (specific) {
+    card = cards.find((c) => c.id === specific) || getWeightedRandomCard(cards);
+  } else {
+    const lastCardId = getLastSpawnedCardId(groupId);
+    let candidate = getWeightedRandomCard(cards);
+    if (candidate?.id === lastCardId && cards.length > 1) {
+      if (Math.random() > 0.30) {
+        let attempts = 0;
+        while (candidate?.id === lastCardId && attempts < 10) {
+          candidate = getWeightedRandomCard(cards);
+          attempts++;
+        }
+      }
+    }
+    card = candidate;
+  }
   if (!card) return;
 
-  const spawnId = spawnCardInGroup(groupId, card.id);
+  const token = generateSpawnToken();
+  spawnCardInGroup(groupId, card.id, token);
   recordSpawnForGroup(groupId);
 
   const tierPrice = TIER_PRICES[card.tier] || 500;
@@ -87,7 +108,7 @@ export async function spawnCard(sock: WASocket, groupId: string, specific?: stri
     `*🃏 Series:* ${card.series || "General"}\n` +
     `*⭐ Tier:* ${card.tier}\n` +
     `*🏷️ Price:* $${formatNumber(tierPrice)}\n\n` +
-    `> Type \`get ${card.id}\` to claim!`;
+    `> Type \`get ${token}\` to claim!`;
 
   try {
     const buf = await getCardImageBuffer(card);
@@ -103,29 +124,30 @@ export async function handleGetCard(
   sock: WASocket,
   groupId: string,
   senderId: string,
-  cardId: string
+  token: string
 ): Promise<void> {
-  const spawn = getActiveSpawn(groupId);
+  const spawn = getActiveSpawnByToken(groupId, token);
   if (!spawn) {
-    await sendText(groupId, "❌ There's no active card spawn right now.");
-    return;
-  }
-  if (spawn.card_id !== cardId) {
-    await sendText(groupId, "❌ That's not the right card ID. Check the spawn message!");
+    const anySpawn = getActiveSpawn(groupId);
+    if (!anySpawn) {
+      await sendText(groupId, "❌ There's no active card spawn right now.");
+    } else {
+      await sendText(groupId, "❌ Invalid claim token. Check the spawn message for the correct code!");
+    }
     return;
   }
 
   ensureUser(senderId);
   claimSpawn(spawn.id, senderId);
-  giveCard(senderId, cardId);
+  giveCard(senderId, spawn.card_id);
 
-  const card = getCard(cardId);
+  const card = getCard(spawn.card_id);
   const tierPrice = TIER_PRICES[card?.tier] || 500;
 
   await sendText(
     groupId,
     `🎉 You have successfully claimed this card!\n\n` +
-    `*🎴 Name:* ${card?.name || cardId}\n` +
+    `*🎴 Name:* ${card?.name || spawn.card_id}\n` +
     `*⭐ Tier:* ${card?.tier || "T?"}\n` +
     `*🏷️ Price:* $${formatNumber(tierPrice)}`
   );

@@ -18,14 +18,14 @@ export async function handleCards(ctx: CommandContext): Promise<void> {
     const target = msg.message?.extendedTextMessage?.contextInfo?.mentionedJid?.[0] || sender;
     const cards = getUserCards(target);
     if (cards.length === 0) {
-      await sendText(from, `🃏 @${target.split("@")[0]} has no cards yet!`, [target]);
+      await sendText(from, `🎴 @${target.split("@")[0]} has no cards yet!`, [target]);
       return;
     }
-    let text = `🃏 *Collection — @${target.split("@")[0]}*\n\n`;
+    let text = `*🎴 Your card collection:*\n\n`;
     cards.slice(0, 30).forEach((c, i) => {
-      text += `${i + 1}. ${getTierEmoji(c.tier)} [${c.tier}] *${c.name}* (ID: \`${c.user_card_id}\`)\n`;
+      text += `${i + 1}. 🃏 ${c.name} T${c.tier.replace(/^T/, "")}\n`;
     });
-    if (cards.length > 30) text += `\n...and ${cards.length - 30} more.`;
+    if (cards.length > 30) text += `\n_...and ${cards.length - 30} more_`;
     await sock.sendMessage(from, { text, mentions: [target] });
     return;
   }

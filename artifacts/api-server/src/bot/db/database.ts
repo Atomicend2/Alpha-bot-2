@@ -403,6 +403,8 @@ function initSchema(db: Database.Database): void {
   ensureColumn(db, "groups", "next_spawn_time", "INTEGER DEFAULT 0");
   ensureColumn(db, "groups", "spawn_count_today", "INTEGER DEFAULT 0");
   ensureColumn(db, "groups", "spawn_date", "TEXT DEFAULT ''");
+  ensureColumn(db, "groups", "last_spawned_card_id", "TEXT DEFAULT ''");
+  ensureColumn(db, "card_spawns", "spawn_token", "TEXT");
 }
 
 function ensureColumn(db: Database.Database, table: string, column: string, definition: string): void {

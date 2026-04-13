@@ -248,11 +248,12 @@ export function closeAuction(auctionId: number, buyerId: string) {
   ).run(buyerId, auctionId);
 }
 
-export function spawnCardInGroup(groupId: string, cardId: string, messageId?: string) {
+export function spawnCardInGroup(groupId: string, cardId: string, token: string, messageId?: string) {
   const db = getDb();
   const result = db.prepare(
-    "INSERT INTO card_spawns (group_id, card_id, message_id) VALUES (?, ?, ?)"
-  ).run(groupId, cardId, messageId || null);
+    "INSERT INTO card_spawns (group_id, card_id, spawn_token, message_id) VALUES (?, ?, ?, ?)"
+  ).run(groupId, cardId, token, messageId || null);
+  db.prepare("UPDATE groups SET last_spawned_card_id = ? WHERE id = ?").run(cardId, groupId);
   return result.lastInsertRowid as number;
 }
 
@@ -261,6 +262,18 @@ export function getActiveSpawn(groupId: string) {
   return db.prepare(
     "SELECT * FROM card_spawns WHERE group_id = ? AND claimed_by IS NULL ORDER BY spawned_at DESC LIMIT 1"
   ).get(groupId) as any;
+}
+
+export function getActiveSpawnByToken(groupId: string, token: string) {
+  const db = getDb();
+  return db.prepare(
+    "SELECT * FROM card_spawns WHERE group_id = ? AND spawn_token = ? AND claimed_by IS NULL LIMIT 1"
+  ).get(groupId, token) as any;
+}
+
+export function getLastSpawnedCardId(groupId: string): string {
+  const group = getGroup(groupId);
+  return group?.last_spawned_card_id || "";
 }
 
 export function claimSpawn(spawnId: number, userId: string) {
