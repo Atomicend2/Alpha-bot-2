@@ -30,6 +30,31 @@ export function updateUser(userId: string, data: Record<string, any>) {
   );
 }
 
+export function resetUserBalance(userId: string) {
+  const db = getDb();
+  ensureUser(userId);
+  return db.prepare("UPDATE users SET balance = 0, bank = 0, updated_at = unixepoch() WHERE id = ?").run(userId);
+}
+
+export function resetUserProfile(userId: string) {
+  const db = getDb();
+  db.transaction(() => {
+    db.prepare("DELETE FROM afk_users WHERE user_id = ?").run(userId);
+    db.prepare("DELETE FROM inventory WHERE user_id = ?").run(userId);
+    db.prepare("DELETE FROM user_cards WHERE user_id = ?").run(userId);
+    db.prepare("DELETE FROM card_deck WHERE user_id = ?").run(userId);
+    db.prepare("DELETE FROM deck_backgrounds WHERE user_id = ?").run(userId);
+    db.prepare("DELETE FROM rpg_characters WHERE user_id = ?").run(userId);
+    db.prepare("DELETE FROM guild_members WHERE user_id = ?").run(userId);
+    db.prepare("DELETE FROM message_counts WHERE user_id = ?").run(userId);
+    db.prepare("DELETE FROM warnings WHERE user_id = ?").run(userId);
+    db.prepare("DELETE FROM muted_users WHERE user_id = ?").run(userId);
+    db.prepare("DELETE FROM summer_tokens WHERE user_id = ?").run(userId);
+    db.prepare("DELETE FROM users WHERE id = ?").run(userId);
+  })();
+  return ensureUser(userId);
+}
+
 export function getGroup(groupId: string) {
   const db = getDb();
   return db.prepare("SELECT * FROM groups WHERE id = ?").get(groupId) as any;
@@ -526,6 +551,15 @@ export function removeStaff(userId: string, role?: string) {
   }
 }
 
+export function getStaffAny(userId: string) {
+  const variants = getJidVariants(userId);
+  for (const jid of variants) {
+    const staff = getStaff(jid);
+    if (staff) return staff;
+  }
+  return null;
+}
+
 export function getStaffList() {
   const db = getDb();
   return db.prepare("SELECT * FROM staff ORDER BY CASE role WHEN 'guardian' THEN 1 WHEN 'mod' THEN 2 WHEN 'recruit' THEN 3 ELSE 4 END, added_at DESC").all() as any[];
@@ -574,6 +608,10 @@ export function isBanned(type: "user" | "group", target: string) {
   return !!getBan(type, target);
 }
 
+export function isUserBanned(userId: string, extraIds: string[] = []) {
+  return [...getJidVariants(userId), ...extraIds.flatMap(getJidVariants)].some((target) => isBanned("user", target));
+}
+
 export function muteUser(userId: string, groupId: string, mutedBy: string, expiresAt: number) {
   const db = getDb();
   db.prepare(`
@@ -603,6 +641,20 @@ export function getActiveMute(userId: string, groupId: string) {
 export function resetAllBalances() {
   const db = getDb();
   return db.prepare("UPDATE users SET balance = 0, bank = 0, updated_at = unixepoch()").run();
+}
+
+function getJidVariants(jid: string): string[] {
+  const values = new Set<string>();
+  if (!jid) return [];
+  values.add(jid);
+  const [rawUser, rawServer = "s.whatsapp.net"] = jid.split("@");
+  const user = rawUser.split(":")[0].replace(/\D/g, "") || rawUser.split(":")[0];
+  if (user) {
+    values.add(`${user}@${rawServer}`);
+    values.add(`${user}@s.whatsapp.net`);
+    values.add(`${user}@lid`);
+  }
+  return [...values];
 }
 
 export function setBotSetting(key: string, value: Buffer | string) {
