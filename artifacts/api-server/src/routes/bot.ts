@@ -1,5 +1,5 @@
 import express from "express";
-import { connectToWhatsApp, getSocket, isSocketConnected, getPairingCode, rememberPairingPhoneNumber } from "../bot/connection.js";
+import { connectToWhatsApp, getSocket, isSocketConnected, isSocketConnecting, getPairingCode, rememberPairingPhoneNumber } from "../bot/connection.js";
 import { logger } from "../lib/logger.js";
 
 const router = express.Router();
@@ -7,8 +7,8 @@ const router = express.Router();
 let botStarted = false;
 
 router.post("/start", async (req, res) => {
-  if (botStarted && isSocketConnected()) {
-    res.json({ success: true, message: "Bot already connected" });
+  if (botStarted && (isSocketConnected() || isSocketConnecting())) {
+    res.json({ success: true, message: isSocketConnected() ? "Bot already connected" : "Bot already connecting" });
     return;
   }
   const { phone } = req.body;
@@ -30,6 +30,7 @@ router.get("/status", (_req, res) => {
   const pairingCode = getPairingCode();
   res.json({
     connected,
+    connecting: isSocketConnecting(),
     pairingCode,
     botId: sock?.user?.id || null,
     botName: sock?.user?.name || null,

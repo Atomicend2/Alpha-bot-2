@@ -32,9 +32,12 @@ export const PREFIX = ".";
 
 let sock: WASocket | null = null;
 let isConnected = false;
+let isConnecting = false;
 let pairingCode: string | null = null;
 let reconnectAttempts = 0;
+let connectionGeneration = 0;
 const MAX_RECONNECT_DELAY = 30000;
+const STABLE_CONNECTION_MS = 30000;
 const replyContext = new AsyncLocalStorage<any>();
 
 type ConnectOptions = {
@@ -47,6 +50,10 @@ export function getSocket(): WASocket | null {
 
 export function isSocketConnected(): boolean {
   return isConnected;
+}
+
+export function isSocketConnecting(): boolean {
+  return isConnecting;
 }
 
 export function getPairingCode(): string | null {
@@ -94,6 +101,11 @@ async function askForPairingPhoneNumber(): Promise<string | undefined> {
 }
 
 export async function connectToWhatsApp(phoneNumber?: string, options: ConnectOptions = {}): Promise<WASocket> {
+  if (sock && (isConnected || isConnecting)) {
+    return sock;
+  }
+  isConnecting = true;
+  const generation = ++connectionGeneration;
   const { state, saveCreds } = await useMultiFileAuthState(AUTH_DIR);
   const { version, isLatest } = await fetchLatestBaileysVersion();
   const browser = Browsers.ubuntu("Chrome");
@@ -157,16 +169,22 @@ export async function connectToWhatsApp(phoneNumber?: string, options: ConnectOp
     const { connection, lastDisconnect } = update;
 
     if (connection === "close") {
+      if (generation !== connectionGeneration) return;
       isConnected = false;
+      isConnecting = false;
+      const statusCode = (lastDisconnect?.error as Boom)?.output?.statusCode;
+      const reason = (lastDisconnect?.error as any)?.message || (lastDisconnect?.error as Boom)?.output?.payload?.message || "unknown";
       const shouldReconnect =
-        (lastDisconnect?.error as Boom)?.output?.statusCode !== DisconnectReason.loggedOut;
+        statusCode !== DisconnectReason.loggedOut;
 
       if (shouldReconnect) {
         const delay = Math.min(1000 * Math.pow(2, reconnectAttempts), MAX_RECONNECT_DELAY);
         reconnectAttempts++;
-        logger.info({ delay, attempt: reconnectAttempts }, "Reconnecting to WhatsApp...");
+        logger.warn({ delay, attempt: reconnectAttempts, statusCode, reason }, "WhatsApp connection closed; reconnecting");
         setTimeout(() => {
-          connectToWhatsApp();
+          if (generation === connectionGeneration && !isConnected && !isConnecting) {
+            connectToWhatsApp();
+          }
         }, delay);
       } else {
         logger.info("Logged out from WhatsApp");
@@ -175,11 +193,19 @@ export async function connectToWhatsApp(phoneNumber?: string, options: ConnectOp
         fs.mkdirSync(AUTH_DIR, { recursive: true });
       }
     } else if (connection === "open") {
+      if (generation !== connectionGeneration) return;
       isConnected = true;
-      reconnectAttempts = 0;
+      isConnecting = false;
       pairingCode = null;
       logger.info("Connected to WhatsApp successfully");
+      setTimeout(() => {
+        if (generation === connectionGeneration && isConnected) {
+          reconnectAttempts = 0;
+        }
+      }, STABLE_CONNECTION_MS);
     } else if (connection === "connecting") {
+      if (generation !== connectionGeneration) return;
+      isConnecting = true;
       logger.info("Connecting to WhatsApp...");
     }
   });

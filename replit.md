@@ -71,6 +71,7 @@ pnpm workspace monorepo using TypeScript. Each package manages its own dependenc
 - Non-staff DMs are ignored. Group commands are always processed before anti-spam/anti-link filters so reconnects or repeated command usage do not make the bot snub group commands.
 - The WhatsApp message handler unwraps ephemeral/view-once/document-with-caption command messages and processes all message upsert types, including paired-phone/from-me group commands after reconnects.
 - Bot admin detection compares all known paired-number identities, including device and LID forms, against group participants so admin-only commands work when the paired bot number is a group admin.
+- WhatsApp connection startup prevents overlapping socket starts, logs close reasons, and only resets reconnect backoff after a stable connection window, keeping the saved paired session active during workflow restarts without rapid reconnect loops.
 
 ## Key Commands
 
