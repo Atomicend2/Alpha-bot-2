@@ -1,9 +1,9 @@
 import type { WASocket, proto } from "@whiskeysockets/baileys";
 import { BOT_OWNER_LID, PREFIX, sendText, runWithReplyContext } from "../connection.js";
-import { ensureUser, ensureGroup, incrementMessageCount, incrementGroupActivity, getStaff, isBanned, getBotSetting, getUser, addUserXp, getActiveMute } from "../db/queries.js";
+import { ensureUser, ensureGroup, incrementMessageCount, incrementGroupActivity, getStaff, isBanned, isUserBanned, getBotSetting, getUser, addUserXp, getActiveMute } from "../db/queries.js";
 import { checkAntilink, checkAntispam, checkBlacklist } from "./antispam.js";
 import { checkAutoSpawn, handleGetCard } from "./cardspawn.js";
-import { checkAfkMention, handleAfk } from "../commands/afk.js";
+import { checkAfkMention, checkSenderReturnedFromAfk, handleAfk } from "../commands/afk.js";
 import { handleAdmin } from "../commands/admin.js";
 import { handleEconomy } from "../commands/economy.js";
 import { handleGambling } from "../commands/gambling.js";
@@ -41,7 +41,7 @@ export async function handleMessage(
 
   if (!sender) return;
 
-  if (isBanned("user", sender)) return;
+  if (isUserBanned(sender)) return;
   if (isGroup && isBanned("group", from)) {
     await sock.groupLeave(from).catch(() => {});
     return;
@@ -117,6 +117,10 @@ export async function handleMessage(
   if (isGroup && getActiveMute(sender, from)) {
     await sock.sendMessage(from, { delete: normalizedMsg.key }).catch(() => {});
     return;
+  }
+
+  if (isGroup && !msg.key.fromMe) {
+    await checkSenderReturnedFromAfk(from, sender, sock).catch(() => {});
   }
 
   if (mentionedJids.length > 0) {
@@ -540,6 +544,7 @@ async function dispatch(ctx: CommandContext): Promise<void> {
     case "unban":
     case "banlist":
     case "resetbal":
+    case "reset":
       return handleStaff(ctx);
 
     case "cds":

@@ -7,7 +7,22 @@ export async function handleAfk(ctx: CommandContext): Promise<void> {
   const { from, sender, args } = ctx;
   const reason = args.join(" ") || "AFK";
   setAfk(sender, reason);
-  await sendText(from, `🔴 @${sender.split("@")[0]} is now AFK: ${reason}`, [sender]);
+  await sendText(from, `You are now AFK: ${reason}`);
+}
+
+export async function checkSenderReturnedFromAfk(
+  from: string,
+  sender: string,
+  sock: any
+): Promise<void> {
+  const senderAfk = getAfk(sender);
+  if (!senderAfk) return;
+  removeAfk(sender);
+  const elapsed = timeAgo(senderAfk.started_at);
+  await sock.sendMessage(from, {
+    text: `Welcome back! You were AFK for ${elapsed}\n> *${senderAfk.reason}*`,
+    mentions: [sender],
+  });
 }
 
 export async function checkAfkMention(
@@ -16,16 +31,8 @@ export async function checkAfkMention(
   mentioned: string[],
   sock: any
 ): Promise<void> {
-  const senderAfk = getAfk(sender);
-  if (senderAfk) {
-    removeAfk(sender);
-    await sock.sendMessage(from, {
-      text: `👋 Welcome back @${sender.split("@")[0]}! You were AFK: "${senderAfk.reason}" (${timeAgo(senderAfk.started_at)})`,
-      mentions: [sender],
-    });
-  }
-
   for (const m of mentioned) {
+    if (m === sender) continue;
     const afk = getAfk(m);
     if (afk) {
       await sock.sendMessage(from, {

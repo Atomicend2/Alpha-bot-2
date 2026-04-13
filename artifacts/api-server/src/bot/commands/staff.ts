@@ -1,6 +1,6 @@
 import type { CommandContext } from "./index.js";
 import { BOT_OWNER_LID, sendText } from "../connection.js";
-import { addStaff, removeStaff, getStaffList, getStaff, ensureUser, getUser, updateUser, getCard, getAllCards, addBan, removeBan, getBanList, setBotSetting, deleteBotSetting, resetAllBalances, isBanned } from "../db/queries.js";
+import { addStaff, removeStaff, getStaffList, getStaff, ensureUser, getUser, updateUser, getCard, getAllCards, addBan, removeBan, getBanList, setBotSetting, deleteBotSetting, resetUserBalance, resetUserProfile, isBanned } from "../db/queries.js";
 import { getTierEmoji, isValidTier, generateId } from "../utils.js";
 import { getDb } from "../db/database.js";
 import { spawnCard } from "../handlers/cardspawn.js";
@@ -195,7 +195,7 @@ export async function handleStaff(ctx: CommandContext): Promise<void> {
     const mentioned = msg.message?.extendedTextMessage?.contextInfo?.mentionedJid?.[0];
     if (!mentioned) { await sendText(from, `❌ Usage: .${cmd} @user`); return; }
     const role = cmd === "removemod" ? "mod" : "guardian";
-    removeStaff(mentioned, role);
+    removeStaffAllVariants(mentioned, role);
     await sock.sendMessage(from, {
       text: `✅ Removed @${mentioned.split("@")[0]} from ${role}s.`,
       mentions: [mentioned],
@@ -279,9 +279,26 @@ export async function handleStaff(ctx: CommandContext): Promise<void> {
   }
 
   if (cmd === "resetbal") {
-    if (!isOwner) { await sendText(from, "❌ Only the bot owner can reset all balances."); return; }
-    const result = resetAllBalances();
-    await sendText(from, `✅ Reset wallet and bank balances globally for ${Number(result.changes || 0).toLocaleString()} users.`);
+    if (!isOwner) { await sendText(from, "❌ Only the bot owner can reset balances."); return; }
+    const mentioned = msg.message?.extendedTextMessage?.contextInfo?.mentionedJid?.[0];
+    if (!mentioned) { await sendText(from, "❌ Usage: .resetbal @user"); return; }
+    resetUserBalance(mentioned);
+    await sock.sendMessage(from, {
+      text: `✅ Wallet and bank reset to $0 for @${mentioned.split("@")[0]}.`,
+      mentions: [mentioned],
+    });
+    return;
+  }
+
+  if (cmd === "reset") {
+    if (!isOwner) { await sendText(from, "❌ Only the bot owner can permanently reset profiles."); return; }
+    const mentioned = msg.message?.extendedTextMessage?.contextInfo?.mentionedJid?.[0];
+    if (!mentioned) { await sendText(from, "❌ Usage: .reset @user"); return; }
+    resetUserProfile(mentioned);
+    await sock.sendMessage(from, {
+      text: `✅ Profile permanently reset for @${mentioned.split("@")[0]}. All data wiped.`,
+      mentions: [mentioned],
+    });
     return;
   }
 
@@ -413,6 +430,20 @@ export async function handleStaff(ctx: CommandContext): Promise<void> {
       await sendText(from, `❌ Failed to upload card: ${err.message}`);
     }
     return;
+  }
+}
+
+function removeStaffAllVariants(jid: string, role?: string): void {
+  const variants = new Set<string>();
+  variants.add(jid);
+  const [rawUser] = jid.split("@");
+  const user = rawUser.split(":")[0];
+  if (user) {
+    variants.add(`${user}@s.whatsapp.net`);
+    variants.add(`${user}@lid`);
+  }
+  for (const v of variants) {
+    removeStaff(v, role);
   }
 }
 

@@ -361,13 +361,25 @@ export async function handleEconomy(ctx: CommandContext): Promise<void> {
   }
 
   if (cmd === "inventory" || cmd === "inv") {
+    const ITEM_EMOJIS: Record<string, string> = {
+      "Health Potion": "🧪",
+      "Elixir": "⚗️",
+      "Sword": "⚔️",
+      "Shield": "🛡️",
+      "Speed Boots": "👟",
+      "Lucky Charm": "🍀",
+      "VIP Pass": "💎",
+      "Card Pack": "🎴",
+      "Dungeon Key": "🗝️",
+      "Guild License": "📜",
+    };
     const inv = getInventory(sender);
     if (inv.length === 0) {
       await sendText(from, "🎒 Your inventory is empty.");
       return;
     }
     const text = `🎒 *Inventory — @${sender.split("@")[0]}*\n\n` +
-      inv.map((i) => `• ${i.item} x${i.quantity}`).join("\n");
+      inv.map((i) => `${ITEM_EMOJIS[i.item] || "📦"} *${i.item}* x${i.quantity}`).join("\n");
     await sendText(from, text);
     return;
   }
