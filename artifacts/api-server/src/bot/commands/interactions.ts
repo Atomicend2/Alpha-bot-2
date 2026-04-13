@@ -75,15 +75,13 @@ export async function handleInteraction(ctx: CommandContext): Promise<void> {
       return null;
     });
     if (!uploaded) {
-      await sendText(from, `❌ Reply to a GIF/video/image with .${cmd} upload to save it for this interaction.`);
+      await sendText(from, `❌ Reply to a GIF/video with .${cmd} upload to save it.\n\nMake sure you're replying to a GIF or video message.`);
       return;
     }
     setBotSetting(`interaction_gif:${cmd}`, uploaded);
-    await sendText(from, `✅ Saved GIF/card for .${cmd}.`);
+    await sendText(from, `✅ GIF saved for *.${cmd}*! It will now be sent whenever someone uses this interaction.`);
     return;
   }
-
-  await sendText(from, `┌─⟡ 『 𝗔𝗟𝗣𝗛𝗔 𝗟𝗢𝗔𝗗𝗜𝗡𝗚 』⟡\n║\n║ ➩ Action: .${cmd}\n║ ➩ Target: preparing...\n║\n└────────────────────`, [sender, ...(mentioned ? [mentioned] : [])]);
 
   if (SOLO_ACTIONS[cmd]) {
     const actions = SOLO_ACTIONS[cmd];
@@ -109,7 +107,7 @@ export async function handleInteraction(ctx: CommandContext): Promise<void> {
 
 async function sendInteractionResult(ctx: CommandContext, text: string, mentions: string[]): Promise<void> {
   const gif = getBotSetting(`interaction_gif:${ctx.command}`);
-  if (gif) {
+  if (gif && Buffer.isBuffer(gif)) {
     await ctx.sock.sendMessage(ctx.from, {
       video: gif,
       gifPlayback: true,
@@ -125,10 +123,14 @@ async function sendInteractionResult(ctx: CommandContext, text: string, mentions
 async function getInteractionUpload(ctx: CommandContext): Promise<Buffer | null> {
   const info = ctx.msg.message?.extendedTextMessage?.contextInfo;
   const quoted = info?.quotedMessage;
-  const direct = ctx.msg.message?.videoMessage || ctx.msg.message?.imageMessage || ctx.msg.message?.documentMessage;
-  const media = quoted?.videoMessage || quoted?.imageMessage || quoted?.documentMessage || direct;
-  if (!media) return null;
-  const target = direct
+
+  const directMsg = ctx.msg.message;
+  const directMedia = directMsg?.videoMessage || directMsg?.imageMessage || directMsg?.documentMessage || directMsg?.stickerMessage;
+  const quotedMedia = quoted?.videoMessage || quoted?.imageMessage || quoted?.documentMessage || quoted?.stickerMessage;
+
+  if (!directMedia && !quotedMedia) return null;
+
+  const target = directMedia
     ? ctx.msg
     : {
         key: {
@@ -139,6 +141,13 @@ async function getInteractionUpload(ctx: CommandContext): Promise<Buffer | null>
         },
         message: quoted,
       };
-  const downloaded = await downloadMediaMessage(target as any, "buffer", {}, { reuploadRequest: (ctx.sock as any).updateMediaMessage });
-  return Buffer.isBuffer(downloaded) ? downloaded : Buffer.from(downloaded as any);
+
+  const downloaded = await downloadMediaMessage(
+    target as any,
+    "buffer",
+    {},
+    { reuploadRequest: (ctx.sock as any).updateMediaMessage }
+  );
+  const buf = Buffer.isBuffer(downloaded) ? downloaded : Buffer.from(downloaded as any);
+  return buf.length > 0 ? buf : null;
 }
