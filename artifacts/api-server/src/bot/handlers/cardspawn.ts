@@ -1,7 +1,7 @@
 import type { WASocket } from "@whiskeysockets/baileys";
 import {
   getAllCards, getActiveSpawn, getActiveSpawnByToken, claimSpawn, spawnCardInGroup, giveCard, getCard,
-  ensureUser, getUser, getGroup, ensureGroup,
+  ensureUser, getUser, getGroup, ensureGroup, getUserCards,
   getTodaySpawnCount, recordSpawnForGroup, getNextSpawnTime, setNextSpawnTime,
   getGroupActivity, getLastSpawnedCardId,
 } from "../db/queries.js";
@@ -138,6 +138,13 @@ export async function handleGetCard(
   }
 
   ensureUser(senderId);
+
+  const alreadyOwned = getUserCards(senderId).some((c: any) => c.id === spawn.card_id);
+  if (alreadyOwned) {
+    await sendText(groupId, "❌ You already own this card! Each card can only be claimed once per user.");
+    return;
+  }
+
   claimSpawn(spawn.id, senderId);
   giveCard(senderId, spawn.card_id);
 

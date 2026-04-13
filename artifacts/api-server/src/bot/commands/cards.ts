@@ -64,13 +64,15 @@ export async function handleCards(ctx: CommandContext): Promise<void> {
     if (!found) { await sendText(from, "❌ Card not found."); return; }
     const owners = getCardOwners(found.id);
     const buf = await getCardImageBuffer(found);
+    const ownerMentions: string[] = [];
     let ownersSection = "_⛔ No owners yet_";
     if (owners.length > 0) {
-      ownersSection = owners.slice(0, 10).map((o) => {
-        const displayName = o.name || o.user_id.split("@")[0];
-        return `• ${displayName}`;
+      const shown = owners.slice(0, 10);
+      ownersSection = shown.map((o) => {
+        ownerMentions.push(o.user_id);
+        return `• @${o.user_id.split("@")[0]}`;
       }).join("\n");
-      if (owners.length > 10) ownersSection += `\n...and ${owners.length - 10} more`;
+      if (owners.length > 10) ownersSection += `\n_...and ${owners.length - 10} more_`;
     }
     const caption =
       `∘₊✦────────✦₊∘\n` +
@@ -85,7 +87,7 @@ export async function handleCards(ctx: CommandContext): Promise<void> {
       `✦────⋆⋅✧⋅⋆────✦\n\n` +
       `${ownersSection}\n\n` +
       `∘₊✦────────✦₊∘`;
-    await sendImage(from, buf, caption);
+    await sock.sendMessage(from, { image: buf, caption, mentions: ownerMentions });
     return;
   }
 

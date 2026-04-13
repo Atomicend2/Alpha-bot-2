@@ -226,9 +226,9 @@ export async function handleAdmin(ctx: CommandContext): Promise<void> {
     const participants = groupMeta?.participants || [];
     const mentions: string[] = participants.map((p: any) => p.id);
     const announcement = args.join(" ") || "📢 Attention everyone!";
-    let membersLine = "";
+    let memberLines = "";
     for (const p of participants) {
-      membersLine += `@${p.id.split("@")[0]} `;
+      memberLines += `║ ║ @${p.id.split("@")[0]}\n`;
     }
     const text =
       `┌─⟡ 『 📢 𝗧𝗔𝗚 𝗔𝗟𝗟 』⟡\n` +
@@ -237,7 +237,7 @@ export async function handleAdmin(ctx: CommandContext): Promise<void> {
       `║\n` +
       `╠─⟡ 👥 𝗠𝗘𝗠𝗕𝗘𝗥𝗦 (${participants.length})\n` +
       `║ ┌────────────────────\n` +
-      `║ ║ ${membersLine.trim()}\n` +
+      `${memberLines}` +
       `║ └────────────────────\n` +
       `╚══════════════════╝`;
     await sock.sendMessage(from, { text, mentions });
