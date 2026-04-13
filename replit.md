@@ -27,6 +27,7 @@ pnpm workspace monorepo using TypeScript. Each package manages its own dependenc
 - Saved WhatsApp auth lives under the workspace `data/auth` directory and is reused across workflow restarts.
 - Restart validation on 2026-04-12 confirmed the bot reconnected from the saved session without requesting a new pairing code.
 - On each fresh connection/reconnect, WhatsApp messages with timestamps before the bot came online are ignored so commands sent while the bot was offline are not processed later.
+- Restarts keep using the saved paired number in `data/auth`; pairing is only requested again when there is no saved WhatsApp auth session.
 
 ## Staff, Economy, and Stickers
 
@@ -41,7 +42,7 @@ pnpm workspace monorepo using TypeScript. Each package manages its own dependenc
 - Spawned cards can be claimed with either `.get <card_id>` or plain `get <card_id>`.
 - `.s` converts image replies/captions to 512×512 cropped WebP stickers with sticker name `Atomic` and pack name `𝐒𝐇𝚫𝐃𝐎𝐖 𝐆𝚫𝐑𝐃𝚵𝐍`, embedding WebP sticker metadata for sharing/favorites.
 - `.setms` saves a replied-to sticker as the sender's personal mention sticker. `.delms` removes the sender's mention sticker.
-- `.setpp` and `.setbg` save a player's profile-card picture/background from a replied image or image caption; they do not change the paired WhatsApp account profile.
+- `.setpp` and `.setbg` save a player's profile-card picture/background from a replied image or image caption; they do not change the paired WhatsApp account profile. Owner, guardians, mods, group mods, and active premium users can also set video media as the profile picture/background, and `.profile`/`.p` sends an animated GIF-style profile when either saved profile media is video.
 - `.register` gives a $45,000 starter bonus.
 - When someone tags an owner, mod, guardian, or active premium user who has a saved personal mention sticker, the bot replies with that specific user's sticker. Replies without an explicit tag do not trigger mention stickers, and tags sent by the bot/paired account itself do not trigger mention stickers.
 - Interaction commands (`.hug`, `.kiss`, `.slap`, etc.) support staff GIF uploads by replying to a GIF/video/image with `.<interaction> upload`; saved GIFs persist in SQLite bot settings and are sent when that interaction is used.

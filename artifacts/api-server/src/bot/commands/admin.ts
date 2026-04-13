@@ -131,8 +131,17 @@ export async function handleAdmin(ctx: CommandContext): Promise<void> {
   if (cmd === "setwelcome") {
     if (!canUse) return noPerms(from);
     const msg_text = args.join(" ");
+    if (!msg_text) {
+      await sendText(from, "❌ Usage: .setwelcome <message>\nUse @mention where the new member should be tagged.");
+      return;
+    }
     updateGroup(from, { welcome_msg: msg_text });
-    await sendText(from, `✅ Welcome message set!\n\nPreview:\n${msg_text}`);
+    const preview = msg_text.replace(/@mention/gi, mentionTag(sender));
+    await sendText(
+      from,
+      `✅ Welcome message set!\n\nPreview:\n${preview}\n\nWhen someone joins, @mention will tag that person.`,
+      /@mention/i.test(msg_text) ? [sender] : []
+    );
     return;
   }
 

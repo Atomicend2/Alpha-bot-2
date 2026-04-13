@@ -367,6 +367,8 @@ function initSchema(db: Database.Database): void {
   ensureColumn(db, "users", "warn_count", "INTEGER DEFAULT 0");
   ensureColumn(db, "users", "profile_picture", "BLOB");
   ensureColumn(db, "users", "profile_background", "BLOB");
+  ensureColumn(db, "users", "profile_picture_video", "BLOB");
+  ensureColumn(db, "users", "profile_background_video", "BLOB");
   ensureColumn(db, "groups", "ai_chat", "TEXT DEFAULT 'off'");
   ensureColumn(db, "groups", "antilink_action", "TEXT DEFAULT 'delete'");
   ensureColumn(db, "groups", "antispam", "TEXT DEFAULT 'off'");

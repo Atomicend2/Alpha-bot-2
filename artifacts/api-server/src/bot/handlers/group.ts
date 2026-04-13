@@ -1,7 +1,7 @@
 import type { WASocket } from "@whiskeysockets/baileys";
-import { ensureGroup, getGroup, updateGroup } from "../db/queries.js";
+import { ensureGroup, getGroup } from "../db/queries.js";
 import { sendText } from "../connection.js";
-import { logger } from "../../lib/logger.js";
+import { mentionTag } from "../utils.js";
 
 export async function handleGroupUpdate(sock: WASocket, updates: any[]) {
   for (const update of updates) {
@@ -17,16 +17,13 @@ export async function handleGroupParticipantsUpdate(
   update: { id: string; participants: string[]; action: string }
 ) {
   const { id: groupId, participants, action } = update;
-  const group = getGroup(groupId);
-  if (!group) {
-    ensureGroup(groupId);
-    return;
-  }
+  const group = getGroup(groupId) || ensureGroup(groupId);
 
   for (const participant of participants) {
     if (action === "add") {
       if (group.welcome === "on") {
-        const msg = group.welcome_msg || `Welcome to the group, @${participant.split("@")[0]}! 👋`;
+        const template = group.welcome_msg || "Welcome to the group, @mention! 👋";
+        const msg = replaceWelcomeMention(template, participant);
         await sendText(groupId, msg, [participant]).catch(() => {});
       }
     } else if (action === "remove" || action === "leave") {
@@ -36,4 +33,8 @@ export async function handleGroupParticipantsUpdate(
       }
     }
   }
+}
+
+function replaceWelcomeMention(template: string, participant: string): string {
+  return template.replace(/@mention/gi, mentionTag(participant));
 }

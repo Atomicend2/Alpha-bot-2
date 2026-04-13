@@ -2,11 +2,16 @@ import type { CommandContext } from "./index.js";
 import { BOT_OWNER_LID, sendText } from "../connection.js";
 import {
   getUser, ensureUser, updateUser, getInventory, addToInventory, removeFromInventory,
-  getShop, getShopItem, getRichList, ensureRpg, getUserRank, getUserGuild, isBanned, getStaff,
+  getShop, getShopItem, getRichList, ensureRpg, getUserRank, getUserGuild, isBanned, getStaff, isMod,
 } from "../db/queries.js";
 import { formatNumber, timeAgo } from "../utils.js";
 import sharp from "sharp";
 import path from "node:path";
+import os from "node:os";
+import { randomUUID } from "node:crypto";
+import fs from "node:fs/promises";
+import { execFile } from "node:child_process";
+import { promisify } from "node:util";
 import { downloadMediaMessage } from "@whiskeysockets/baileys";
 
 const DAILY_AMOUNT = 1000;
@@ -54,6 +59,12 @@ const BEG_RESPONSES = [
   "You found some loose change.",
   "A passerby dropped some coins.",
 ];
+
+const execFileAsync = promisify(execFile);
+
+async function runFfmpeg(args: string[]): Promise<void> {
+  await execFileAsync("ffmpeg", ["-loglevel", "error", ...args], { maxBuffer: 10 * 1024 * 1024 });
+}
 
 export async function handleEconomy(ctx: CommandContext): Promise<void> {
   const { from, sender, args, command: cmd } = ctx;
@@ -259,18 +270,36 @@ export async function handleEconomy(ctx: CommandContext): Promise<void> {
   }
 
   if (cmd === "setpp" || cmd === "setbg") {
-    const image = await getCommandImageBuffer(ctx).catch(() => null);
-    if (!image) {
-      await sendText(from, `❌ Reply to an image/sticker or send an image with .${cmd} as the caption.`);
+    const media = await getCommandProfileMedia(ctx).catch(() => null);
+    if (!media) {
+      await sendText(from, `❌ Reply to an image/video/sticker or send media with .${cmd} as the caption.`);
       return;
     }
-    const key = cmd === "setpp" ? "profile_picture" : "profile_background";
-    const resized = await sharp(image)
+    const imageKey = cmd === "setpp" ? "profile_picture" : "profile_background";
+    const videoKey = cmd === "setpp" ? "profile_picture_video" : "profile_background_video";
+    const label = cmd === "setpp" ? "picture" : "background";
+    if (media.type === "video") {
+      if (!canSetProfileVideo(ctx, user)) {
+        await sendText(from, "❌ Only owner, guardians, mods, group mods, and active premium users can set video profile media.");
+        return;
+      }
+      const poster = await getVideoPoster(media.buffer).catch(() => null);
+      const resizedPoster = poster
+        ? await sharp(poster)
+          .resize(cmd === "setpp" ? 640 : 765, cmd === "setpp" ? 640 : 850, { fit: "cover" })
+          .jpeg({ quality: 92 })
+          .toBuffer()
+        : null;
+      updateUser(sender, { [videoKey]: media.buffer, [imageKey]: resizedPoster });
+      await sendText(from, `✅ Your animated profile ${label} has been updated.`);
+      return;
+    }
+    const resized = await sharp(media.buffer)
       .resize(cmd === "setpp" ? 640 : 765, cmd === "setpp" ? 640 : 850, { fit: "cover" })
       .jpeg({ quality: 92 })
       .toBuffer();
-    updateUser(sender, { [key]: resized });
-    await sendText(from, `✅ Your profile ${cmd === "setpp" ? "picture" : "background"} has been updated.`);
+    updateUser(sender, { [imageKey]: resized, [videoKey]: null });
+    await sendText(from, `✅ Your profile ${label} has been updated.`);
     return;
   }
 
@@ -286,7 +315,13 @@ export async function handleEconomy(ctx: CommandContext): Promise<void> {
     const age = target.age || "Not set";
     const bio = target.bio || "No bio set";
     const registered = formatProfileDate(Number(target.created_at || now));
-    const profileImage = await buildProfileImage(ctx, targetId, target, rpg, rank, role).catch(async () => null);
+    const hasVideoProfile = Buffer.isBuffer(target.profile_picture_video) || Buffer.isBuffer(target.profile_background_video);
+    const animatedProfile = hasVideoProfile
+      ? await buildAnimatedProfileGif(ctx, targetId, target, rpg, rank, role).catch(async () => null)
+      : null;
+    const profileImage = animatedProfile
+      ? null
+      : await buildProfileImage(ctx, targetId, target, rpg, rank, role).catch(async () => null);
 
     const text =
       `╭━✦ 𝙋𝙇𝘼𝙔𝙀𝙍 𝙋𝙍𝙊𝙁𝙄𝙇𝙀 ✦━╮\n` +
@@ -299,7 +334,9 @@ export async function handleEconomy(ctx: CommandContext): Promise<void> {
       `✧ 𝗚𝘂𝗶𝗹𝗱: ${guild?.name || "None"}\n\n` +
       `✧ 𝗕𝗮𝗻𝗻𝗲𝗱: ${isBanned("user", targetId) ? "Yes" : "No"}`;
 
-    if (profileImage) {
+    if (animatedProfile) {
+      await ctx.sock.sendMessage(from, { video: animatedProfile, gifPlayback: true, mimetype: "video/mp4", caption: text, mentions: [targetId] });
+    } else if (profileImage) {
       await ctx.sock.sendMessage(from, { image: profileImage, caption: text, mentions: [targetId] });
     } else {
       await ctx.sock.sendMessage(from, { text, mentions: [targetId] });
@@ -590,6 +627,16 @@ function getProfileRole(userId: string): string {
   return "normal user";
 }
 
+function canSetProfileVideo(ctx: CommandContext, user: any): boolean {
+  if (ctx.isOwner) return true;
+  const staff = getStaff(ctx.sender);
+  if (staff?.role === "guardian" || staff?.role === "mod") return true;
+  if (ctx.from.endsWith("@g.us") && isMod(ctx.sender, ctx.from)) return true;
+  if (!user?.premium) return false;
+  const expiry = Number(user.premium_expiry || 0);
+  return expiry === 0 || expiry > Math.floor(Date.now() / 1000);
+}
+
 function formatProfileDate(timestamp: number): string {
   return new Date(timestamp * 1000).toLocaleString("en-US", {
     month: "long",
@@ -655,6 +702,72 @@ async function buildProfileImage(ctx: CommandContext, targetId: string, user: an
     .toBuffer();
 }
 
+async function buildAnimatedProfileGif(ctx: CommandContext, targetId: string, user: any, rpg: any, rank: number, role: string): Promise<Buffer> {
+  const tmpDir = await fs.mkdtemp(path.join(os.tmpdir(), `profile-${randomUUID()}-`));
+  try {
+    const bgFrames = Buffer.isBuffer(user.profile_background_video)
+      ? await extractVideoFrames(tmpDir, "bg", user.profile_background_video, "scale=765:850:force_original_aspect_ratio=increase,crop=765:850")
+      : [];
+    const avatarFrames = Buffer.isBuffer(user.profile_picture_video)
+      ? await extractVideoFrames(tmpDir, "avatar", user.profile_picture_video, "scale=640:640:force_original_aspect_ratio=increase,crop=640:640")
+      : [];
+    const frameCount = Math.max(bgFrames.length, avatarFrames.length, 1);
+    const outputPattern = path.join(tmpDir, "profile_%03d.png");
+    for (let i = 0; i < frameCount; i++) {
+      const frameUser = {
+        ...user,
+        profile_background: bgFrames.length > 0 ? bgFrames[i % bgFrames.length] : user.profile_background,
+        profile_picture: avatarFrames.length > 0 ? avatarFrames[i % avatarFrames.length] : user.profile_picture,
+      };
+      const frame = await buildProfileImage(ctx, targetId, frameUser, rpg, rank, role);
+      await sharp(frame).png().toFile(path.join(tmpDir, `profile_${String(i + 1).padStart(3, "0")}.png`));
+    }
+    const outPath = path.join(tmpDir, "profile.mp4");
+    await runFfmpeg([
+      "-y",
+      "-framerate", "6",
+      "-i", outputPattern,
+      "-movflags", "+faststart",
+      "-pix_fmt", "yuv420p",
+      "-vf", "scale=trunc(iw/2)*2:trunc(ih/2)*2",
+      outPath,
+    ]);
+    return await fs.readFile(outPath);
+  } finally {
+    await fs.rm(tmpDir, { recursive: true, force: true }).catch(() => {});
+  }
+}
+
+async function extractVideoFrames(tmpDir: string, prefix: string, buffer: Buffer, vf: string): Promise<Buffer[]> {
+  const inputPath = path.join(tmpDir, `${prefix}.mp4`);
+  const framePattern = path.join(tmpDir, `${prefix}_%03d.jpg`);
+  await fs.writeFile(inputPath, buffer);
+  await runFfmpeg([
+    "-y",
+    "-i", inputPath,
+    "-vf", `fps=6,${vf}`,
+    "-frames:v", "18",
+    framePattern,
+  ]);
+  const entries = (await fs.readdir(tmpDir))
+    .filter((name) => name.startsWith(`${prefix}_`) && name.endsWith(".jpg"))
+    .sort();
+  return Promise.all(entries.map((name) => fs.readFile(path.join(tmpDir, name))));
+}
+
+async function getVideoPoster(buffer: Buffer): Promise<Buffer | null> {
+  const tmpDir = await fs.mkdtemp(path.join(os.tmpdir(), `poster-${randomUUID()}-`));
+  try {
+    const inputPath = path.join(tmpDir, "input.mp4");
+    const outputPath = path.join(tmpDir, "poster.jpg");
+    await fs.writeFile(inputPath, buffer);
+    await runFfmpeg(["-y", "-i", inputPath, "-frames:v", "1", outputPath]);
+    return await fs.readFile(outputPath);
+  } finally {
+    await fs.rm(tmpDir, { recursive: true, force: true }).catch(() => {});
+  }
+}
+
 async function getProfileAvatar(ctx: CommandContext, targetId: string, user: any): Promise<Buffer> {
   if (user.profile_picture && Buffer.isBuffer(user.profile_picture)) {
     return user.profile_picture;
@@ -683,13 +796,15 @@ async function getProfileAvatar(ctx: CommandContext, targetId: string, user: any
     .toBuffer();
 }
 
-async function getCommandImageBuffer(ctx: CommandContext): Promise<Buffer | null> {
+async function getCommandProfileMedia(ctx: CommandContext): Promise<{ buffer: Buffer; type: "image" | "video" } | null> {
   const { from, msg, sock } = ctx;
   const directImage = msg.message?.imageMessage ? msg : null;
+  const directVideo = msg.message?.videoMessage ? msg : null;
+  const directDocument = msg.message?.documentMessage ? msg : null;
   const context = msg.message?.extendedTextMessage?.contextInfo;
   const quoted = context?.quotedMessage;
-  const quotedMedia = quoted?.imageMessage || quoted?.stickerMessage ? quoted : null;
-  const target = directImage || (quotedMedia ? {
+  const quotedMedia = quoted?.imageMessage || quoted?.stickerMessage || quoted?.videoMessage || quoted?.documentMessage ? quoted : null;
+  const target = directImage || directVideo || directDocument || (quotedMedia ? {
     key: {
       remoteJid: from,
       fromMe: false,
@@ -699,13 +814,17 @@ async function getCommandImageBuffer(ctx: CommandContext): Promise<Buffer | null
     message: quotedMedia,
   } : null);
   if (!target) return null;
+  const message = (target as any).message || {};
+  const docMime = message.documentMessage?.mimetype || "";
+  const type = message.videoMessage || docMime.startsWith("video/") ? "video" : "image";
+  if (message.documentMessage && type !== "video") return null;
   const downloaded = await downloadMediaMessage(
     target as any,
     "buffer",
     {},
     { reuploadRequest: (sock as any).updateMediaMessage }
   );
-  return Buffer.isBuffer(downloaded) ? downloaded : Buffer.from(downloaded as any);
+  return { buffer: Buffer.isBuffer(downloaded) ? downloaded : Buffer.from(downloaded as any), type };
 }
 
 function escapeXml(input: string): string {
