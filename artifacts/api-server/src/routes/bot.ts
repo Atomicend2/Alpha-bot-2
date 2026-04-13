@@ -1,5 +1,5 @@
 import express from "express";
-import { connectToWhatsApp, getSocket, isSocketConnected, getPairingCode } from "../bot/connection.js";
+import { connectToWhatsApp, getSocket, isSocketConnected, getPairingCode, rememberPairingPhoneNumber } from "../bot/connection.js";
 import { logger } from "../lib/logger.js";
 
 const router = express.Router();
@@ -12,12 +12,13 @@ router.post("/start", async (req, res) => {
     return;
   }
   const { phone } = req.body;
+  const rememberedPhone = rememberPairingPhoneNumber(phone);
   try {
     botStarted = true;
-    connectToWhatsApp(phone, { promptForPhone: false }).catch((err) => {
+    connectToWhatsApp(rememberedPhone, { promptForPhone: false }).catch((err) => {
       logger.error({ err }, "Bot connection error");
     });
-    res.json({ success: true, message: "Bot starting...", phone: phone || null });
+    res.json({ success: true, message: "Bot starting...", phone: rememberedPhone || null });
   } catch (err: any) {
     res.status(500).json({ success: false, message: err.message });
   }
@@ -47,7 +48,12 @@ router.post("/pairing", async (req, res) => {
     return;
   }
   try {
-    const code = await sock.requestPairingCode(phone.replace(/\D/g, ""));
+    const rememberedPhone = rememberPairingPhoneNumber(phone);
+    if (!rememberedPhone) {
+      res.status(400).json({ success: false, message: "Valid phone number required" });
+      return;
+    }
+    const code = await sock.requestPairingCode(rememberedPhone);
     res.json({ success: true, code });
   } catch (err: any) {
     res.status(500).json({ success: false, message: err.message });

@@ -327,7 +327,7 @@ export function getCardOwnerCount(cardId: string): number {
 export function getXpLeaderboard(limit = 10) {
   const db = getDb();
   return db.prepare(
-    "SELECT id, name, xp, level FROM users ORDER BY xp DESC LIMIT ?"
+    "SELECT id, name, xp, level FROM users ORDER BY COALESCE(level, 1) DESC, COALESCE(xp, 0) DESC LIMIT ?"
   ).all(limit) as any[];
 }
 
@@ -477,7 +477,12 @@ export function updateRpg(userId: string, data: Record<string, any>) {
 
 export function getInventory(userId: string) {
   const db = getDb();
-  return db.prepare("SELECT * FROM inventory WHERE user_id = ? AND quantity > 0").all(userId) as any[];
+  return db.prepare(`
+    SELECT * FROM inventory
+    WHERE user_id = ?
+      AND quantity > 0
+      AND LOWER(item) NOT IN ('card pack', 'premium card pack', 'vip pass', 'vip access')
+  `).all(userId) as any[];
 }
 
 export function addToInventory(userId: string, item: string, qty = 1) {
@@ -500,12 +505,20 @@ export function removeFromInventory(userId: string, item: string, qty = 1) {
 
 export function getShop() {
   const db = getDb();
-  return db.prepare("SELECT * FROM shop_items ORDER BY category, price").all() as any[];
+  return db.prepare(`
+    SELECT * FROM shop_items
+    WHERE LOWER(name) NOT IN ('card pack', 'premium card pack', 'vip pass', 'vip access')
+    ORDER BY category, price
+  `).all() as any[];
 }
 
 export function getShopItem(name: string) {
   const db = getDb();
-  return db.prepare("SELECT * FROM shop_items WHERE LOWER(name) = LOWER(?)").get(name) as any;
+  return db.prepare(`
+    SELECT * FROM shop_items
+    WHERE LOWER(name) = LOWER(?)
+      AND LOWER(name) NOT IN ('card pack', 'premium card pack', 'vip pass', 'vip access')
+  `).get(name) as any;
 }
 
 export function getGuild(name: string) {

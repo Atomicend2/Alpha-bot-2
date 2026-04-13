@@ -55,7 +55,11 @@ pnpm workspace monorepo using TypeScript. Each package manages its own dependenc
 - Existing RPG databases are migrated with `last_dungeon` so `.dungeon` cooldown updates do not fail after reconnects/restarts. `.dungeon` has a 6-minute cooldown, supports multiple moves (`attack`, `guard`, `skill`, `rush`, `sneak`, `loot`, `scout`, `heal`, `focus`, `ambush`, `retreat`), and `.quest` has a 4-minute cooldown.
 - AFK messages use the red dot (`🔴`) indicator.
 - `.play <song>` searches YouTube, sends song details with thumbnail, tries the normal audio stream first, then falls back to `yt-dlp` for bot-check failures before sending MP3 audio.
-- Dig/fish rewards are capped at 376 coins, have 2-minute cooldowns, and are limited to 20 uses per day. Gambling has a 20-use daily limit and every gambling command has its own independent cooldown column, so using `.casino` does not block `.slots`.
+- Dig/fish rewards have 2-minute cooldowns, no daily use cap, and always pay between $180 and $383. Gambling has a 20-use daily limit and every gambling command has its own independent cooldown column, so using `.casino` does not block `.slots`.
+- `.gay` and `.lesbian` target a mentioned user first, then the replied-to message sender, then the command sender.
+- `.stats` uses a compact Shadow Garden small-caps panel with economy, level/rank, RPG, guild, and inventory details.
+- Card Pack, Premium Card Pack, VIP Pass, and VIP Access are removed from shops and filtered/deleted from inventories on startup.
+- XP leaderboard ranking sorts by level first, then the remaining XP available on that level.
 
 ## Profile System
 

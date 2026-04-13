@@ -8,7 +8,6 @@ const SUMMER_SHOP: Array<{ name: string; cost: number; description: string }> = 
   { name: "Beach Ball", cost: 30, description: "Fun at the beach!" },
   { name: "Ice Cream", cost: 20, description: "Refreshing summer treat" },
   { name: "Surfboard", cost: 100, description: "Ride the waves!" },
-  { name: "Premium Card Pack", cost: 200, description: "Get 3 random cards!" },
   { name: "Summer Bundle", cost: 500, description: "Exclusive summer items!" },
 ];
 
@@ -63,18 +62,7 @@ export async function handleSummer(ctx: CommandContext): Promise<void> {
       const { addToInventory } = await import("../db/queries.js");
       addToInventory(sender, item.name);
 
-      if (item.name === "Premium Card Pack") {
-        const { getAllCards, giveCard } = await import("../db/queries.js");
-        const { getWeightedRandomCard } = await import("../utils.js");
-        const cards = getAllCards();
-        for (let i = 0; i < 3; i++) {
-          const card = getWeightedRandomCard(cards);
-          if (card) giveCard(sender, card.id);
-        }
-        await sendText(from, `✅ Purchased *${item.name}*! You received 3 random cards — check .collection!`);
-      } else {
-        await sendText(from, `✅ Purchased *${item.name}* for ${item.cost} tokens!`);
-      }
+      await sendText(from, `✅ Purchased *${item.name}* for ${item.cost} tokens!`);
       return;
     }
 

@@ -21,7 +21,8 @@ const WORK_COOLDOWN = 3600;
 const DIG_COOLDOWN = 120;
 const FISH_COOLDOWN = 120;
 const BEG_COOLDOWN = 300;
-const DIG_FISH_DAILY_LIMIT = 20;
+const DIG_FISH_MIN_REWARD = 180;
+const DIG_FISH_MAX_REWARD = 383;
 
 const WORK_JOBS = [
   "You coded for 8 hours straight",
@@ -35,23 +36,23 @@ const WORK_JOBS = [
 ];
 
 const DIG_FINDS = [
-  { item: "Ancient Coin", value: 200 },
-  { item: "Rusty Sword", value: 300 },
-  { item: "Buried Treasure", value: 376 },
-  { item: "Old Ring", value: 150 },
-  { item: "Gem Fragment", value: 350 },
-  { item: "Nothing", value: 0 },
-  { item: "Worm", value: 10 },
+  { item: "Ancient Coin" },
+  { item: "Rusty Sword" },
+  { item: "Buried Treasure" },
+  { item: "Old Ring" },
+  { item: "Gem Fragment" },
+  { item: "Crystal Shard" },
+  { item: "Golden Relic" },
 ];
 
 const FISH_CATCHES = [
-  { item: "Common Fish", value: 50 },
-  { item: "Rare Fish", value: 200 },
-  { item: "Legendary Fish", value: 376 },
-  { item: "Boot", value: 5 },
-  { item: "Trash Bag", value: 1 },
-  { item: "Pearl", value: 350 },
-  { item: "Nothing", value: 0 },
+  { item: "Common Fish" },
+  { item: "Rare Fish" },
+  { item: "Legendary Fish" },
+  { item: "Golden Koi" },
+  { item: "Deep Sea Pearl" },
+  { item: "Moonlit Tuna" },
+  { item: "Treasure Clam" },
 ];
 
 const BEG_RESPONSES = [
@@ -383,8 +384,6 @@ export async function handleEconomy(ctx: CommandContext): Promise<void> {
       "Shield": "🛡️",
       "Speed Boots": "👟",
       "Lucky Charm": "🍀",
-      "VIP Pass": "💎",
-      "Card Pack": "🎴",
       "Dungeon Key": "🗝️",
       "Guild License": "📜",
     };
@@ -407,8 +406,6 @@ export async function handleEconomy(ctx: CommandContext): Promise<void> {
       "Shield": "🛡️",
       "Speed Boots": "👟",
       "Lucky Charm": "🍀",
-      "VIP Pass": "💎",
-      "Card Pack": "🎴",
       "Dungeon Key": "🗝️",
     };
     const CAT_EMOJIS: Record<string, string> = {
@@ -504,7 +501,10 @@ export async function handleEconomy(ctx: CommandContext): Promise<void> {
       const medal = MEDALS[i];
       const name = u.name || u.id.split("@")[0];
       const prefix = medal ? `${medal} ${num}.` : `${num}.`;
-      text += `║ ${prefix} ${name}\n║     └─ ⭐ Lᴠ ${u.level || 1} · ${formatNumber(u.xp || 0)} XP\n║\n`;
+      const level = Number(u.level || 1);
+      const xp = Number(u.xp || 0);
+      const totalXp = getTotalXpScore(level, xp);
+      text += `║ ${prefix} ${name}\n║     └─ ⭐ Lᴠ ${level} · ${formatNumber(xp)} / ${formatNumber(level * 100)} XP\n║        Tᴏᴛᴀʟ XP: ${formatNumber(totalXp)}\n║\n`;
     });
     text += "╚══════════════════╝";
     await ctx.sock.sendMessage(from, { text, mentions: list.map((u) => u.id) });
@@ -526,11 +526,6 @@ export async function handleEconomy(ctx: CommandContext): Promise<void> {
   }
 
   if (cmd === "dig") {
-    const usage = getDailyUsage(user, "dig", now);
-    if (usage.count >= DIG_FISH_DAILY_LIMIT) {
-      await sendText(from, `⛔ Daily dig limit reached (${DIG_FISH_DAILY_LIMIT}/day). Try again tomorrow.`);
-      return;
-    }
     const lastDig = user.last_dig || 0;
     const diff = now - lastDig;
     if (diff < DIG_COOLDOWN) {
@@ -538,24 +533,17 @@ export async function handleEconomy(ctx: CommandContext): Promise<void> {
       return;
     }
     const find = DIG_FINDS[Math.floor(Math.random() * DIG_FINDS.length)];
-    const value = Math.min(376, find.value);
+    const value = randomDigFishReward();
     updateUser(sender, {
       balance: (user.balance || 0) + value,
       last_dig: now,
-      dig_uses: usage.count + 1,
-      dig_date: usage.day,
     });
-    if (value > 0) addToInventory(sender, find.item);
-    await sendText(from, `⛏️ You dug and found: *${find.item}*!\n${value > 0 ? `+$${formatNumber(value)}` : "Nothing of value..."}\nUses today: ${usage.count + 1}/${DIG_FISH_DAILY_LIMIT}`);
+    addToInventory(sender, find.item);
+    await sendText(from, `⛏️ You dug and found: *${find.item}*!\n+$${formatNumber(value)}`);
     return;
   }
 
   if (cmd === "fish") {
-    const usage = getDailyUsage(user, "fish", now);
-    if (usage.count >= DIG_FISH_DAILY_LIMIT) {
-      await sendText(from, `⛔ Daily fish limit reached (${DIG_FISH_DAILY_LIMIT}/day). Try again tomorrow.`);
-      return;
-    }
     const lastFish = user.last_fish || 0;
     const diff = now - lastFish;
     if (diff < FISH_COOLDOWN) {
@@ -563,15 +551,13 @@ export async function handleEconomy(ctx: CommandContext): Promise<void> {
       return;
     }
     const catch_ = FISH_CATCHES[Math.floor(Math.random() * FISH_CATCHES.length)];
-    const value = Math.min(376, catch_.value);
+    const value = randomDigFishReward();
     updateUser(sender, {
       balance: (user.balance || 0) + value,
       last_fish: now,
-      fish_uses: usage.count + 1,
-      fish_date: usage.day,
     });
-    if (value > 0) addToInventory(sender, catch_.item);
-    await sendText(from, `🎣 You fished and caught: *${catch_.item}*!\n${value > 0 ? `+$${formatNumber(value)}` : "Better luck next time..."}\nUses today: ${usage.count + 1}/${DIG_FISH_DAILY_LIMIT}`);
+    addToInventory(sender, catch_.item);
+    await sendText(from, `🎣 You fished and caught: *${catch_.item}*!\n+$${formatNumber(value)}`);
     return;
   }
 
@@ -609,15 +595,39 @@ export async function handleEconomy(ctx: CommandContext): Promise<void> {
   if (cmd === "stats") {
     const inv = getInventory(sender);
     const rpg = ensureRpg(sender);
-    await sendText(from, `📊 *Stats — @${sender.split("@")[0]}*\n\n` +
-      `💰 Wallet: $${formatNumber(user.balance || 0)}\n` +
-      `🏦 Bank: $${formatNumber(user.bank || 0)}\n` +
-      `💎 Gems: ${user.gems || 0}\n` +
-      `🎖️ Level: ${user.level || 1} (${user.xp || 0} XP)\n` +
-      `🎒 Items: ${inv.length}\n` +
-      `⚔️ Attack: ${rpg?.attack || 20}\n` +
-      `🛡️ Defense: ${rpg?.defense || 10}\n` +
-      `💨 Speed: ${rpg?.speed || 15}`);
+    const level = Number(user.level || 1);
+    const xp = Number(user.xp || 0);
+    const xpNeeded = level * 100;
+    const total = Number(user.balance || 0) + Number(user.bank || 0);
+    const rank = getUserRank(sender);
+    const guild = getUserGuild(sender);
+    await sendText(from,
+      `╔ ❰ 📊 Sᴛᴀᴛs Pᴀɴᴇʟ ❱ ╗\n` +
+      `║  👤 @${sender.split("@")[0]}\n` +
+      `║\n` +
+      `╠═ ❰ Eᴄᴏɴᴏᴍʏ ❱\n` +
+      `║ 💰 Wᴀʟʟᴇᴛ: $${formatNumber(user.balance || 0)}\n` +
+      `║ 🏦 Bᴀɴᴋ: $${formatNumber(user.bank || 0)}\n` +
+      `║ 💸 Tᴏᴛᴀʟ: $${formatNumber(total)}\n` +
+      `║ 💎 Gᴇᴍs: ${formatNumber(user.gems || 0)}\n` +
+      `║\n` +
+      `╠═ ❰ Pʀᴏɢʀᴇss ❱\n` +
+      `║ ⭐ Lᴠ: ${level}  ·  Rᴀɴᴋ #${rank}\n` +
+      `║ ✨ XP: ${formatNumber(xp)} / ${formatNumber(xpNeeded)}\n` +
+      `║ 🌌 Tᴏᴛᴀʟ XP: ${formatNumber(getTotalXpScore(level, xp))}\n` +
+      `║\n` +
+      `╠═ ❰ Rᴘɢ ❱\n` +
+      `║ ⚔️ Aᴛᴋ: ${rpg?.attack || 20}  🛡️ Dᴇғ: ${rpg?.defense || 10}\n` +
+      `║ 💨 Sᴘᴅ: ${rpg?.speed || 15}  ❤️ HP: ${rpg?.hp || 100}/${rpg?.max_hp || 100}\n` +
+      `║ 🧬 Cʟᴀss: ${rpg?.class || "Warrior"}\n` +
+      `║ 🏰 Gᴜɪʟᴅ: ${guild?.name || "None"}\n` +
+      `║\n` +
+      `╠═ ❰ Iɴᴠᴇɴᴛᴏʀʏ ❱\n` +
+      `║ 🎒 Iᴛᴇᴍ Tʏᴘᴇs: ${inv.length}\n` +
+      `║ 🧾 Rᴇɢɪsᴛᴇʀᴇᴅ: ${user.registered ? "Yᴇs" : "Nᴏ"}\n` +
+      `╚══════════════════╝`,
+      [sender]
+    );
     return;
   }
 
@@ -641,14 +651,16 @@ function formatDuration(secs: number): string {
   return `${Math.floor(secs / 3600)}h ${Math.floor((secs % 3600) / 60)}m`;
 }
 
-function getDailyUsage(user: any, type: "dig" | "fish", now: number): { day: string; count: number } {
-  const day = new Date(now * 1000).toISOString().slice(0, 10);
-  const dateKey = `${type}_date`;
-  const usesKey = `${type}_uses`;
-  return {
-    day,
-    count: user[dateKey] === day ? Number(user[usesKey] || 0) : 0,
-  };
+function randomDigFishReward(): number {
+  return DIG_FISH_MIN_REWARD + Math.floor(Math.random() * (DIG_FISH_MAX_REWARD - DIG_FISH_MIN_REWARD + 1));
+}
+
+function getTotalXpScore(level: number, xp: number): number {
+  let total = Math.max(0, Number(xp || 0));
+  for (let lvl = 1; lvl < Math.max(1, Number(level || 1)); lvl++) {
+    total += lvl * 100;
+  }
+  return total;
 }
 
 function getProfileRole(userId: string): string {

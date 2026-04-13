@@ -343,12 +343,12 @@ function initSchema(db: Database.Database): void {
       ('Shield', 'Increases defense by 10', 3000, 'defense:10', 'rpg'),
       ('Speed Boots', 'Increases speed by 10', 3000, 'speed:10', 'rpg'),
       ('Lucky Charm', 'Boosts daily rewards', 1500, 'daily_boost', 'general'),
-      ('VIP Pass', 'Access to exclusive commands', 10000, 'vip', 'premium'),
-      ('Card Pack', 'Random card draw', 5000, 'card_pack', 'cards'),
       ('Guild License', 'Required to create a guild', 11000000, 'guild_license', 'general');
   `);
 
   db.prepare("UPDATE shop_items SET price = 11000000, description = 'Required to create a guild', effect = 'guild_license', category = 'general' WHERE LOWER(name) = 'guild license'").run();
+  db.prepare("DELETE FROM shop_items WHERE LOWER(name) IN ('card pack', 'premium card pack', 'vip pass', 'vip access')").run();
+  db.prepare("DELETE FROM inventory WHERE LOWER(item) IN ('card pack', 'premium card pack', 'vip pass', 'vip access')").run();
 
   ensureColumn(db, "users", "last_work", "INTEGER DEFAULT 0");
   ensureColumn(db, "users", "last_dig", "INTEGER DEFAULT 0");

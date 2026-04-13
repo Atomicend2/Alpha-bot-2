@@ -21,6 +21,7 @@ import { handleGroupUpdate, handleGroupParticipantsUpdate } from "./handlers/gro
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const AUTH_DIR = path.join(__dirname, "../../..", "data", "auth");
+const PAIRING_PHONE_PATH = path.join(AUTH_DIR, "paired-phone.txt");
 
 if (!fs.existsSync(AUTH_DIR)) {
   fs.mkdirSync(AUTH_DIR, { recursive: true });
@@ -65,6 +66,21 @@ function withReplyOptions(options?: any) {
 function normalizePhoneNumber(phoneNumber?: string): string | undefined {
   const normalized = phoneNumber?.replace(/\D/g, "");
   return normalized || undefined;
+}
+
+export function rememberPairingPhoneNumber(phoneNumber?: string): string | undefined {
+  const normalized = normalizePhoneNumber(phoneNumber);
+  if (!normalized) return undefined;
+  fs.writeFileSync(PAIRING_PHONE_PATH, normalized, "utf8");
+  return normalized;
+}
+
+function getRememberedPairingPhoneNumber(): string | undefined {
+  try {
+    return normalizePhoneNumber(fs.readFileSync(PAIRING_PHONE_PATH, "utf8"));
+  } catch {
+    return undefined;
+  }
 }
 
 async function askForPairingPhoneNumber(): Promise<string | undefined> {
@@ -115,11 +131,14 @@ export async function connectToWhatsApp(phoneNumber?: string, options: ConnectOp
 
   if (!state.creds.registered) {
     const normalizedPhoneNumber =
-      normalizePhoneNumber(phoneNumber) || (options.promptForPhone === false ? undefined : await askForPairingPhoneNumber());
+      rememberPairingPhoneNumber(phoneNumber) ||
+      getRememberedPairingPhoneNumber() ||
+      (options.promptForPhone === false ? undefined : await askForPairingPhoneNumber());
 
     if (!normalizedPhoneNumber) {
       logger.warn("No phone number provided; skipping pairing code request");
     } else {
+      rememberPairingPhoneNumber(normalizedPhoneNumber);
       await new Promise((resolve) => setTimeout(resolve, 3000));
       try {
         const code = await sock.requestPairingCode(normalizedPhoneNumber);

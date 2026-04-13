@@ -198,8 +198,21 @@ function loadingText(command: string): string {
 }
 
 function getFunTarget(ctx: CommandContext): string {
-  const info = ctx.msg.message?.extendedTextMessage?.contextInfo;
-  return info?.mentionedJid?.[0] || info?.participant || ctx.sender;
+  const info = getContextInfo(ctx.msg.message);
+  const participant = info?.participant || info?.quotedMessage?.key?.participant || info?.quotedMessage?.participant;
+  return info?.mentionedJid?.[0] || participant || ctx.sender;
+}
+
+function getContextInfo(message: any): any {
+  return message?.extendedTextMessage?.contextInfo ||
+    message?.imageMessage?.contextInfo ||
+    message?.videoMessage?.contextInfo ||
+    message?.documentMessage?.contextInfo ||
+    message?.stickerMessage?.contextInfo ||
+    message?.buttonsResponseMessage?.contextInfo ||
+    message?.listResponseMessage?.contextInfo ||
+    message?.templateButtonReplyMessage?.contextInfo ||
+    {};
 }
 
 function analysisResult(label: string, targetName: string, pct: number): string {
