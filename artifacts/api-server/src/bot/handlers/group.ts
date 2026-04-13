@@ -1,5 +1,5 @@
 import type { WASocket } from "@whiskeysockets/baileys";
-import { ensureGroup, getGroup } from "../db/queries.js";
+import { ensureGroup, getGroup, isBanned } from "../db/queries.js";
 import { sendText } from "../connection.js";
 import { mentionTag } from "../utils.js";
 
@@ -9,6 +9,9 @@ export async function handleGroupUpdate(sock: WASocket, updates: any[]) {
     const group = await sock.groupMetadata(update.id).catch(() => null);
     if (!group) continue;
     ensureGroup(update.id, group.subject);
+    if (isBanned("group", update.id)) {
+      await sock.groupLeave(update.id).catch(() => {});
+    }
   }
 }
 
@@ -18,6 +21,10 @@ export async function handleGroupParticipantsUpdate(
 ) {
   const { id: groupId, participants, action } = update;
   const group = getGroup(groupId) || ensureGroup(groupId);
+  if (isBanned("group", groupId)) {
+    await sock.groupLeave(groupId).catch(() => {});
+    return;
+  }
 
   for (const participant of participants) {
     if (action === "add") {

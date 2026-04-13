@@ -367,6 +367,18 @@ export function getCardLeaderboard(limit = 10) {
   `).all(limit) as any[];
 }
 
+export function getCardStats() {
+  const db = getDb();
+  const total = db.prepare("SELECT COUNT(*) as count FROM cards").get() as any;
+  const byTier = db.prepare("SELECT tier, COUNT(*) as count FROM cards GROUP BY tier ORDER BY tier").all() as any[];
+  const bySeries = db.prepare("SELECT series, COUNT(*) as count FROM cards GROUP BY series ORDER BY count DESC, series LIMIT 10").all() as any[];
+  return {
+    total: Number(total?.count || 0),
+    byTier,
+    bySeries,
+  };
+}
+
 export function setAfk(userId: string, reason: string) {
   const db = getDb();
   db.prepare(
@@ -505,6 +517,15 @@ export function getStaff(userId: string) {
   return db.prepare("SELECT * FROM staff WHERE user_id = ?").get(userId) as any;
 }
 
+export function removeStaff(userId: string, role?: string) {
+  const db = getDb();
+  if (role) {
+    db.prepare("DELETE FROM staff WHERE user_id = ? AND role = ?").run(userId, role);
+  } else {
+    db.prepare("DELETE FROM staff WHERE user_id = ?").run(userId);
+  }
+}
+
 export function getStaffList() {
   const db = getDb();
   return db.prepare("SELECT * FROM staff ORDER BY CASE role WHEN 'guardian' THEN 1 WHEN 'mod' THEN 2 WHEN 'recruit' THEN 3 ELSE 4 END, added_at DESC").all() as any[];
@@ -551,6 +572,37 @@ export function getBanList() {
 
 export function isBanned(type: "user" | "group", target: string) {
   return !!getBan(type, target);
+}
+
+export function muteUser(userId: string, groupId: string, mutedBy: string, expiresAt: number) {
+  const db = getDb();
+  db.prepare(`
+    INSERT INTO muted_users (user_id, group_id, muted_by, expires_at, created_at)
+    VALUES (?, ?, ?, ?, unixepoch())
+    ON CONFLICT(user_id, group_id) DO UPDATE SET muted_by = excluded.muted_by, expires_at = excluded.expires_at, created_at = unixepoch()
+  `).run(userId, groupId, mutedBy, expiresAt);
+}
+
+export function unmuteUser(userId: string, groupId: string) {
+  const db = getDb();
+  db.prepare("DELETE FROM muted_users WHERE user_id = ? AND group_id = ?").run(userId, groupId);
+}
+
+export function getActiveMute(userId: string, groupId: string) {
+  const db = getDb();
+  const mute = db.prepare("SELECT * FROM muted_users WHERE user_id = ? AND group_id = ?").get(userId, groupId) as any;
+  if (!mute) return null;
+  const expiresAt = Number(mute.expires_at || 0);
+  if (expiresAt > 0 && expiresAt <= Math.floor(Date.now() / 1000)) {
+    unmuteUser(userId, groupId);
+    return null;
+  }
+  return mute;
+}
+
+export function resetAllBalances() {
+  const db = getDb();
+  return db.prepare("UPDATE users SET balance = 0, bank = 0, updated_at = unixepoch()").run();
 }
 
 export function setBotSetting(key: string, value: Buffer | string) {
@@ -674,7 +726,7 @@ export function incrementGroupActivity(groupId: string) {
 }
 
 export function getGroupActivity(groupId: string): { count: number; percentage: number } {
-  const FULL_ACTIVITY = 500;
+  const FULL_ACTIVITY = 2000;
   const WINDOW = 20 * 60;
   const now = Math.floor(Date.now() / 1000);
   const group = getGroup(groupId);

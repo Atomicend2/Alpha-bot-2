@@ -3,6 +3,7 @@ import type { CommandContext } from "./index.js";
 import {
   ensureGroup, getGroup, updateGroup, getWarnings, addWarning, resetWarnings,
   getActiveMembers, getInactiveMembers, getMods, addMod, isMod, getGroupActivity,
+  muteUser, unmuteUser, getCardStats,
 } from "../db/queries.js";
 import { sendText } from "../connection.js";
 import { formatNumber, mentionTag } from "../utils.js";
@@ -22,10 +23,12 @@ export async function handleAdmin(ctx: CommandContext): Promise<void> {
   if (cmd === "kick") {
     if (!canUse) return noPerms(from);
     if (!isBotAdmin) return botNoAdmin(from);
-    const mentioned = msg.message?.extendedTextMessage?.contextInfo?.mentionedJid?.[0]
+    const info = msg.message?.extendedTextMessage?.contextInfo;
+    const mentioned = info?.mentionedJid?.[0]
+      || info?.participant
       || (args[0] ? `${args[0].replace(/\D/g, "")}@s.whatsapp.net` : null);
     if (!mentioned) {
-      await sendText(from, "❌ Please mention someone to kick.");
+      await sendText(from, "❌ Please mention someone to kick or reply to their message with .kick.");
       return;
     }
     await sock.groupParticipantsUpdate(from, [mentioned], "remove");
@@ -190,6 +193,20 @@ export async function handleAdmin(ctx: CommandContext): Promise<void> {
   if (cmd === "mute") {
     if (!canUse) return noPerms(from);
     if (!isBotAdmin) return botNoAdmin(from);
+    const info = msg.message?.extendedTextMessage?.contextInfo;
+    const target = info?.mentionedJid?.[0] || info?.participant || null;
+    if (target) {
+      const durationText = info?.mentionedJid?.[0] ? args[1] : args[0];
+      const durationSeconds = parseDuration(durationText || "1h");
+      if (!durationSeconds) {
+        await sendText(from, "❌ Usage: .mute @user <time>\nExamples: .mute @user 1m, or reply with .mute 1h");
+        return;
+      }
+      const expiresAt = Math.floor(Date.now() / 1000) + durationSeconds;
+      muteUser(target, from, sender, expiresAt);
+      await sendText(from, `🔇 @${target.split("@")[0]} muted for ${formatDuration(durationSeconds)}.`, [target]);
+      return;
+    }
     await sock.groupSettingUpdate(from, "announcement");
     updateGroup(from, { muted: 1 });
     await sendText(from, "🔇 Group muted. Only admins can send messages.");
@@ -199,6 +216,13 @@ export async function handleAdmin(ctx: CommandContext): Promise<void> {
   if (cmd === "unmute") {
     if (!canUse) return noPerms(from);
     if (!isBotAdmin) return botNoAdmin(from);
+    const info = msg.message?.extendedTextMessage?.contextInfo;
+    const target = info?.mentionedJid?.[0] || info?.participant || null;
+    if (target) {
+      unmuteUser(target, from);
+      await sendText(from, `🔊 @${target.split("@")[0]} unmuted.`, [target]);
+      return;
+    }
     await sock.groupSettingUpdate(from, "not_announcement");
     updateGroup(from, { muted: 0 });
     await sendText(from, "🔊 Group unmuted.");
@@ -329,6 +353,23 @@ export async function handleAdmin(ctx: CommandContext): Promise<void> {
   }
 
   if (cmd === "cards") {
+    if (args[0]?.toLowerCase() === "available") {
+      const stats = getCardStats();
+      const tierLines = stats.byTier.length > 0
+        ? stats.byTier.map((row: any) => `• ${row.tier}: ${row.count}`).join("\n")
+        : "• None";
+      const seriesLines = stats.bySeries.length > 0
+        ? stats.bySeries.map((row: any) => `• ${row.series || "General"}: ${row.count}`).join("\n")
+        : "• None";
+      await sendText(
+        from,
+        `🎴 *Cards Available*\n\n` +
+        `Total cards in database: *${stats.total}*\n\n` +
+        `*By Tier:*\n${tierLines}\n\n` +
+        `*Top Series:*\n${seriesLines}`
+      );
+      return;
+    }
     if (!canUse) return noPerms(from);
     const val = args[0]?.toLowerCase();
     if (val === "on") {
@@ -337,7 +378,7 @@ export async function handleAdmin(ctx: CommandContext): Promise<void> {
         await sendText(from,
           `❌ Cannot enable cards yet!\n\n` +
           `📈 Current activity: *${activity.percentage}%* (need 30%)\n` +
-          `💬 Messages in 20min: ${activity.count}/150\n\n` +
+          `💬 Messages in 20min: ${activity.count}/600\n\n` +
           `> Use *.activity* to check group activity status.`
         );
         return;
@@ -465,4 +506,22 @@ async function noPerms(jid: string) {
 
 async function botNoAdmin(jid: string) {
   await sendText(jid, "❌ Bot needs admin privileges to perform this action.");
+}
+
+function parseDuration(input?: string): number | null {
+  if (!input) return null;
+  const match = input.trim().match(/^(\d+)(s|m|h|d|y)$/i);
+  if (!match) return null;
+  const value = Number(match[1]);
+  const unit = match[2].toLowerCase();
+  const multipliers: Record<string, number> = { s: 1, m: 60, h: 3600, d: 86400, y: 31536000 };
+  return value > 0 ? value * multipliers[unit] : null;
+}
+
+function formatDuration(seconds: number): string {
+  if (seconds < 60) return `${seconds}s`;
+  if (seconds < 3600) return `${Math.floor(seconds / 60)}m`;
+  if (seconds < 86400) return `${Math.floor(seconds / 3600)}h`;
+  if (seconds < 31536000) return `${Math.floor(seconds / 86400)}d`;
+  return `${Math.floor(seconds / 31536000)}y`;
 }

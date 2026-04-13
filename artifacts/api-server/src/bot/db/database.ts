@@ -321,6 +321,15 @@ function initSchema(db: Database.Database): void {
       PRIMARY KEY (type, target)
     );
 
+    CREATE TABLE IF NOT EXISTS muted_users (
+      user_id TEXT NOT NULL,
+      group_id TEXT NOT NULL,
+      muted_by TEXT,
+      expires_at INTEGER DEFAULT 0,
+      created_at INTEGER DEFAULT (unixepoch()),
+      PRIMARY KEY (user_id, group_id)
+    );
+
     CREATE TABLE IF NOT EXISTS bot_settings (
       key TEXT PRIMARY KEY,
       value BLOB NOT NULL,
@@ -399,6 +408,9 @@ function initSchema(db: Database.Database): void {
   ensureColumn(db, "banned_entities", "reason", "TEXT DEFAULT ''");
   ensureColumn(db, "banned_entities", "added_by", "TEXT");
   ensureColumn(db, "banned_entities", "added_at", "INTEGER DEFAULT 0");
+  ensureColumn(db, "muted_users", "muted_by", "TEXT");
+  ensureColumn(db, "muted_users", "expires_at", "INTEGER DEFAULT 0");
+  ensureColumn(db, "muted_users", "created_at", "INTEGER DEFAULT 0");
   ensureColumn(db, "rpg_characters", "last_dungeon", "INTEGER DEFAULT 0");
   ensureColumn(db, "groups", "recent_msg_count", "INTEGER DEFAULT 0");
   ensureColumn(db, "groups", "recent_msg_window", "INTEGER DEFAULT 0");

@@ -1,6 +1,6 @@
 import type { CommandContext } from "./index.js";
 import { BOT_OWNER_LID, sendText } from "../connection.js";
-import { addStaff, getStaffList, getStaff, ensureUser, getUser, updateUser, getCard, getAllCards, addBan, removeBan, getBanList, setBotSetting, deleteBotSetting } from "../db/queries.js";
+import { addStaff, removeStaff, getStaffList, getStaff, ensureUser, getUser, updateUser, getCard, getAllCards, addBan, removeBan, getBanList, setBotSetting, deleteBotSetting, resetAllBalances, isBanned } from "../db/queries.js";
 import { getTierEmoji, isValidTier, generateId } from "../utils.js";
 import { getDb } from "../db/database.js";
 import { spawnCard } from "../handlers/cardspawn.js";
@@ -135,12 +135,14 @@ export async function handleStaff(ctx: CommandContext): Promise<void> {
       const groupTarget = await resolveGroupTarget(sock, groupCode);
       if (cmd === "ban") {
         addBan("group", groupTarget.target, groupTarget.display, reason, sender);
+        addBan("group", `invite:${groupCode}`, groupTarget.display, reason, sender);
         await sendText(from, `🚫 Banned group: ${groupTarget.display}`);
         if (from === groupTarget.target) {
           await sock.groupLeave(from).catch(() => {});
         }
       } else {
         removeBan("group", groupTarget.target);
+        removeBan("group", `invite:${groupCode}`);
         await sendText(from, `✅ Unbanned group: ${groupTarget.display}`);
       }
       return;
@@ -165,6 +167,7 @@ export async function handleStaff(ctx: CommandContext): Promise<void> {
   }
 
   if (cmd === "addmod") {
+    if (!isOwner) { await sendText(from, "❌ Only the bot owner can add mods."); return; }
     const mentioned = msg.message?.extendedTextMessage?.contextInfo?.mentionedJid?.[0];
     if (!mentioned) { await sendText(from, "❌ Mention someone."); return; }
     addStaff(mentioned, "mod", sender);
@@ -176,11 +179,25 @@ export async function handleStaff(ctx: CommandContext): Promise<void> {
   }
 
   if (cmd === "addguardian") {
+    if (!isOwner) { await sendText(from, "❌ Only the bot owner can add guardians."); return; }
     const mentioned = msg.message?.extendedTextMessage?.contextInfo?.mentionedJid?.[0];
     if (!mentioned) { await sendText(from, "❌ Mention someone."); return; }
     addStaff(mentioned, "guardian", sender);
     await sock.sendMessage(from, {
       text: `🛡️ @${mentioned.split("@")[0]} added as guardian.`,
+      mentions: [mentioned],
+    });
+    return;
+  }
+
+  if (cmd === "removemod" || cmd === "removeguardian") {
+    if (!isOwner) { await sendText(from, `❌ Only the bot owner can remove ${cmd === "removemod" ? "mods" : "guardians"}.`); return; }
+    const mentioned = msg.message?.extendedTextMessage?.contextInfo?.mentionedJid?.[0];
+    if (!mentioned) { await sendText(from, `❌ Usage: .${cmd} @user`); return; }
+    const role = cmd === "removemod" ? "mod" : "guardian";
+    removeStaff(mentioned, role);
+    await sock.sendMessage(from, {
+      text: `✅ Removed @${mentioned.split("@")[0]} from ${role}s.`,
       mentions: [mentioned],
     });
     return;
@@ -246,6 +263,11 @@ export async function handleStaff(ctx: CommandContext): Promise<void> {
     }
     try {
       const info = await sock.groupGetInviteInfo(code).catch(() => null);
+      const targetId = info?.id ? (String(info.id).endsWith("@g.us") ? String(info.id) : `${info.id}@g.us`) : "";
+      if (isBanned("group", `invite:${code}`) || (targetId && isBanned("group", targetId))) {
+        await sendText(from, "❌ This group is banned, so the bot will not join it.");
+        return;
+      }
       await sock.groupAcceptInvite(code);
       await sendText(from, `✅ Joined group${info?.subject ? `: *${info.subject}*` : "!"}`);
     } catch (err: any) {
@@ -253,6 +275,13 @@ export async function handleStaff(ctx: CommandContext): Promise<void> {
       const reason = String(err?.message || err?.output?.payload?.message || "").trim();
       await sendText(from, `❌ Failed to join group${reason ? `: ${reason}` : ". Make sure the invite link is active and the bot is allowed to join."}`);
     }
+    return;
+  }
+
+  if (cmd === "resetbal") {
+    if (!isOwner) { await sendText(from, "❌ Only the bot owner can reset all balances."); return; }
+    const result = resetAllBalances();
+    await sendText(from, `✅ Reset wallet and bank balances globally for ${Number(result.changes || 0).toLocaleString()} users.`);
     return;
   }
 

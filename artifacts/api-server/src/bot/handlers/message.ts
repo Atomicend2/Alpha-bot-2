@@ -1,6 +1,6 @@
 import type { WASocket, proto } from "@whiskeysockets/baileys";
 import { BOT_OWNER_LID, PREFIX, sendText, runWithReplyContext } from "../connection.js";
-import { ensureUser, ensureGroup, incrementMessageCount, incrementGroupActivity, getStaff, isBanned, getBotSetting, getUser, addUserXp } from "../db/queries.js";
+import { ensureUser, ensureGroup, incrementMessageCount, incrementGroupActivity, getStaff, isBanned, getBotSetting, getUser, addUserXp, getActiveMute } from "../db/queries.js";
 import { checkAntilink, checkAntispam, checkBlacklist } from "./antispam.js";
 import { checkAutoSpawn, handleGetCard } from "./cardspawn.js";
 import { checkAfkMention, handleAfk } from "../commands/afk.js";
@@ -111,6 +111,11 @@ export async function handleMessage(
     !!getStaff(sender)?.role === true;
 
   if (!isGroup && !isOwner && !getStaff(sender)) {
+    return;
+  }
+
+  if (isGroup && getActiveMute(sender, from)) {
+    await sock.sendMessage(from, { delete: normalizedMsg.key }).catch(() => {});
     return;
   }
 
@@ -513,6 +518,8 @@ async function dispatch(ctx: CommandContext): Promise<void> {
 
     case "addguardian":
     case "addmod":
+    case "removeguardian":
+    case "removemod":
     case "recruit":
     case "addpremium":
     case "removepremium":
@@ -532,6 +539,7 @@ async function dispatch(ctx: CommandContext): Promise<void> {
     case "ban":
     case "unban":
     case "banlist":
+    case "resetbal":
       return handleStaff(ctx);
 
     case "cds":

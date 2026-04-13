@@ -33,12 +33,18 @@ pnpm workspace monorepo using TypeScript. Each package manages its own dependenc
 
 - `.addmod`, `.addguardian`, and `.recruit` create global staff records shown by `.mods` in the Shadow Garden mods/guardians layout.
 - Mods and guardians can use `.ban <number>`, `.unban <number>`, `.ban <group link>`, `.unban <group link>`, and `.banlist`.
+- Only the bot owner can add/remove global mods and guardians with `.addmod`, `.removemod`, `.addguardian`, and `.removeguardian`.
+- Banned users are silently ignored by the bot; banned groups are left automatically and blocked from `.join` invite usage.
+- `.mute @user <time>` or replying with `.mute <time>` stores a per-user group mute and deletes that user's messages until `.unmute @user`/reply removes it or the timer expires.
+- `.kick` works by mention or by replying to a user's message.
+- `.resetbal` globally resets all users' wallet and bank balances to zero for the owner.
 - `.ac <amount> @user` and `.rc <amount> @user` can be used by owner, mods, guardians, and active premium users. They also work while replying to a user's message, auto-create missing users, store wallet/bank, and never reduce wallet below zero.
 - SQLite startup migrations add missing bot columns/tables in place so older `bot.db` files do not lose existing data.
 - Bot command responses are quoted to the command message where possible so the user can see who the reply is for.
 - Card uploads use `.upload T<tier> <name>. <series>` while replying to an image/sticker.
 - The menu sends the uploaded image as its header image with the Shadow Garden command styling.
 - Card spawns and `.card`/`.cardinfo` always send an image; old cards without stored images get a generated Alpha card placeholder.
+- Card auto-spawn activity now treats 2,000 messages per 20-minute window as 100%, so the 30% threshold requires 600 messages; `.cards available` reports card totals by tier and top series.
 - Spawned cards can be claimed with either `.get <card_id>` or plain `get <card_id>`.
 - `.s` converts image replies/captions to 512×512 cropped WebP stickers with sticker name `Atomic` and pack name `𝐒𝐇𝚫𝐃𝐎𝐖 𝐆𝚫𝐑𝐃𝚵𝐍`, embedding WebP sticker metadata for sharing/favorites.
 - `.setms` saves a replied-to sticker as the sender's personal mention sticker. `.delms` removes the sender's mention sticker.
