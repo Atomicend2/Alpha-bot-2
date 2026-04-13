@@ -237,9 +237,10 @@ export async function handleEconomy(ctx: CommandContext): Promise<void> {
     let text = "╔ ❰ 🏆 Gᴄ Rɪᴄʜʟɪsᴛ ❱ ╗\n║  💰 Tᴏᴘ Mᴇᴍʙᴇʀs\n║\n";
     list.forEach((u, i) => {
       const num = String(i + 1).padStart(2, "0");
-      const medal = MEDALS[i] || `${num}.`;
+      const medal = MEDALS[i];
       const name = u.name || u.id.split("@")[0];
-      text += `║ ${medal} ${num}. ${name}\n║     └─ 💰 Bᴀʟ: $${formatNumber(u.total)}\n║\n`;
+      const prefix = medal ? `${medal} ${num}.` : `${num}.`;
+      text += `║ ${prefix} ${name}\n║     └─ 💰 Bᴀʟ: $${formatNumber(u.total)}\n║\n`;
     });
     text += "╚══════════════════╝";
     await ctx.sock.sendMessage(from, { text, mentions: list.map((u) => u.id) });
@@ -252,9 +253,10 @@ export async function handleEconomy(ctx: CommandContext): Promise<void> {
     let text = "╔ ❰ 🏆 Gʟᴏʙᴀʟ Rɪᴄʜʟɪsᴛ ❱ ╗\n║ 🌍 Tᴏᴘ Pʟᴀʏᴇʀs\n║\n";
     list.forEach((u, i) => {
       const num = String(i + 1).padStart(2, "0");
-      const medal = MEDALS[i] || `${num}.`;
+      const medal = MEDALS[i];
       const name = u.name || u.id.split("@")[0];
-      text += `║ ${medal} ${num}. ${name}\n║     └─ 💰 Bᴀʟ: $${formatNumber(u.total)}\n║\n`;
+      const prefix = medal ? `${medal} ${num}.` : `${num}.`;
+      text += `║ ${prefix} ${name}\n║     └─ 💰 Bᴀʟ: $${formatNumber(u.total)}\n║\n`;
     });
     text += "╚══════════════════╝";
     await ctx.sock.sendMessage(from, { text, mentions: list.map((u) => u.id) });
@@ -472,7 +474,7 @@ export async function handleEconomy(ctx: CommandContext): Promise<void> {
     const entry = inv.find((i) => i.item.toLowerCase() === itemName.toLowerCase());
     if (!entry) { await sendText(from, "❌ You don't have that item."); return; }
 
-    const item = getShopItem(itemName);
+    const item = getShopItem(entry.item);
     if (!item) { await sendText(from, "❌ Unknown item effect."); return; }
 
     if (item.effect.startsWith("heal:")) {
@@ -481,11 +483,11 @@ export async function handleEconomy(ctx: CommandContext): Promise<void> {
       const newHp = Math.min(rpg.hp + heal, rpg.max_hp);
       const { updateRpg } = await import("../db/queries.js");
       updateRpg(sender, { hp: newHp });
-      removeFromInventory(sender, itemName);
-      await sendText(from, `❤️ Used *${itemName}*. HP: ${newHp}/${rpg.max_hp}`);
+      removeFromInventory(sender, entry.item);
+      await sendText(from, `❤️ Used *${entry.item}*. HP: ${newHp}/${rpg.max_hp}`);
     } else {
-      removeFromInventory(sender, itemName);
-      await sendText(from, `✅ Used *${itemName}*. Effect applied!`);
+      removeFromInventory(sender, entry.item);
+      await sendText(from, `✅ Used *${entry.item}*. Effect applied!`);
     }
     return;
   }

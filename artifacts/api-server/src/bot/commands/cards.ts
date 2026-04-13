@@ -109,10 +109,11 @@ export async function handleCards(ctx: CommandContext): Promise<void> {
     let text = "╔ ❰ 🎴 Cᴀʀᴅ Lᴇᴀᴅᴇʀʙᴏᴀʀᴅ ❱ ╗\n║ 🃏 Tᴏᴘ Cᴏʟʟᴇᴄᴛᴏʀs\n║\n";
     lb.forEach((e, i) => {
       const num = String(i + 1).padStart(2, "0");
-      const medal = MEDALS[i] || `${num}.`;
+      const medal = MEDALS[i];
       const u = getUser(e.user_id);
       const name = u?.name || e.user_id.split("@")[0];
-      text += `║ ${medal} ${num}. ${name}\n║     └─ 🃏 Cᴀʀᴅs: ${e.card_count}\n║\n`;
+      const prefix = medal ? `${medal} ${num}.` : `${num}.`;
+      text += `║ ${prefix} ${name}\n║     └─ 🃏 Cᴀʀᴅs: ${e.card_count}\n║\n`;
     });
     text += "╚══════════════════╝";
     await sock.sendMessage(from, { text, mentions: lb.map((e) => e.user_id) });
