@@ -194,7 +194,7 @@ export async function connectToWhatsApp(phoneNumber?: string, options: ConnectOp
         logger.warn({ delay, attempt: reconnectAttempts, statusCode, reason }, "WhatsApp connection closed; reconnecting");
         setTimeout(() => {
           if (generation === connectionGeneration && !isConnected && !isConnecting) {
-            connectToWhatsApp();
+            connectToWhatsApp(undefined, { promptForPhone: false });
           }
         }, delay);
       } else {

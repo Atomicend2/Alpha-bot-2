@@ -8,8 +8,8 @@ import path from "node:path";
 import { spawn } from "node:child_process";
 import { randomUUID } from "node:crypto";
 
-const DEFAULT_STICKER_NAME = "Atomic";
-const DEFAULT_STICKER_PACK = "𝐒𝐇𝚫𝐃𝐎𝐖 𝐆𝚫𝐑𝐃𝚵𝐍";
+const DEFAULT_STICKER_NAME = "𝐒𝐇𝚫𝐃𝐎𝐖 𝐆𝚫𝐑𝐃𝚵𝐍";
+const DEFAULT_STICKER_PACK = "Atomic";
 
 export async function handleConverter(ctx: CommandContext): Promise<void> {
   const { from, sender, args, command: cmd, msg, sock } = ctx;
@@ -186,7 +186,7 @@ async function convertToStickerWebp(input: Buffer): Promise<Buffer> {
   let result: Buffer;
   do {
     result = await sharp(input, { animated: false })
-      .resize(512, 512, { fit: "contain", background: { r: 0, g: 0, b: 0, alpha: 0 } })
+      .resize(512, 512, { fit: "cover", position: "centre" })
       .webp({ quality, effort: 6, lossless: false })
       .toBuffer();
     quality -= 10;
