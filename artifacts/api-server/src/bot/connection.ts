@@ -20,11 +20,22 @@ import { handleMessage } from "./handlers/message.js";
 import { handleGroupUpdate, handleGroupParticipantsUpdate } from "./handlers/group.js";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
-const AUTH_DIR = path.join(__dirname, "../../..", "data", "auth");
-const PAIRING_PHONE_PATH = path.join(AUTH_DIR, "paired-phone.txt");
+const DATA_DIR = path.join(__dirname, "../../..", "data");
+const AUTH_DIR = path.join(DATA_DIR, "auth");
+// Store pairing number outside AUTH_DIR so it survives a logout/wipe
+const PAIRING_PHONE_PATH = path.join(DATA_DIR, "paired-phone.txt");
 
 if (!fs.existsSync(AUTH_DIR)) {
   fs.mkdirSync(AUTH_DIR, { recursive: true });
+}
+
+// Migrate paired-phone.txt from old location (inside auth/) to data/ if needed
+const OLD_PAIRING_PHONE_PATH = path.join(AUTH_DIR, "paired-phone.txt");
+if (!fs.existsSync(PAIRING_PHONE_PATH) && fs.existsSync(OLD_PAIRING_PHONE_PATH)) {
+  try {
+    fs.copyFileSync(OLD_PAIRING_PHONE_PATH, PAIRING_PHONE_PATH);
+    fs.rmSync(OLD_PAIRING_PHONE_PATH, { force: true });
+  } catch { /* ignore */ }
 }
 
 export const BOT_OWNER_LID = "236713549029502";
@@ -187,10 +198,21 @@ export async function connectToWhatsApp(phoneNumber?: string, options: ConnectOp
           }
         }, delay);
       } else {
-        logger.info("Logged out from WhatsApp");
+        logger.info("Logged out from WhatsApp — clearing auth and re-pairing");
         pairingCode = null;
+        // Wipe only the auth credentials, preserve paired-phone.txt (it's outside AUTH_DIR now)
         fs.rmSync(AUTH_DIR, { recursive: true, force: true });
         fs.mkdirSync(AUTH_DIR, { recursive: true });
+        // Auto-reconnect: re-request pairing code using the saved phone number
+        const savedPhone = getRememberedPairingPhoneNumber();
+        if (savedPhone) {
+          setTimeout(() => {
+            if (generation === connectionGeneration) {
+              logger.info({ savedPhone }, "Auto-reconnecting with saved phone number after logout");
+              connectToWhatsApp(savedPhone, { promptForPhone: false });
+            }
+          }, 3000);
+        }
       }
     } else if (connection === "open") {
       if (generation !== connectionGeneration) return;

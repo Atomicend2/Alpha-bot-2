@@ -34,17 +34,17 @@ export async function handleConverter(ctx: CommandContext): Promise<void> {
           };
       const downloaded = await downloadMediaMessage(target as any, "buffer", {}, { reuploadRequest: (sock as any).updateMediaMessage });
       const input = Buffer.isBuffer(downloaded) ? downloaded : Buffer.from(downloaded as any);
-      const webp = quoted?.stickerMessage
-        ? input
-        : await sharp(input, { animated: true })
-          .resize(512, 512, { fit: "cover", position: "centre" })
-          .webp({ quality: 85 })
-          .toBuffer();
+      let webp: Buffer;
+      if (quoted?.stickerMessage) {
+        // Already a sticker — just re-stamp the metadata
+        webp = input;
+      } else {
+        // Convert image → 512×512 WebP, compress to <100KB
+        webp = await convertToStickerWebp(input);
+      }
       const buf = addWebpExif(webp, DEFAULT_STICKER_PACK, DEFAULT_STICKER_NAME);
       await sock.sendMessage(from, {
         sticker: buf,
-        packname: DEFAULT_STICKER_PACK,
-        author: DEFAULT_STICKER_NAME,
         mimetype: "image/webp",
       });
     } catch (err) {
@@ -180,6 +180,20 @@ export async function handleConverter(ctx: CommandContext): Promise<void> {
   }
 }
 
+async function convertToStickerWebp(input: Buffer): Promise<Buffer> {
+  const MAX_SIZE = 95 * 1024; // 95KB target (leaves room for EXIF chunk)
+  let quality = 80;
+  let result: Buffer;
+  do {
+    result = await sharp(input, { animated: false })
+      .resize(512, 512, { fit: "contain", background: { r: 0, g: 0, b: 0, alpha: 0 } })
+      .webp({ quality, effort: 6, lossless: false })
+      .toBuffer();
+    quality -= 10;
+  } while (result.length > MAX_SIZE && quality > 10);
+  return result;
+}
+
 async function readStream(stream: NodeJS.ReadableStream): Promise<Buffer> {
   const chunks: Buffer[] = [];
   for await (const chunk of stream as any) {
@@ -260,42 +274,70 @@ function addWebpExif(webp: Buffer, packName: string, stickerName: string): Buffe
   const exif = buildStickerExif(packName, stickerName);
   const exifSize = Buffer.alloc(4);
   exifSize.writeUInt32LE(exif.length, 0);
+  const padByte = exif.length % 2 ? Buffer.from([0]) : Buffer.alloc(0);
   const exifChunk = Buffer.concat([
     Buffer.from("EXIF", "ascii"),
     exifSize,
     exif,
-    exif.length % 2 ? Buffer.from([0]) : Buffer.alloc(0),
+    padByte,
   ]);
+  // Strip any existing EXIF chunk and rebuild
   const chunks: Buffer[] = [];
   let offset = 12;
   while (offset + 8 <= webp.length) {
     const type = webp.toString("ascii", offset, offset + 4);
     const size = webp.readUInt32LE(offset + 4);
-    const end = offset + 8 + size + (size % 2);
+    const padded = size + (size % 2);
+    const end = offset + 8 + padded;
     if (end > webp.length) break;
     if (type !== "EXIF") chunks.push(webp.subarray(offset, end));
     offset = end;
   }
-  const output = Buffer.concat([webp.subarray(0, 12), ...chunks, exifChunk]);
-  output.writeUInt32LE(output.length - 8, 4);
-  return output;
+  const body = Buffer.concat([...chunks, exifChunk]);
+  const riffSize = Buffer.alloc(4);
+  riffSize.writeUInt32LE(4 + body.length, 0); // "WEBP" + body
+  return Buffer.concat([Buffer.from("RIFF"), riffSize, Buffer.from("WEBP"), body]);
 }
 
 function buildStickerExif(packName: string, stickerName: string): Buffer {
-  const json = Buffer.from(JSON.stringify({
-    "sticker-pack-id": "atomic-shadow-garden",
-    "sticker-pack-name": packName,
-    "sticker-name": stickerName,
-    "sticker-pack-publisher": stickerName,
-    emojis: [""],
-  }), "utf-8");
-  const header = Buffer.from([
-    0x49, 0x49, 0x2a, 0x00, 0x08, 0x00, 0x00, 0x00,
-    0x01, 0x00, 0x41, 0x57, 0x07, 0x00, 0x00, 0x00,
-    0x00, 0x00, 0x16, 0x00, 0x00, 0x00,
-  ]);
-  header.writeUInt32LE(json.length, 14);
-  return Buffer.concat([header, json]);
+  // JSON payload for WhatsApp sticker metadata
+  const json = Buffer.from(
+    JSON.stringify({
+      "sticker-pack-id": "atomic-shadow-garden",
+      "sticker-pack-name": packName,
+      "sticker-pack-publisher": stickerName,
+      "sticker-name": stickerName,
+      emojis: ["✨"],
+    }),
+    "utf-8"
+  );
+
+  // Correct TIFF/little-endian EXIF structure:
+  // [0-1]   "II" (little-endian marker)
+  // [2-3]   42  (TIFF magic)
+  // [4-7]   8   (offset to first IFD)
+  // --- IFD at offset 8 ---
+  // [8-9]   1   (number of directory entries)
+  // --- Entry 0 (12 bytes) ---
+  // [10-11] 0x5741 tag ("WA")
+  // [12-13] 0x0007 type UNDEFINED
+  // [14-17] json.length  (count)
+  // [18-21] 26  (value offset — after IFD entry + next-IFD pointer)
+  // --- next-IFD pointer (4 bytes) ---
+  // [22-25] 0   (no next IFD)
+  // --- JSON data starts at offset 26 ---
+  const exif = Buffer.alloc(26 + json.length);
+  exif[0] = 0x49; exif[1] = 0x49;                  // "II"
+  exif[2] = 0x2a; exif[3] = 0x00;                  // magic 42
+  exif.writeUInt32LE(8, 4);                         // IFD offset
+  exif.writeUInt16LE(1, 8);                         // 1 entry
+  exif.writeUInt16LE(0x5741, 10);                   // tag WA
+  exif.writeUInt16LE(0x0007, 12);                   // type UNDEFINED
+  exif.writeUInt32LE(json.length, 14);              // count
+  exif.writeUInt32LE(26, 18);                       // value offset
+  exif.writeUInt32LE(0, 22);                        // next IFD = none
+  json.copy(exif, 26);
+  return exif;
 }
 
 function sanitizeFileName(name: string): string {
