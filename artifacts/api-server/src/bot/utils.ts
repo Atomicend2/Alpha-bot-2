@@ -102,13 +102,10 @@ export function spin(): string {
 export function checkSlotWin(result: string): number {
   const parts = result.split(" | ");
   if (parts[0] === parts[1] && parts[1] === parts[2]) {
-    if (parts[0] === "💎") return 10;
-    if (parts[0] === "7️⃣") return 5;
-    if (parts[0] === "⭐") return 3;
-    return 2;
+    return 3;
   }
   if (parts[0] === parts[1] || parts[1] === parts[2] || parts[0] === parts[2]) {
-    return 0;
+    return 2;
   }
   return -1;
 }

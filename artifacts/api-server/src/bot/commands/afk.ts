@@ -20,8 +20,9 @@ export async function checkSenderReturnedFromAfk(
   if (!senderAfk) return;
   removeAfk(sender);
   const elapsed = timeAgo(senderAfk.started_at);
+  const name = sender.split("@")[0];
   const msgOpts: any = {
-    text: `👋 @${sender.split("@")[0]} is back! Was AFK for ${elapsed}\n> *${senderAfk.reason}*`,
+    text: `Welcome back, @${name} Senpai! 🌸\nYou were AFK for ${elapsed}\n\nReason: ${senderAfk.reason}`,
     mentions: [sender],
   };
   if (msg) msgOpts.quoted = msg;

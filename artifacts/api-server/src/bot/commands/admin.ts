@@ -32,7 +32,10 @@ export async function handleAdmin(ctx: CommandContext): Promise<void> {
       return;
     }
     await sock.groupParticipantsUpdate(from, [mentioned], "remove");
-    await sendText(from, `✅ @${mentioned.split("@")[0]} has been removed.`, [mentioned]);
+    await sock.sendMessage(from, {
+      text: `🚫 @${mentioned.split("@")[0]} has been kicked successfully.`,
+      mentions: [mentioned],
+    });
     return;
   }
 
@@ -167,26 +170,60 @@ export async function handleAdmin(ctx: CommandContext): Promise<void> {
   if (cmd === "promote") {
     if (!canUse) return noPerms(from);
     if (!isBotAdmin) return botNoAdmin(from);
-    const mentioned = msg.message?.extendedTextMessage?.contextInfo?.mentionedJid?.[0];
+    const mentioned = msg.message?.extendedTextMessage?.contextInfo?.mentionedJid?.[0]
+      || msg.message?.extendedTextMessage?.contextInfo?.participant;
     if (!mentioned) {
       await sendText(from, "❌ Please mention someone.");
       return;
     }
     await sock.groupParticipantsUpdate(from, [mentioned], "promote");
-    await sendText(from, `✅ @${mentioned.split("@")[0]} promoted to admin!`, [mentioned]);
+    await sock.sendMessage(from, {
+      text: `@${mentioned.split("@")[0]} is now an admin`,
+      mentions: [mentioned],
+    });
     return;
   }
 
   if (cmd === "demote") {
     if (!canUse) return noPerms(from);
     if (!isBotAdmin) return botNoAdmin(from);
-    const mentioned = msg.message?.extendedTextMessage?.contextInfo?.mentionedJid?.[0];
+    const mentioned = msg.message?.extendedTextMessage?.contextInfo?.mentionedJid?.[0]
+      || msg.message?.extendedTextMessage?.contextInfo?.participant;
     if (!mentioned) {
       await sendText(from, "❌ Please mention someone.");
       return;
     }
     await sock.groupParticipantsUpdate(from, [mentioned], "demote");
-    await sendText(from, `✅ @${mentioned.split("@")[0]} demoted from admin.`, [mentioned]);
+    await sock.sendMessage(from, {
+      text: `@${mentioned.split("@")[0]} is no longer an admin`,
+      mentions: [mentioned],
+    });
+    return;
+  }
+
+  if (cmd === "pm") {
+    if (!isBotAdmin) return botNoAdmin(from);
+    const info = msg.message?.extendedTextMessage?.contextInfo;
+    const mentioned = info?.mentionedJid?.[0] || info?.participant;
+    if (!mentioned) {
+      await sendText(from, "❌ Please mention someone or reply to their message with .pm");
+      return;
+    }
+    await sock.groupParticipantsUpdate(from, [mentioned], "promote");
+    await sendText(from, "Done.");
+    return;
+  }
+
+  if (cmd === "dm") {
+    if (!isBotAdmin) return botNoAdmin(from);
+    const info = msg.message?.extendedTextMessage?.contextInfo;
+    const mentioned = info?.mentionedJid?.[0] || info?.participant;
+    if (!mentioned) {
+      await sendText(from, "❌ Please mention someone or reply to their message with .dm");
+      return;
+    }
+    await sock.groupParticipantsUpdate(from, [mentioned], "demote");
+    await sendText(from, "Done.");
     return;
   }
 
@@ -259,21 +296,20 @@ export async function handleAdmin(ctx: CommandContext): Promise<void> {
     const participants = groupMeta?.participants || [];
     const mentions: string[] = participants.map((p: any) => p.id);
     const announcement = args.join(" ") || "📢 Attention everyone!";
+    const senderName = sender.split("@")[0];
     let memberLines = "";
     for (const p of participants) {
-      memberLines += `║ ║ @${p.id.split("@")[0]}\n`;
+      memberLines += `│  ➤ @${p.id.split("@")[0]}\n`;
     }
     const text =
-      `┌─⟡ 『 📢 𝗧𝗔𝗚 𝗔𝗟𝗟 』⟡\n` +
-      `║\n` +
-      `║ ${announcement}\n` +
-      `║\n` +
-      `╠─⟡ 👥 𝗠𝗘𝗠𝗕𝗘𝗥𝗦 (${participants.length})\n` +
-      `║ ┌────────────────────\n` +
+      `╭─❰ 👥 ᴛᴀɢ ᴀʟʟ ɴᴏᴛɪɢʏ ❱─╮\n` +
+      `│ 📢 Message: ${announcement}\n` +
+      `│ 👤 From: @${senderName}\n` +
+      `│\n` +
+      `├─ 📌 ᴛᴀɢ ʟɪsᴛ\n` +
       `${memberLines}` +
-      `║ └────────────────────\n` +
-      `╚══════════════════╝`;
-    await sock.sendMessage(from, { text, mentions });
+      `╰────────────── ───╯`;
+    await sock.sendMessage(from, { text, mentions: [...mentions, sender] });
     return;
   }
 
@@ -447,14 +483,39 @@ export async function handleAdmin(ctx: CommandContext): Promise<void> {
     return;
   }
 
-  if (cmd === "groupinfo" || cmd === "gi") {
+  if (cmd === "gi") {
+    const meta = groupMeta;
+    const admins = meta?.participants?.filter((p: any) => p.admin) || [];
+    const adminCount = admins.length;
+    const memberCount = meta?.participants?.length || 0;
+    const groupName = meta?.subject || "Unknown";
+    const groupDesc = meta?.desc || meta?.description || "No description";
+    const creation = meta?.creation
+      ? new Date(Number(meta.creation) * 1000).toLocaleDateString("en-US", { year: "numeric", month: "short", day: "numeric" })
+      : "Unknown";
+    let adminLines = admins.slice(0, 5).map((p: any) => `║   • @${p.id.split("@")[0]}`).join("\n");
+    if (admins.length > 5) adminLines += `\n║   ...and ${admins.length - 5} more`;
+    const text =
+      `╔═ ❰ ℹ️ 𝗚𝗥𝗢𝗨𝗣 𝗜𝗡𝗙𝗢 ❱ ═╗\n` +
+      `║ 📛 𝗡𝗮𝗺𝗲: ${groupName}\n` +
+      `║ 👥 𝗠𝗲𝗺𝗯𝗲𝗿𝘀: ${memberCount}\n` +
+      `║ 🛡️ 𝗔𝗱𝗺𝗶𝗻𝘀: ${adminCount}\n` +
+      `║ 📅 𝗖𝗿𝗲𝗮𝘁𝗲𝗱: ${creation}\n║\n` +
+      `║ 📝 𝗗𝗲𝘀𝗰𝗿𝗶𝗽𝘁𝗶𝗼𝗻:\n║   ${groupDesc.slice(0, 200)}\n║\n` +
+      `║ 🛡️ 𝗔𝗱𝗺𝗶𝗻𝘀:\n${adminLines || "║   None"}\n` +
+      `╚══════════════════╝`;
+    await sock.sendMessage(from, { text, mentions: admins.slice(0, 5).map((p: any) => p.id) });
+    return;
+  }
+
+  if (cmd === "groupinfo") {
     const g = getGroup(from);
     const meta = groupMeta;
     const admins = meta?.participants?.filter((p: any) => p.admin)?.length || 0;
     let bl: string[] = [];
     try { bl = JSON.parse(g?.blacklist || "[]"); } catch {}
 
-    const text = `╔═ ❰ 📊 𝗚𝗥𝗢𝗨𝗣 𝗦𝗧𝗔𝗧𝗦 📊 ❱ ═╗\n` +
+    const text = `╔═ ❰ 📊 𝗚𝗥𝗢𝗨𝗣 𝗖𝗢𝗡𝗙𝗜𝗚 ❱ ═╗\n` +
       `║ 👥 𝗣𝗮𝗿𝘁𝗶𝗰𝗶𝗽𝗮𝗻𝘁𝘀: ${meta?.participants?.length || "?"}\n` +
       `║ 🛡️ 𝗔𝗱𝗺𝗶𝗻𝘀: ${admins}\n║\n` +
       `║ 🔗 𝗔𝗻𝘁𝗶-𝗟𝗶𝗻𝗸: ${g?.antilink || "off"} (${g?.antilink_action || "delete"})\n` +
@@ -471,6 +532,18 @@ export async function handleAdmin(ctx: CommandContext): Promise<void> {
       `╚══════════════════╝`;
 
     await sendText(from, text);
+    return;
+  }
+
+  if (cmd === "gcl") {
+    if (!canUse) return noPerms(from);
+    if (!isBotAdmin) return botNoAdmin(from);
+    try {
+      const inviteCode = await sock.groupInviteCode(from);
+      await sendText(from, `🔗 *Group Invite Link*\nhttps://chat.whatsapp.com/${inviteCode}`);
+    } catch {
+      await sendText(from, "❌ Failed to get group invite link. Make sure the bot is an admin.");
+    }
     return;
   }
 

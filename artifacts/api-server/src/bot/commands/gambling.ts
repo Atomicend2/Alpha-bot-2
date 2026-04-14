@@ -14,20 +14,31 @@ export async function handleGambling(ctx: CommandContext): Promise<void> {
     if (!(await checkBet(from, user, amount))) return;
     const result = spin();
     const multiplier = checkSlotWin(result);
+    const slots = result.split(" | ");
+    const slotDisplay = slots.map((s) => `⟦ ${s} ⟧`).join(" ");
     let winnings = 0;
-    let msg = "";
-    if (multiplier > 0) {
-      winnings = amount * multiplier;
-      msg = `🎰 ${result}\n\n🎉 *JACKPOT!* You won $${formatNumber(winnings)}! (${multiplier}x)`;
-    } else if (multiplier === 0) {
-      winnings = 0;
-      msg = `🎰 ${result}\n\n😐 Two of a kind — break even!`;
+    let outcome = "";
+    if (multiplier === 3) {
+      winnings = amount * 3;
+      outcome = `🎉 JACKPOT! +$${formatNumber(winnings)} (3x)`;
+    } else if (multiplier === 2) {
+      winnings = amount * 2;
+      outcome = `✨ Double Win! +$${formatNumber(winnings)} (2x)`;
     } else {
       winnings = -amount;
-      msg = `🎰 ${result}\n\n😭 No match. You lost $${formatNumber(amount)}.`;
+      outcome = `😭 No match. -$${formatNumber(amount)}`;
     }
     updateUser(sender, gambleUpdate(limit, { balance: (user.balance || 0) + winnings }));
-    await sendText(from, msg + `\nBalance: $${formatNumber((user.balance || 0) + winnings)}`);
+    const msg =
+      `╭─❰ 🎰 ʟᴜᴄᴋ sʟᴏᴛ ❱─╮\n` +
+      `│\n` +
+      `│  ${slotDisplay}\n` +
+      `│\n` +
+      `│  🎲 ʙᴇᴛ: $${formatNumber(amount)}\n` +
+      `│  ✨ ᴏᴜᴛᴄᴏᴍᴇ: ${outcome}\n` +
+      `│  💰 ʙᴀʟᴀɴᴄᴇ: $${formatNumber((user.balance || 0) + winnings)}\n` +
+      `╰──────────────╯`;
+    await sendText(from, msg);
     return;
   }
 
@@ -60,11 +71,12 @@ export async function handleGambling(ctx: CommandContext): Promise<void> {
     const win = userPick === result;
     const winnings = win ? amount : -amount;
     updateUser(sender, gambleUpdate(limit, { balance: (user.balance || 0) + winnings }));
+    const resultLabel = result === "heads" ? "Heads" : "Tails";
     await sendText(
       from,
-      `🪙 Flip: *${result}*\n` +
-      `${win ? `🎉 Correct! +$${formatNumber(amount)}` : `😭 Wrong. -$${formatNumber(amount)}`}\n` +
-      `Balance: $${formatNumber((user.balance || 0) + winnings)}`
+      `🪙 Coin flip result: *${resultLabel}*!\n` +
+      (win ? `You won $${formatNumber(amount)}` : `You lost $${formatNumber(amount)}`) +
+      `\nBalance: $${formatNumber((user.balance || 0) + winnings)}`
     );
     return;
   }
@@ -72,24 +84,14 @@ export async function handleGambling(ctx: CommandContext): Promise<void> {
   if (cmd === "casino") {
     const amount = parseAmount(args[0], user.balance);
     if (!(await checkBet(from, user, amount))) return;
-    const rand = Math.random();
-    let winnings = 0;
-    let msg = "";
-    if (rand < 0.05) {
-      winnings = amount * 5;
-      msg = `🎰 JACKPOT! You won 5x — $${formatNumber(winnings)}!`;
-    } else if (rand < 0.3) {
-      winnings = amount * 2;
-      msg = `🎰 Big win! You won 2x — $${formatNumber(winnings)}!`;
-    } else if (rand < 0.5) {
-      winnings = Math.floor(amount * 0.5);
-      msg = `🎰 Small win. You won $${formatNumber(winnings)}.`;
-    } else {
-      winnings = -amount;
-      msg = `🎰 House wins. You lost $${formatNumber(amount)}.`;
-    }
+    const win = Math.random() < 0.45;
+    const winnings = win ? amount : -amount;
     updateUser(sender, gambleUpdate(limit, { balance: (user.balance || 0) + winnings }));
-    await sendText(from, msg + `\nBalance: $${formatNumber((user.balance || 0) + winnings)}`);
+    await sendText(
+      from,
+      `Outcome: ${win ? "Win" : "Lose"}! 💰You won ${win ? `$${formatNumber(amount * 2)} coins.` : `nothing.`}\n` +
+      `Balance: $${formatNumber((user.balance || 0) + winnings)}`
+    );
     return;
   }
 
@@ -97,12 +99,20 @@ export async function handleGambling(ctx: CommandContext): Promise<void> {
     const amount = parseAmount(args[0], user.balance);
     if (!(await checkBet(from, user, amount))) return;
     const win = Math.random() < 0.45;
-    const winnings = win ? amount * 2 : -amount;
+    const winnings = win ? amount : -amount;
     updateUser(sender, gambleUpdate(limit, { balance: (user.balance || 0) + winnings }));
+    const resultText = win ? `🎯 𝗪𝗜𝗡` : `💀 𝗟𝗢𝗦𝗘`;
+    const changeText = win ? `+$${formatNumber(amount * 2)}` : `-$${formatNumber(amount)}`;
     await sendText(
       from,
-      win ? `🎲 You doubled! +$${formatNumber(amount * 2)}` : `😭 Lost. -$${formatNumber(amount)}`,
-      );
+      `╭─❰ 🎲 ᴅᴏᴜʙʟᴇ ʙᴇᴛ ❱─╮\n` +
+      `│\n` +
+      `│  🎰 Result: ${resultText}\n` +
+      `│  💰 Amount: $${formatNumber(amount)}\n` +
+      `│  ✨ Outcome: ${changeText}\n` +
+      `│  🏦 Balance: $${formatNumber((user.balance || 0) + winnings)}\n` +
+      `╰──────────────╯`
+    );
     return;
   }
 

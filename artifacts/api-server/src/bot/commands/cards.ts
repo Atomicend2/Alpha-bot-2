@@ -57,39 +57,53 @@ export async function handleCards(ctx: CommandContext): Promise<void> {
   }
 
   if (cmd === "cardinfo" || cmd === "ci") {
-    const name = args.slice(0, -1).join(" ") || args.join(" ");
-    const tier = args[args.length - 1]?.toUpperCase();
-    const cards = getAllCards();
-    const found = cards.find((c) =>
-      c.name.toLowerCase().includes(name.toLowerCase()) && (!tier || c.tier === tier)
+    const searchName = args.join(" ");
+    if (!searchName) { await sendText(from, "❌ Usage: .ci <card name>"); return; }
+    const allCards = getAllCards();
+    const matches = allCards.filter((c) =>
+      c.name.toLowerCase().includes(searchName.toLowerCase())
     );
-    if (!found) { await sendText(from, "❌ Card not found."); return; }
-    const owners = getCardOwners(found.id);
-    const buf = await getCardImageBuffer(found);
-    const ownerMentions: string[] = [];
-    let ownersSection = "_⛔ No owners yet_";
-    if (owners.length > 0) {
-      const shown = owners.slice(0, 10);
-      ownersSection = shown.map((o) => {
-        ownerMentions.push(o.user_id);
-        return `• @${o.user_id.split("@")[0]}`;
-      }).join("\n");
-      if (owners.length > 10) ownersSection += `\n_...and ${owners.length - 10} more_`;
+    if (matches.length === 0) { await sendText(from, "❌ Card not found."); return; }
+    if (matches.length === 1) {
+      const found = matches[0];
+      const owners = getCardOwners(found.id);
+      const buf = await getCardImageBuffer(found);
+      const ownerMentions: string[] = [];
+      let ownersSection = "_⛔ No owners yet_";
+      if (owners.length > 0) {
+        const shown = owners.slice(0, 10);
+        ownersSection = shown.map((o) => {
+          ownerMentions.push(o.user_id);
+          return `• @${o.user_id.split("@")[0]}`;
+        }).join("\n");
+        if (owners.length > 10) ownersSection += `\n_...and ${owners.length - 10} more_`;
+      }
+      const caption =
+        `∘₊✦────────✦₊∘\n` +
+        `🎴 𝗖𝗔𝗥𝗗 𝗜𝗡𝗙𝗢\n` +
+        `∘₊✦────────✦₊∘\n\n` +
+        `𝗡𝗮𝗺𝗲: ${found.name}\n` +
+        `𝗦𝗲𝗿𝗶𝗲𝘀: ${found.series || "General"}\n` +
+        `𝗧𝗶𝗲𝗿: ${found.tier}\n` +
+        `𝗧𝗼𝘁𝗮𝗹 𝗢𝘄𝗻𝗲𝗿𝘀: ${owners.length}\n\n` +
+        `✦────⋆⋅✧⋅⋆────✦\n` +
+        `👥 𝗢𝗪𝗡𝗘𝗥𝗦\n` +
+        `✦────⋆⋅✧⋅⋆────✦\n\n` +
+        `${ownersSection}\n\n` +
+        `∘₊✦────────✦₊∘`;
+      await sock.sendMessage(from, { image: buf, caption, mentions: ownerMentions });
+    } else {
+      let text = `∘₊✦────────✦₊∘\n🎴 𝗖𝗔𝗥𝗗 𝗜𝗡𝗙𝗢 — Multiple Results\n∘₊✦────────✦₊∘\n\n`;
+      for (let i = 0; i < matches.length; i++) {
+        const c = matches[i];
+        const owners = getCardOwners(c.id);
+        text += `🃏 ${i + 1}. *${c.name}*\n`;
+        text += `   𝗦𝗲𝗿𝗶𝗲𝘀: ${c.series || "General"}\n`;
+        text += `   𝗧𝗶𝗲𝗿: ${c.tier}\n`;
+        text += `   𝗢𝘄𝗻𝗲𝗿𝘀: ${owners.length}\n\n`;
+      }
+      await sendText(from, text.trim());
     }
-    const caption =
-      `∘₊✦────────✦₊∘\n` +
-      `🎴 𝗖𝗔𝗥𝗗 𝗜𝗡𝗙𝗢\n` +
-      `∘₊✦────────✦₊∘\n\n` +
-      `𝗡𝗮𝗺𝗲: ${found.name}\n` +
-      `𝗦𝗲𝗿𝗶𝗲𝘀: ${found.series || "General"}\n` +
-      `𝗧𝗶𝗲𝗿: ${found.tier}\n` +
-      `𝗧𝗼𝘁𝗮𝗹 𝗢𝘄𝗻𝗲𝗿𝘀: ${owners.length}\n\n` +
-      `✦────⋆⋅✧⋅⋆────✦\n` +
-      `👥 𝗢𝗪𝗡𝗘𝗥𝗦\n` +
-      `✦────⋆⋅✧⋅⋆────✦\n\n` +
-      `${ownersSection}\n\n` +
-      `∘₊✦────────✦₊∘`;
-    await sock.sendMessage(from, { image: buf, caption, mentions: ownerMentions });
     return;
   }
 
@@ -101,6 +115,56 @@ export async function handleCards(ctx: CommandContext): Promise<void> {
     }
     const text = `📚 *Your Series Collection*\n\n` +
       Object.entries(series).map(([s, n]) => `• ${s}: ${n} cards`).join("\n") || "No cards yet!";
+    await sendText(from, text);
+    return;
+  }
+
+  if (cmd === "ss") {
+    const seriesName = args.join(" ");
+    if (!seriesName) { await sendText(from, "❌ Usage: .ss <series name>"); return; }
+    const allCards = getAllCards();
+    const seriesCards = allCards.filter((c) =>
+      (c.series || "General").toLowerCase().includes(seriesName.toLowerCase())
+    );
+    if (seriesCards.length === 0) {
+      await sendText(from, `❌ No cards found for series: *${seriesName}*`);
+      return;
+    }
+    const actualSeries = seriesCards[0].series || "General";
+    let text =
+      `╭─❰ 🎴 ᴄᴀʀᴅs ʙʏ sᴇʀɪᴇꜱ ❱─╮\n` +
+      `│ 📚 sᴇʀɪᴇs: ${actualSeries}\n` +
+      `│ 🃏 ᴛᴏᴛᴀʟ ᴄᴀʀᴅs: ${seriesCards.length}\n` +
+      `│\n`;
+    for (let i = 0; i < seriesCards.length; i++) {
+      const c = seriesCards[i];
+      text += `├─ 🃏 ${i + 1}. ${c.name}\n`;
+      text += `│   ᴛɪᴇʀ: ${c.tier}\n`;
+    }
+    text += `╰──────────────╯`;
+    await sendText(from, text);
+    return;
+  }
+
+  if (cmd === "sc") {
+    const searchName = args.join(" ");
+    if (!searchName) { await sendText(from, "❌ Usage: .sc <card name>"); return; }
+    const myCards = getUserCards(sender);
+    const found = myCards.filter((c) =>
+      c.name.toLowerCase().includes(searchName.toLowerCase())
+    );
+    if (found.length === 0) {
+      await sendText(from, `🔎 No cards found matching *"${searchName}"* in your collection.`);
+      return;
+    }
+    let text = `🔎 Search Results for: *"${searchName}"*\n\n`;
+    for (let i = 0; i < found.length; i++) {
+      const c = found[i];
+      text += `🃏 ${i + 1}. ${c.name} (${c.series || "General"})\n`;
+      text += `   Tier: ${c.tier}\n`;
+      text += `   Index: ${myCards.indexOf(c) + 1}\n\n`;
+    }
+    text += `Total found: ${found.length} card(s)`;
     await sendText(from, text);
     return;
   }
@@ -200,11 +264,13 @@ export async function handleCards(ctx: CommandContext): Promise<void> {
   }
 
   if (cmd === "cg") {
-    const mentioned = msg.message?.extendedTextMessage?.contextInfo?.mentionedJid?.[0];
-    const cardNum = parseInt(args.find((a) => !isNaN(parseInt(a)) && !a.startsWith("@")) || "");
-    if (!mentioned || isNaN(cardNum)) { await sendText(from, "❌ Usage: .cg @user [card #]"); return; }
+    const ctxInfo = msg.message?.extendedTextMessage?.contextInfo;
+    const mentioned = ctxInfo?.mentionedJid?.[0] || ctxInfo?.participant;
+    const numArg = args.find((a) => /^\d+$/.test(a));
+    const cardNum = numArg ? parseInt(numArg) : NaN;
+    if (!mentioned || isNaN(cardNum)) { await sendText(from, "❌ Usage: .cg @user [card #]  or reply to a user's message with .cg [card #]"); return; }
     const cards = getUserCards(sender);
-    if (cardNum < 1 || cardNum > cards.length) { await sendText(from, "❌ Invalid card number."); return; }
+    if (cardNum < 1 || cardNum > cards.length) { await sendText(from, `❌ Invalid card number. You have ${cards.length} cards.`); return; }
     const card = cards[cardNum - 1];
     ensureUser(mentioned);
     transferCard(card.user_card_id, mentioned);
