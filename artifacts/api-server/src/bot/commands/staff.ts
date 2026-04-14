@@ -436,6 +436,92 @@ export async function handleStaff(ctx: CommandContext): Promise<void> {
     }
     return;
   }
+
+  if (cmd === "addinv") {
+    const isStaff = isOwner || staffRecord?.role === "mod" || staffRecord?.role === "guardian";
+    if (!isStaff) {
+      await sendText(from, "❌ Only mods, guardians, and the owner can use this command.");
+      return;
+    }
+    const info = ctx.msg.message?.extendedTextMessage?.contextInfo;
+    const targetId = info?.mentionedJid?.[0] || info?.participant;
+    if (!targetId) {
+      await sendText(from, "❌ Usage: .addinv @user <item name>\nTag the player and provide the item name.");
+      return;
+    }
+    const itemName = args.filter((a) => !a.startsWith("@")).join(" ").trim();
+    if (!itemName) {
+      await sendText(from, "❌ Please specify an item name. Usage: .addinv @user <item name>");
+      return;
+    }
+    ensureUser(targetId);
+    const { addToInventory } = await import("../db/queries.js");
+    addToInventory(targetId, itemName);
+    await sendText(
+      from,
+      `✅ Added *${itemName}* to @${targetId.split("@")[0]}'s inventory.`,
+      [targetId]
+    );
+    return;
+  }
+
+  if (cmd === "rules" || cmd === "modslist") {
+    if (cmd === "modslist") {
+      const staff = getStaffList();
+      const mods = staff.filter((s) => s.role === "mod");
+      const guardians = staff.filter((s) => s.role === "guardian");
+      const mentions = [...mods, ...guardians].map((s) => s.user_id);
+      const modLines = mods.length > 0 ? mods.map((s) => ` ╰┈➤ @${s.user_id.split("@")[0]}`).join("\n") : " ╰┈➤ None yet";
+      const guardianLines = guardians.length > 0 ? guardians.map((s) => ` ╰┈➤ @${s.user_id.split("@")[0]}`).join("\n") : " ╰┈➤ None yet";
+      const text =
+        `🎀 𝐒𝐇𝚫𝐃𝐎𝐖 𝐆𝚫𝐑𝐃𝚵𝐍 🎀\n\n` +
+        `━━━━━━━━━━━━\n` +
+        `   👑 *Mods* 👑\n` +
+        `━━━━━━━━━━━━\n` +
+        `${modLines}\n\n` +
+        `━━━━━━━━━━━━\n` +
+        `🛡️ *Guardians* 🛡️\n` +
+        `━━━━━━━━━━━━\n` +
+        `${guardianLines}\n\n` +
+        `━━━━━━━━━━━━\n` +
+        `> *⚠️ Don't spam them to avoid being blocked!*\n\n` +
+        `🆘 Need help? Type *.help* to see bot info`;
+      await ctx.sock.sendMessage(from, { text, mentions });
+      return;
+    }
+
+    const rulesText =
+      `*📜SHADOW GARDEN LAWS AND REGULATIONS 📜*\n\n` +
+      `*BASIC RULES*\n\n` +
+      `1. Respect all Moderators and Guardians\n\n` +
+      `2. Please Have a Decent Behavior and don't go around being annoying or doing something that will make you get banned\n\n` +
+      `3. Do not Impersonate Staff members\n\n\n` +
+      `*ECONOMY,CARDS AND PLAY*\n\n` +
+      `1. Multiple Accounts are not allowed. If you are caught playing with more than one account you will be banned\n\n` +
+      `2. Using Scripts or bot-assist to auto play for you is completely banned and will not be tolerated if caught\n\n` +
+      `3. Don't do Fake card spawns in groups. If you are caught sending any fake card spawns wether in community groups or groups outside the community you will be punished\n\n\n` +
+      `*BOT RULES AND CONDUCT*\n\n` +
+      `1. If the bot goes off for any reason do not start spamming commands continusly and if you are caught doing such you will be punished\n\n` +
+      `2. Spamming the bot while it's on or attempting to crash the bot by spamming is banned\n\n` +
+      `3. If the bot is down don't DM staff members asking about why the bot isn't working\n\n` +
+      `4. Don't go DM mods asking for bot replacements in your group. If a bot number is banned then wait for it to be unbanned and if number is changed it will be announced\n\n\n` +
+      `*REQUIREMENTS FOR BOT ACCESS IN YOUR GROUP*\n\n` +
+      `1. The group must have at least up to 80 active members\n\n` +
+      `2. A mod/guardian will be there to watch over activity\n\n` +
+      `4. Bot and Staff must be granted Admin\n\n` +
+      `3. Trying to remove staff from the GC may resort to the bot being removed\n\n` +
+      `4. If the group ends up dying or being inactive the bot will be removed\n\n\n` +
+      `*STAFF CONTACT*\n\n` +
+      `1. To acquire the attention of mods use the command \`.modslist\` to have the list of staff members\n\n` +
+      `2. If there is any need to DM a staff don't go there just saying "Hey" or "wsp" State the issue, Problem or what you request\n\n` +
+      `3. Do not spam whenever you DM a staff, You may end up being blocked\n\n` +
+      `4. Do not contact multiple staff members about the same request or issues\n\n` +
+      `5. Do not dm staff asking for an unban when you've committed an offense. If your decided to be unbanned you will be but don't disturb staff members to unban you\n\n\n` +
+      `*No one is exempted from these rules* and Everyone should Follow and obey these rules. And if you are caught breaking any of these rules you will be banned immediately\n\n` +
+      `*Rules may be changed at anytime* and be announced so stay updated`;
+    await sendText(from, rulesText);
+    return;
+  }
 }
 
 function resolveStaffTarget(rawArg: string | undefined, msg: any): string | null {

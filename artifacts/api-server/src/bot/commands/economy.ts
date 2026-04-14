@@ -370,7 +370,15 @@ export async function handleEconomy(ctx: CommandContext): Promise<void> {
 
   if (cmd === "setage") {
     const age = args[0];
-    if (!age) { await sendText(from, "❌ Usage: .setage [age]"); return; }
+    if (!age || !/^\d+$/.test(age)) {
+      await sendText(from, "❌ Usage: .setage [age] — only numbers are allowed.");
+      return;
+    }
+    const ageNum = parseInt(age, 10);
+    if (ageNum < 1 || ageNum > 120) {
+      await sendText(from, "❌ Please enter a valid age between 1 and 120.");
+      return;
+    }
     updateUser(sender, { age });
     await sendText(from, `✅ Age set to: ${age}`);
     return;

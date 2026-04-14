@@ -12,8 +12,6 @@ export function ensureUser(userId: string, name?: string) {
     db.prepare(
       "INSERT OR IGNORE INTO users (id, name, balance, bank) VALUES (?, ?, 0, 0)"
     ).run(userId, name || userId);
-  } else if (name && existing.name !== name) {
-    db.prepare("UPDATE users SET name = ? WHERE id = ?").run(name, userId);
   }
   return getUser(userId);
 }

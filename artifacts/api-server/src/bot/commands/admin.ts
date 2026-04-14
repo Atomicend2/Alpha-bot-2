@@ -540,7 +540,7 @@ export async function handleAdmin(ctx: CommandContext): Promise<void> {
     if (!isBotAdmin) return botNoAdmin(from);
     try {
       const inviteCode = await sock.groupInviteCode(from);
-      await sendText(from, `🔗 *Group Invite Link*\nhttps://chat.whatsapp.com/${inviteCode}`);
+      await sock.sendMessage(from, { text: `https://chat.whatsapp.com/${inviteCode}` });
     } catch {
       await sendText(from, "❌ Failed to get group invite link. Make sure the bot is an admin.");
     }

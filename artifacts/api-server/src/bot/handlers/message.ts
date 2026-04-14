@@ -531,6 +531,7 @@ async function dispatch(ctx: CommandContext): Promise<void> {
     case "removepremium":
     case "mods":
     case "modlist":
+    case "modslist":
     case "cardmakers":
     case "post":
     case "join":
@@ -547,6 +548,8 @@ async function dispatch(ctx: CommandContext): Promise<void> {
     case "banlist":
     case "resetbal":
     case "reset":
+    case "addinv":
+    case "rules":
       return handleStaff(ctx);
 
     case "cds":
