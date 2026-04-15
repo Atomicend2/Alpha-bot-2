@@ -257,7 +257,9 @@ async function dispatch(ctx: CommandContext): Promise<void> {
       return handleBots(ctx);
 
     case "ping": {
-      const botName = ctx.sock?.user?.name || "Alpha";
+      const { getRegisteredBot } = await import("../commands/menu.js");
+      const regBot = getRegisteredBot(ctx.sock);
+      const botName = regBot?.name || ctx.sock?.user?.name || "Alpha";
       await sendText(from, `${botName}'s here!\n> ${getPingMs(msg)}ms`);
       return;
     }

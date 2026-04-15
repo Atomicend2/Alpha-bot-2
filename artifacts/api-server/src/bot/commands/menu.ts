@@ -3,14 +3,32 @@ import fs from "fs";
 import path from "path";
 import { fileURLToPath } from "url";
 import { getAllBots } from "../db/queries.js";
+import { getDb } from "../db/database.js";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
+function getRegisteredBot(sock: any): { name: string; image_data: Buffer | null } | null {
+  try {
+    const userId = sock?.user?.id || "";
+    const phone = userId.split(":")[0].split("@")[0];
+    if (!phone) return null;
+    const db = getDb();
+    const row = db.prepare("SELECT name, image_data FROM bots WHERE phone = ?").get(phone) as any;
+    if (!row) return null;
+    return {
+      name: row.name || null,
+      image_data: row.image_data ? (Buffer.isBuffer(row.image_data) ? row.image_data : Buffer.from(row.image_data)) : null,
+    };
+  } catch {
+    return null;
+  }
+}
 
 export async function handleMenu(ctx: CommandContext): Promise<void> {
   const { from, sender, sock } = ctx;
   const senderName = sender.split("@")[0];
-  const botName = sock?.user?.name || "Alpha";
+  const registered = getRegisteredBot(sock);
+  const botName = registered?.name || sock?.user?.name || "Alpha";
 
   const menuText = `┌─⟡ 『 𝗦𝗛𝗔𝗗𝗢𝗪 𝗚𝗔𝗥𝗗𝗘𝗡 』⟡
 ║
@@ -286,13 +304,16 @@ export async function handleMenu(ctx: CommandContext): Promise<void> {
 ║
 ╚─⟡ 🛡️ 𝑃𝑜𝑤𝑒𝑟 𝑏𝑒𝑙𝑜𝑛𝑔𝑠 𝑡𝑜 𝑡ℎ𝑜𝑠𝑒 𝑤ℎ𝑜 𝑟𝑢𝑙𝑒 𝑡ℎ𝑒 𝑠ℎ𝑎𝑑𝑜𝑤𝑠.`;
 
-  const imagePath = path.join(__dirname, "menu-image.jpg");
+  const staticImagePath = path.join(__dirname, "menu-image.jpg");
 
   try {
-    if (fs.existsSync(imagePath)) {
-      const imageBuffer = fs.readFileSync(imagePath);
+    const menuImage: Buffer | null =
+      registered?.image_data ||
+      (fs.existsSync(staticImagePath) ? fs.readFileSync(staticImagePath) : null);
+
+    if (menuImage) {
       await sock.sendMessage(from, {
-        image: imageBuffer,
+        image: menuImage,
         caption: menuText,
         mentions: [sender],
       });
@@ -312,7 +333,8 @@ export async function handleMenu(ctx: CommandContext): Promise<void> {
 
 export async function handleInfo(ctx: CommandContext): Promise<void> {
   const { from, sender, sock } = ctx;
-  const botName = sock?.user?.name || "Alpha";
+  const registered = getRegisteredBot(sock);
+  const botName = registered?.name || sock?.user?.name || "Alpha";
   const uptime = process.uptime();
   const h = Math.floor(uptime / 3600);
   const m = Math.floor((uptime % 3600) / 60);
@@ -329,6 +351,8 @@ export async function handleInfo(ctx: CommandContext): Promise<void> {
 
   await sock.sendMessage(from, { text: info, mentions: [sender] });
 }
+
+export { getRegisteredBot };
 
 export async function handleBots(ctx: CommandContext): Promise<void> {
   const { from, sock } = ctx;
