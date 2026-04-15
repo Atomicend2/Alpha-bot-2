@@ -373,6 +373,100 @@ export async function handleGames(ctx: CommandContext): Promise<void> {
     await sock.sendMessage(from, { text: log, mentions: [sender, challenged] });
     return;
   }
+
+  if (cmd === "pvp") {
+    // .pvp @user [percent]  — stake a % of your balance in an instant battle
+    const mentioned =
+      msg.message?.extendedTextMessage?.contextInfo?.mentionedJid?.[0] ||
+      msg.message?.extendedTextMessage?.contextInfo?.participant || null;
+
+    if (!mentioned || mentioned === sender) {
+      await sendText(from, "❌ *Usage:* .pvp @user [percent]\n\nMention or reply to an opponent to challenge them. Example: .pvp @user 20");
+      return;
+    }
+
+    // Parse optional percentage (default 20%)
+    const pctArg = args.find((a) => /^\d+$/.test(a));
+    const pct = Math.min(Math.max(parseInt(pctArg || "20"), 1), 50); // clamp 1–50%
+
+    const challenger = ensureUser(sender);
+    const opponent = ensureUser(mentioned);
+
+    const challengerBal = challenger.balance ?? 0;
+    const opponentBal = opponent.balance ?? 0;
+
+    if (challengerBal <= 0) {
+      await sendText(from, "❌ You have no Gold to stake!");
+      return;
+    }
+    if (opponentBal <= 0) {
+      await sendText(from, `❌ @${mentioned.split("@")[0]} has no Gold to stake!`);
+      return;
+    }
+
+    const challengerStake = Math.max(1, Math.floor(challengerBal * pct / 100));
+    const opponentStake = Math.max(1, Math.floor(opponentBal * pct / 100));
+
+    // RPG stats for battle
+    const { ensureRpg } = await import("../db/queries.js");
+    const p1 = ensureRpg(sender);
+    const p2 = ensureRpg(mentioned);
+
+    const calcDmg = (atk: number, def: number) =>
+      Math.max(1, atk - Math.floor(def * 0.5) + Math.floor(Math.random() * 15) - 7);
+
+    let p1hp = p1.hp;
+    let p2hp = p2.hp;
+    const rounds: string[] = [];
+    let roundNum = 0;
+
+    while (p1hp > 0 && p2hp > 0 && roundNum < 10) {
+      roundNum++;
+      const d1 = calcDmg(p1.attack, p2.defense);
+      const d2 = calcDmg(p2.attack, p1.defense);
+      p2hp = Math.max(0, p2hp - d1);
+      p1hp = Math.max(0, p1hp - d2);
+      rounds.push(`R${roundNum}: ⚔️ ${d1} dmg → 🛡️ ${d2} dmg`);
+    }
+
+    const draw = p1hp === p2hp;
+    const winner = draw ? null : (p1hp > p2hp ? sender : mentioned);
+    const loser = draw ? null : (winner === sender ? mentioned : sender);
+
+    const senderTag = `@${sender.split("@")[0]}`;
+    const mentionedTag = `@${mentioned.split("@")[0]}`;
+
+    let resultText: string;
+    if (draw) {
+      resultText = `🤝 *Draw!* No Gold exchanged.`;
+    } else {
+      const isChallenger = winner === sender;
+      const winnerStake = isChallenger ? opponentStake : challengerStake;
+      const loserStake = isChallenger ? challengerStake : opponentStake;
+      db.prepare("UPDATE users SET balance = balance + ? WHERE id = ?").run(winnerStake, winner!);
+      db.prepare("UPDATE users SET balance = balance - ? WHERE id = ?").run(loserStake, loser!);
+      const winnerTag = winner === sender ? senderTag : mentionedTag;
+      const loserTag = loser === sender ? senderTag : mentionedTag;
+      resultText =
+        `🏆 *${winnerTag} wins!*\n` +
+        `💸 *${loserTag}* loses *${loserStake.toLocaleString()} Gold* (${pct}%)\n` +
+        `💰 *${winnerTag}* gains *${winnerStake.toLocaleString()} Gold*`;
+    }
+
+    const battleLog =
+      `⚔️ *PVP DUEL — SHADOW GARDEN*\n\n` +
+      `${senderTag} vs ${mentionedTag}\n` +
+      `🎰 Stake: *${pct}%* of each player's balance\n` +
+      `💰 ${senderTag}: *${challengerStake.toLocaleString()} Gold*  |  ${mentionedTag}: *${opponentStake.toLocaleString()} Gold*\n\n` +
+      `─────────────────\n` +
+      rounds.slice(0, 5).join("\n") +
+      (rounds.length > 5 ? `\n_...${rounds.length - 5} more rounds..._` : "") +
+      `\n─────────────────\n\n` +
+      resultText;
+
+    await sock.sendMessage(from, { text: battleLog, mentions: [sender, mentioned] });
+    return;
+  }
 }
 
 export async function handleGameInput(ctx: CommandContext, text: string): Promise<boolean> {

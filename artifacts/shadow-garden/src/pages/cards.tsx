@@ -342,8 +342,28 @@ function CardDisplay({ card, count, showOwner }: { card: any, count?: number, sh
             </div>
           </div>
           
+          {/* Owners */}
+          {(card as any).owners?.length > 0 && (
+            <div className="mb-3 border-t border-white/5 pt-3">
+              <p className="text-[10px] text-muted-foreground uppercase tracking-widest mb-1.5">Owners</p>
+              <div className="flex flex-wrap gap-1">
+                {(card as any).owners.slice(0, 4).map((o: any) => (
+                  <span key={o.id} className="text-[10px] bg-white/5 border border-white/10 rounded px-1.5 py-0.5 text-white/70 truncate max-w-[90px]">
+                    {o.name || "Shadow"}
+                  </span>
+                ))}
+                {(card as any).owners.length > 4 && (
+                  <span className="text-[10px] text-muted-foreground">+{(card as any).owners.length - 4} more</span>
+                )}
+              </div>
+            </div>
+          )}
+
           <div className="flex items-center justify-between text-xs text-muted-foreground border-t border-white/5 pt-3">
-            <span>{card.totalCopies || 0} issues in existence</span>
+            <span className="flex items-center gap-1">
+              <Star className="w-3 h-3 text-yellow-500/70" />
+              {card.totalCopies || 0} issue{(card.totalCopies || 0) !== 1 ? "s" : ""} in existence
+            </span>
             <button 
               onClick={handleWishlist}
               disabled={wishlistMutation.isPending}

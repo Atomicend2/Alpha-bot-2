@@ -5,8 +5,8 @@ import {
   getTodaySpawnCount, recordSpawnForGroup, getNextSpawnTime, setNextSpawnTime,
   getGroupActivity, getLastSpawnedCardId, getRecentSpawnedCardIds, recordRecentSpawnedCard, getCardOwnerCount,
 } from "../db/queries.js";
-import { sendText, sendImage } from "../connection.js";
-import { getTierEmoji, getWeightedRandomCard, formatNumber } from "../utils.js";
+import { sendText, sendImage, sendVideo } from "../connection.js";
+import { getTierEmoji, getWeightedRandomCard, formatNumber, VIDEO_TIERS } from "../utils.js";
 import { logger } from "../../lib/logger.js";
 import sharp from "sharp";
 
@@ -122,7 +122,12 @@ export async function spawnCard(sock: WASocket, groupId: string, specific?: stri
 
   try {
     const buf = await getCardImageBuffer(card);
-    await sendImage(groupId, buf, caption);
+    const isAnimated = card.is_animated === 1 || VIDEO_TIERS.has(card.tier);
+    if (isAnimated) {
+      await sendVideo(groupId, buf, caption, true);
+    } else {
+      await sendImage(groupId, buf, caption);
+    }
   } catch (err) {
     logger.error({ err }, "Error spawning card");
     const fallback = await makeCardPlaceholder(card);

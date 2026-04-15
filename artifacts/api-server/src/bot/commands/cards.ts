@@ -1,5 +1,5 @@
 import type { CommandContext } from "./index.js";
-import { sendText, sendImage } from "../connection.js";
+import { sendText, sendImage, sendVideo } from "../connection.js";
 import {
   getUserCards, getCard, giveCard, transferCard, lendCard, retrieveCard, getLentCards,
   getUserCard, addAuction, getAuctions, getAuction, closeAuction,
@@ -8,7 +8,7 @@ import {
   updateTradeStatus, createSellOffer, getPendingSellOffer, updateSellOfferStatus,
   getCardOwners, getCardIssueNumber,
 } from "../db/queries.js";
-import { getTierEmoji, formatNumber, generateId } from "../utils.js";
+import { getTierEmoji, formatNumber, generateId, VIDEO_TIERS } from "../utils.js";
 import sharp from "sharp";
 
 export async function handleCards(ctx: CommandContext): Promise<void> {
@@ -110,9 +110,14 @@ export async function handleCards(ctx: CommandContext): Promise<void> {
         `✦────⋆⋅✧⋅⋆────✦\n\n` +
         `${ownersSection}\n\n` +
         `∘₊✦────────✦₊∘`;
-      await sock.sendMessage(from, { image: buf, caption, mentions: ownerMentions });
+      const isAnimated1 = found.is_animated === 1 || VIDEO_TIERS.has(found.tier);
+      if (isAnimated1) {
+        await sock.sendMessage(from, { video: buf, caption, gifPlayback: true, mimetype: "video/mp4", mentions: ownerMentions });
+      } else {
+        await sock.sendMessage(from, { image: buf, caption, mentions: ownerMentions });
+      }
     } else {
-      // Send each result as a separate image message
+      // Send each result as a separate image/video message
       const limit = Math.min(matches.length, 8);
       if (matches.length > 8) {
         await sendText(from, `🔍 Found *${matches.length}* results for "*${searchName}*". Showing the first 8 — be more specific to narrow it down.`);
@@ -144,7 +149,12 @@ export async function handleCards(ctx: CommandContext): Promise<void> {
           `✦────⋆⋅✧⋅⋆────✦\n\n` +
           `${ownersSection}\n\n` +
           `∘₊✦────────✦₊∘`;
-        await sock.sendMessage(from, { image: buf, caption, mentions: ownerMentions });
+        const isAnimated = found.is_animated === 1 || VIDEO_TIERS.has(found.tier);
+        if (isAnimated) {
+          await sock.sendMessage(from, { video: buf, caption, gifPlayback: true, mimetype: "video/mp4", mentions: ownerMentions });
+        } else {
+          await sock.sendMessage(from, { image: buf, caption, mentions: ownerMentions });
+        }
       }
     }
     return;

@@ -435,6 +435,7 @@ async function dispatch(ctx: CommandContext): Promise<void> {
     case "wordchain":
     case "wcg":
     case "joinwcg":
+    case "pvp":
     case "startbattle":
     case "truthordare":
     case "td":

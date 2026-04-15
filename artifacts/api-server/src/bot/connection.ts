@@ -325,6 +325,19 @@ export async function sendImage(jid: string, imageBuffer: Buffer, caption?: stri
   return sendWithRetry(() => s.sendMessage(jid, { image: imageBuffer, caption: caption || "" }, withReplyOptions()));
 }
 
+export async function sendVideo(jid: string, videoBuffer: Buffer, caption?: string, gif = true) {
+  if (!sock) throw new Error("Socket not initialized");
+  const s = sock;
+  return sendWithRetry(() =>
+    s.sendMessage(jid, {
+      video: videoBuffer,
+      caption: caption || "",
+      gifPlayback: gif,
+      mimetype: "video/mp4",
+    }, withReplyOptions())
+  );
+}
+
 export async function sendReact(jid: string, msgKey: any, emoji: string) {
   if (!sock) throw new Error("Socket not initialized");
   return sock.sendMessage(jid, { react: { text: emoji, key: msgKey } });
