@@ -73,6 +73,33 @@ pnpm workspace monorepo using TypeScript. Each package manages its own dependenc
 - Bot admin detection compares all known paired-number identities, including device and LID forms, against group participants so admin-only commands work when the paired bot number is a group admin.
 - WhatsApp connection startup prevents overlapping socket starts, logs close reasons, and only resets reconnect backoff after a stable connection window, keeping the saved paired session active during workflow restarts without rapid reconnect loops.
 
+## Customization Guide (Where to Edit Things)
+
+### Changing the Bot Name (e.g. from "Alpha" to your own bot name)
+Edit these files:
+- `artifacts/api-server/src/bot/commands/menu.ts` — Line 16: change `Alpha` in the menu banner; Line 317: change the bot info line
+- `artifacts/api-server/src/bot/commands/ai.ts` — Line 80: change the system prompt where it says "You are Alpha..."
+- `artifacts/api-server/src/bot/handlers/message.ts` — Line 250: change `.ping` response (e.g. "Alpha's here!")
+
+### Website Link (the URL the bot sends when someone types `.website`)
+Edit `artifacts/api-server/src/bot/handlers/message.ts` around line 267-269.
+Replace `https://shadow-garden.onrender.com` with your Render deployment URL.
+
+### Hero & World Map Images (shown on the website)
+Place image files in `artifacts/shadow-garden/public/images/`:
+- `hero-bg.png` — the background image on the home landing page
+- `world-map.png` — the background for the World/map page
+- `opengraph.jpg` — the preview image shown when sharing links on WhatsApp/Discord (1200x630px recommended)
+
+### Community WhatsApp Link
+The WhatsApp group invite link (`https://chat.whatsapp.com/...`) appears in:
+- `artifacts/shadow-garden/src/pages/home.tsx` (the "Join Shadow Garden" button)
+- `artifacts/shadow-garden/src/pages/login.tsx` (the footer link)
+- `artifacts/api-server/src/bot/handlers/message.ts` (the `.community` command response)
+
+### Bot Avatar / Profile Picture
+The bot's own profile picture on WhatsApp is set via the paired WhatsApp account, not by code.
+
 ## Key Commands
 
 - `pnpm run typecheck` — full typecheck across all packages

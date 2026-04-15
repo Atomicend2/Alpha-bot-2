@@ -31,6 +31,19 @@ router.get("/stats", requireAuth, (req: AuthRequest, res) => {
     ? { id: guildRow.id, name: guildRow.name, level: guildRow.level || 1 }
     : null;
 
+  // Calculate bank max from passive bank_cap inventory items
+  const bankCapItems = db.prepare(`
+    SELECT si.effect FROM inventory i
+    JOIN shop_items si ON LOWER(si.name) = LOWER(i.item)
+    WHERE i.user_id = ? AND si.category = 'passive' AND si.effect LIKE 'bank_cap:%'
+  `).all(user.id) as any[];
+  const extraBankCap = bankCapItems.reduce((acc: number, row: any) => {
+    const val = parseInt((row.effect || "").replace("bank_cap:", ""), 10) || 0;
+    return acc + val;
+  }, 0);
+  const baseBankMax = 50000;
+  const bankMax = baseBankMax + extraBankCap;
+
   res.json({
     profile: {
       id: user.id,
@@ -40,6 +53,7 @@ router.get("/stats", requireAuth, (req: AuthRequest, res) => {
       xp: user.xp || 0,
       balance: user.balance || 0,
       bank: user.bank || 0,
+      bankMax,
       premium: user.premium || 0,
       bio: user.bio || "",
       registeredAt: user.created_at || 0,

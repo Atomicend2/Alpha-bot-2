@@ -354,6 +354,14 @@ function initSchema(db: Database.Database): void {
   `);
 
   db.prepare("UPDATE shop_items SET price = 11000000, description = 'Required to create a guild', effect = 'guild_license', category = 'general' WHERE LOWER(name) = 'guild license'").run();
+
+  // Bank Note system — tiered passive items that expand bank storage capacity
+  db.prepare(`
+    INSERT OR IGNORE INTO shop_items (name, description, price, effect, category) VALUES
+      ('10K Bank Note', 'A certified Shadow Garden treasury note. Permanently expands your maximum bank storage.', 10000, 'bank_cap:50000', 'passive'),
+      ('50K Bank Note', 'A high-value treasury note bearing the Shadow Garden seal. Major bank expansion.', 50000, 'bank_cap:250000', 'passive'),
+      ('100K Bank Note', 'A sovereign-grade treasury note. Only the wealthiest operatives possess one.', 100000, 'bank_cap:750000', 'passive')
+  `).run();
   db.prepare("DELETE FROM shop_items WHERE LOWER(name) IN ('card pack', 'premium card pack', 'vip pass', 'vip access')").run();
   db.prepare("DELETE FROM inventory WHERE LOWER(item) IN ('card pack', 'premium card pack', 'vip pass', 'vip access')").run();
 
