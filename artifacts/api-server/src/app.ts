@@ -41,8 +41,11 @@ if (process.env.NODE_ENV === "production") {
   const frontendDist = path.join(__dirname, "../../..", "artifacts/shadow-garden/dist/public");
   if (fs.existsSync(frontendDist)) {
     app.use(express.static(frontendDist));
-    // SPA fallback — send index.html for all non-API routes
-    app.get("*", (_req, res) => {
+    app.use((req, res, next) => {
+      if (req.path.startsWith("/api")) {
+        next();
+        return;
+      }
       res.sendFile(path.join(frontendDist, "index.html"));
     });
     logger.info({ frontendDist }, "Serving frontend static files");
