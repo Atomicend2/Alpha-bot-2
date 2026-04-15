@@ -1,6 +1,6 @@
 import app from "./app.js";
 import { logger } from "./lib/logger.js";
-import { connectToWhatsApp } from "./bot/connection.js";
+import { connectToWhatsApp, isCredsRegistered } from "./bot/connection.js";
 import { getDb } from "./bot/db/database.js";
 
 const rawPort = process.env["PORT"];
@@ -25,11 +25,15 @@ app.listen(port, async (err?: Error) => {
   }
   logger.info({ port }, "Server listening");
 
-  const phone = process.env["BOT_PHONE_NUMBER"];
-  try {
-    logger.info("Starting WhatsApp bot...");
-    await connectToWhatsApp(phone || undefined);
-  } catch (botErr) {
-    logger.error({ botErr }, "Failed to start bot (will retry automatically)");
+  if (isCredsRegistered()) {
+    // Credentials exist from a previous session — auto-reconnect
+    logger.info("Existing WhatsApp credentials found — reconnecting...");
+    try {
+      await connectToWhatsApp(undefined);
+    } catch (botErr) {
+      logger.error({ botErr }, "Failed to auto-reconnect bot (use the admin page to reconnect)");
+    }
+  } else {
+    logger.info("No WhatsApp credentials found — use the admin page at /admin to connect the bot");
   }
 });

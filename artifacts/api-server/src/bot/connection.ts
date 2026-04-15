@@ -6,13 +6,10 @@ import {
   fetchLatestBaileysVersion,
   Browsers,
   type WASocket,
-  type BaileysEventMap,
 } from "@whiskeysockets/baileys";
 import { Boom } from "@hapi/boom";
 import path from "path";
 import fs from "fs";
-import readline from "node:readline/promises";
-import { stdin as input, stdout as output } from "node:process";
 import { fileURLToPath } from "url";
 import { AsyncLocalStorage } from "node:async_hooks";
 import { logger } from "../lib/logger.js";
@@ -22,7 +19,6 @@ import { handleGroupUpdate, handleGroupParticipantsUpdate } from "./handlers/gro
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const DATA_DIR = path.join(__dirname, "../../..", "data");
 const AUTH_DIR = path.join(DATA_DIR, "auth");
-// Store pairing number outside AUTH_DIR so it survives a logout/wipe
 const PAIRING_PHONE_PATH = path.join(DATA_DIR, "paired-phone.txt");
 
 if (!fs.existsSync(AUTH_DIR)) {
@@ -51,10 +47,6 @@ const MAX_RECONNECT_DELAY = 30000;
 const STABLE_CONNECTION_MS = 30000;
 const replyContext = new AsyncLocalStorage<any>();
 
-type ConnectOptions = {
-  promptForPhone?: boolean;
-};
-
 export function getSocket(): WASocket | null {
   return sock;
 }
@@ -69,6 +61,17 @@ export function isSocketConnecting(): boolean {
 
 export function getPairingCode(): string | null {
   return pairingCode;
+}
+
+export function isCredsRegistered(): boolean {
+  try {
+    const credsPath = path.join(AUTH_DIR, "creds.json");
+    if (!fs.existsSync(credsPath)) return false;
+    const creds = JSON.parse(fs.readFileSync(credsPath, "utf8"));
+    return creds?.registered === true;
+  } catch {
+    return false;
+  }
 }
 
 export async function runWithReplyContext<T>(msg: any, fn: () => Promise<T>): Promise<T> {
@@ -101,21 +104,26 @@ function getRememberedPairingPhoneNumber(): string | undefined {
   }
 }
 
-async function askForPairingPhoneNumber(): Promise<string | undefined> {
-  const rl = readline.createInterface({ input, output });
+export function clearAuth(): void {
   try {
-    const answer = await rl.question("Enter WhatsApp phone number to pair with country code, or press Enter to skip: ");
-    return normalizePhoneNumber(answer);
-  } finally {
-    rl.close();
+    fs.rmSync(AUTH_DIR, { recursive: true, force: true });
+    fs.mkdirSync(AUTH_DIR, { recursive: true });
+    pairingCode = null;
+    sock = null;
+    isConnected = false;
+    isConnecting = false;
+    logger.info("Auth cleared — waiting for manual reconnect");
+  } catch (err) {
+    logger.error({ err }, "Failed to clear auth");
   }
 }
 
-export async function connectToWhatsApp(phoneNumber?: string, options: ConnectOptions = {}): Promise<WASocket> {
+export async function connectToWhatsApp(phoneNumber?: string): Promise<WASocket> {
   if (sock && (isConnected || isConnecting)) {
     return sock;
   }
   isConnecting = true;
+  pairingCode = null;
   const generation = ++connectionGeneration;
   const { state, saveCreds } = await useMultiFileAuthState(AUTH_DIR);
   const { version, isLatest } = await fetchLatestBaileysVersion();
@@ -152,19 +160,13 @@ export async function connectToWhatsApp(phoneNumber?: string, options: ConnectOp
     keepAliveIntervalMs: 30000,
   });
 
-  if (!state.creds.registered) {
-    const normalizedPhoneNumber =
-      rememberPairingPhoneNumber(phoneNumber) ||
-      getRememberedPairingPhoneNumber() ||
-      (options.promptForPhone === false ? undefined : await askForPairingPhoneNumber());
-
-    if (!normalizedPhoneNumber) {
-      logger.warn("No phone number provided; skipping pairing code request");
-    } else {
-      rememberPairingPhoneNumber(normalizedPhoneNumber);
+  // Request pairing code if not yet registered and phone provided
+  if (!state.creds.registered && phoneNumber) {
+    const normalized = rememberPairingPhoneNumber(phoneNumber) || getRememberedPairingPhoneNumber();
+    if (normalized) {
       await new Promise((resolve) => setTimeout(resolve, 3000));
       try {
-        const code = await sock.requestPairingCode(normalizedPhoneNumber);
+        const code = await sock.requestPairingCode(normalized);
         pairingCode = code;
         logger.info({ code }, "Pairing code generated");
         console.log(`WhatsApp pairing code: ${code}`);
@@ -183,37 +185,34 @@ export async function connectToWhatsApp(phoneNumber?: string, options: ConnectOp
       if (generation !== connectionGeneration) return;
       isConnected = false;
       isConnecting = false;
+      sock = null;
+
       const statusCode = (lastDisconnect?.error as Boom)?.output?.statusCode;
       const reason = (lastDisconnect?.error as any)?.message || (lastDisconnect?.error as Boom)?.output?.payload?.message || "unknown";
-      const shouldReconnect =
-        statusCode !== DisconnectReason.loggedOut;
 
-      if (shouldReconnect) {
-        const delay = Math.min(1000 * Math.pow(2, reconnectAttempts), MAX_RECONNECT_DELAY);
-        reconnectAttempts++;
-        logger.warn({ delay, attempt: reconnectAttempts, statusCode, reason }, "WhatsApp connection closed; reconnecting");
-        setTimeout(() => {
-          if (generation === connectionGeneration && !isConnected && !isConnecting) {
-            connectToWhatsApp(undefined, { promptForPhone: false });
-          }
-        }, delay);
-      } else {
-        logger.info("Logged out from WhatsApp — clearing auth and re-pairing");
-        pairingCode = null;
-        // Wipe only the auth credentials, preserve paired-phone.txt (it's outside AUTH_DIR now)
-        fs.rmSync(AUTH_DIR, { recursive: true, force: true });
-        fs.mkdirSync(AUTH_DIR, { recursive: true });
-        // Auto-reconnect: re-request pairing code using the saved phone number
-        const savedPhone = getRememberedPairingPhoneNumber();
-        if (savedPhone) {
-          setTimeout(() => {
-            if (generation === connectionGeneration) {
-              logger.info({ savedPhone }, "Auto-reconnecting with saved phone number after logout");
-              connectToWhatsApp(savedPhone, { promptForPhone: false });
-            }
-          }, 3000);
-        }
+      if (statusCode === DisconnectReason.loggedOut) {
+        // Logged out — clear auth, wait for manual re-pair
+        logger.info("Logged out from WhatsApp — clearing auth, waiting for manual reconnect");
+        clearAuth();
+        return;
       }
+
+      if (statusCode === 440) {
+        // Conflict — another session is active. Stop reconnecting, wait for manual trigger.
+        logger.warn({ statusCode, reason }, "WhatsApp session conflict — another session is active. Clearing auth and waiting for manual reconnect.");
+        clearAuth();
+        return;
+      }
+
+      // Other errors — reconnect with exponential backoff
+      const delay = Math.min(1000 * Math.pow(2, reconnectAttempts), MAX_RECONNECT_DELAY);
+      reconnectAttempts++;
+      logger.warn({ delay, attempt: reconnectAttempts, statusCode, reason }, "WhatsApp connection closed; reconnecting");
+      setTimeout(() => {
+        if (generation === connectionGeneration && !isConnected && !isConnecting) {
+          connectToWhatsApp(undefined);
+        }
+      }, delay);
     } else if (connection === "open") {
       if (generation !== connectionGeneration) return;
       isConnected = true;
@@ -247,7 +246,14 @@ export async function connectToWhatsApp(phoneNumber?: string, options: ConnectOp
 
   sock.ev.on("group-participants.update", async (update) => {
     try {
-      await handleGroupParticipantsUpdate(sock!, update);
+      const normalized = {
+        id: update.id,
+        action: update.action as string,
+        participants: update.participants.map((p: any) =>
+          typeof p === "string" ? p : p.id || p
+        ),
+      };
+      await handleGroupParticipantsUpdate(sock!, normalized);
     } catch (err) {
       logger.error({ err }, "Error handling group participants update");
     }

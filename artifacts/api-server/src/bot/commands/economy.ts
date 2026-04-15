@@ -14,6 +14,7 @@ import fs from "node:fs/promises";
 import { execFile } from "node:child_process";
 import { promisify } from "node:util";
 import { downloadMediaMessage } from "@whiskeysockets/baileys";
+import { logger } from "../../lib/logger.js";
 
 const DAILY_AMOUNT = 1000;
 const DAILY_COOLDOWN = 86400;
@@ -959,7 +960,7 @@ async function getCommandProfileMedia(ctx: CommandContext): Promise<{ buffer: Bu
     target as any,
     "buffer",
     {},
-    { reuploadRequest: (sock as any).updateMediaMessage }
+    { reuploadRequest: (sock as any).updateMediaMessage, logger: logger as any }
   );
   return { buffer: Buffer.isBuffer(downloaded) ? downloaded : Buffer.from(downloaded as any), type };
 }

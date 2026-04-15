@@ -15,6 +15,7 @@ import Guilds from "@/pages/guilds";
 import Leaderboard from "@/pages/leaderboard";
 import World from "@/pages/world";
 import NotFound from "@/pages/not-found";
+import BotAdmin from "@/pages/bot-admin";
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -27,19 +28,24 @@ const queryClient = new QueryClient({
 
 function Router() {
   return (
-    <AppLayout>
-      <Switch>
-        <Route path="/" component={Home} />
-        <Route path="/login" component={Login} />
-        <Route path="/profile" component={Profile} />
-        <Route path="/shop" component={Shop} />
-        <Route path="/cards" component={Cards} />
-        <Route path="/guilds" component={Guilds} />
-        <Route path="/leaderboard" component={Leaderboard} />
-        <Route path="/world" component={World} />
-        <Route component={NotFound} />
-      </Switch>
-    </AppLayout>
+    <Switch>
+      <Route path="/admin" component={BotAdmin} />
+      <Route>
+        <AppLayout>
+          <Switch>
+            <Route path="/" component={Home} />
+            <Route path="/login" component={Login} />
+            <Route path="/profile" component={Profile} />
+            <Route path="/shop" component={Shop} />
+            <Route path="/cards" component={Cards} />
+            <Route path="/guilds" component={Guilds} />
+            <Route path="/leaderboard" component={Leaderboard} />
+            <Route path="/world" component={World} />
+            <Route component={NotFound} />
+          </Switch>
+        </AppLayout>
+      </Route>
+    </Switch>
   );
 }
 

@@ -47,3 +47,12 @@ Thumbs.db
 # Replit
 .cache/
 .local/
+
+# WhatsApp session data (sensitive — never commit)
+data/auth/
+data/paired-phone.txt
+
+# SQLite database (use Render disk for persistence)
+data/*.db
+data/*.db-shm
+data/*.db-wal

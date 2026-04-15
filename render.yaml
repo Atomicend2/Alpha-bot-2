@@ -1,0 +1,22 @@
+services:
+  - type: web
+    name: shadow-garden-bot
+    env: node
+    plan: free
+    buildCommand: |
+      npm install -g pnpm &&
+      pnpm install --frozen-lockfile &&
+      BASE_PATH=/ pnpm --filter @workspace/shadow-garden exec vite build &&
+      pnpm --filter @workspace/api-server run build
+    startCommand: pnpm --filter @workspace/api-server run start
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: PORT
+        value: 10000
+      - key: BOT_PHONE_NUMBER
+        sync: false
+    disk:
+      name: bot-data
+      mountPath: /opt/render/project/src/data
+      sizeGB: 1
