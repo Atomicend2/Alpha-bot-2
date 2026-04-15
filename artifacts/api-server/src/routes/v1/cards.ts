@@ -47,18 +47,23 @@ router.get("/", optionalAuth, (req, res) => {
   const result = cards.map((card: any) => {
     const owner = getCardOwner(db, card.id);
     const totalCopies = getCardCopyCount(db, card.id);
+    const owners = db.prepare(`
+      SELECT DISTINCT u.id, u.name FROM user_cards uc
+      JOIN users u ON u.id = uc.user_id
+      WHERE uc.card_id = ?
+      LIMIT 5
+    `).all(card.id) as any[];
     return {
       id: card.id,
       name: card.name,
       tier: card.tier,
       series: card.series || "General",
       description: card.description || "",
-      attack: card.attack || 50,
-      defense: card.defense || 50,
-      speed: card.speed || 50,
+      imageUrl: card.image_url || "",
       totalCopies,
       ownerName: owner?.name || "Unclaimed",
       ownerId: owner?.id || null,
+      owners: owners.map((o: any) => ({ id: o.id, name: o.name || "Shadow" })),
     };
   });
 
@@ -77,6 +82,12 @@ router.get("/my", requireAuth, (req: AuthRequest, res) => {
 
   const result = userCards.map((uc: any) => {
     const totalCopies = getCardCopyCount(db, uc.id);
+    const owners = db.prepare(`
+      SELECT DISTINCT u.id, u.name FROM user_cards ucc
+      JOIN users u ON u.id = ucc.user_id
+      WHERE ucc.card_id = ?
+      LIMIT 5
+    `).all(uc.id) as any[];
     return {
       userCardId: uc.user_card_id,
       card: {
@@ -85,12 +96,11 @@ router.get("/my", requireAuth, (req: AuthRequest, res) => {
         tier: uc.tier,
         series: uc.series || "General",
         description: uc.description || "",
-        attack: uc.attack || 50,
-        defense: uc.defense || 50,
-        speed: uc.speed || 50,
+        imageUrl: uc.image_url || "",
         totalCopies,
         ownerName: req.user?.name || "You",
         ownerId: req.userId,
+        owners: owners.map((o: any) => ({ id: o.id, name: o.name || "Shadow" })),
       },
       obtainedAt: uc.obtained_at || 0,
     };

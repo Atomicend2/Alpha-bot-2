@@ -13,13 +13,28 @@ export async function handleLottery(ctx: CommandContext): Promise<void> {
 
   if (cmd === "lottery") {
     const user = ensureUser(sender);
+    const db2 = getDb();
 
-    // Check if user has lottery tickets
-    const tickets = user.lottery_tickets || 0;
+    // Migrate any inventory-based tickets into the column (web purchases land in inventory)
+    const invRow = db2.prepare(
+      "SELECT quantity FROM inventory WHERE user_id = ? AND LOWER(item) = 'lottery ticket'"
+    ).get(sender) as any;
+    if (invRow?.quantity > 0) {
+      db2.prepare(
+        "UPDATE users SET lottery_tickets = COALESCE(lottery_tickets, 0) + ? WHERE id = ?"
+      ).run(invRow.quantity, sender);
+      db2.prepare(
+        "DELETE FROM inventory WHERE user_id = ? AND LOWER(item) = 'lottery ticket'"
+      ).run(sender);
+    }
+
+    // Re-fetch with migrated count
+    const freshUser = db2.prepare("SELECT * FROM users WHERE id = ?").get(sender) as any;
+    const tickets = freshUser?.lottery_tickets || 0;
     if (tickets <= 0) {
       await sendText(
         from,
-        "🎫 *No Lottery Tickets!*\n\nYou don't have any lottery tickets to use.\n\nVisit the shop to get more!\n\n> Type *.shop* to see the shop."
+        "🎫 *No Lottery Tickets!*\n\nYou don't have any lottery tickets to use.\n\nVisit the shop and buy a *Lottery Ticket* for 5,000 Gold, then type *.lottery* to enter!\n\n> Type *.shop* to see the shop."
       );
       return;
     }

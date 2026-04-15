@@ -91,7 +91,7 @@ export async function handleMessage(
       const botParticipant = groupMeta.participants.find(
         (p: any) => botIds.some((botId) => sameWhatsAppUser(p.id, botId))
       );
-      isBotAdmin = botParticipant?.admin === "admin" || botParticipant?.admin === "superadmin";
+      isBotAdmin = !!botParticipant?.admin;
     } catch (err) {
       logger.debug({ err }, "Could not get group metadata");
     }
