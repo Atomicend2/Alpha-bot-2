@@ -115,7 +115,7 @@ export default function Login() {
                     className="bg-black/50 border-primary/30 text-white placeholder:text-muted-foreground focus-visible:ring-primary focus-visible:border-primary"
                     required
                   />
-                  <p className="text-xs text-muted-foreground">Must include country code (+).</p>
+                  <p className="text-xs text-muted-foreground">Include your country code (e.g. 2347012345678).</p>
                 </div>
                 <Button 
                   type="submit" 

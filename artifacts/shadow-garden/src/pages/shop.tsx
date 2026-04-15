@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { useGetShopItems, useBuyShopItem, useGetUserStats, useGetLotteryState } from "@workspace/api-client-react/src/generated/api";
+import { useGetShopItems, useBuyShopItem, useGetUserStats, useGetLotteryState, useGetUserInventory } from "@workspace/api-client-react/src/generated/api";
 import { useAuth } from "@/lib/auth";
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -15,36 +15,29 @@ export default function Shop() {
   const queryClient = useQueryClient();
 
   const { data: shopData, isLoading: loadingShop } = useGetShopItems();
-  const { data: userStats } = useGetUserStats({ query: { enabled: isAuthenticated } });
+  const { data: userStats } = useGetUserStats({ query: { enabled: isAuthenticated, refetchInterval: 15000 } });
+  const { data: inventoryData } = useGetUserInventory({ query: { enabled: isAuthenticated } });
   const { data: lotteryData, isLoading: lotteryLoading } = useGetLotteryState();
+
+  const ownedItems = new Set((inventoryData?.items || []).map((i: any) => i.item?.toLowerCase()));
 
   const buyItemMutation = useBuyShopItem({
     mutation: {
       onSuccess: (data) => {
-        toast({
-          title: "Purchase Successful",
-          description: data.message,
-        });
+        toast({ title: "Purchase Successful", description: data.message });
         queryClient.invalidateQueries({ queryKey: ["/api/v1/user/stats"] });
         queryClient.invalidateQueries({ queryKey: ["/api/v1/user/inventory"] });
       },
-      onError: (error) => {
-        toast({
-          title: "Transaction Failed",
-          description: error.message || "You do not have enough currency.",
-          variant: "destructive",
-        });
+      onError: (error: any) => {
+        const msg = (error?.data as any)?.message || error?.message || "Purchase failed.";
+        toast({ title: "Purchase Failed", description: msg, variant: "destructive" });
       }
     }
   });
 
   const handleBuy = (itemId: number) => {
     if (!isAuthenticated) {
-      toast({
-        title: "Authentication Required",
-        description: "You must be logged in to make purchases.",
-        variant: "destructive"
-      });
+      toast({ title: "Login Required", description: "You must be logged in to make purchases.", variant: "destructive" });
       return;
     }
     buyItemMutation.mutate({ data: { itemId, quantity: 1 } });
@@ -141,6 +134,7 @@ export default function Shop() {
                       onBuy={handleBuy}
                       isPending={buyItemMutation.isPending}
                       canAfford={!isAuthenticated || !userStats || userStats.profile.balance >= item.price}
+                      isOwned={ownedItems.has(item.name?.toLowerCase())}
                     />
                   ))}
                 </div>
@@ -158,27 +152,41 @@ export default function Shop() {
   );
 }
 
-function ShopItemCard({ item, category, onBuy, isPending, canAfford }: any) {
-  const categoryColor = category.toLowerCase() === "passive" 
+const EQUIPMENT_CATEGORIES = ["rpg", "weapon", "equipment", "armor"];
+
+function ShopItemCard({ item, category, onBuy, isPending, canAfford, isOwned }: any) {
+  const isEquipment = EQUIPMENT_CATEGORIES.includes(category.toLowerCase()) ||
+    (item.effect || "").startsWith("weapon:") ||
+    (item.effect || "").startsWith("armor:") ||
+    (item.effect || "").startsWith("shield:");
+
+  const categoryColor = category.toLowerCase() === "passive"
     ? { badge: "text-blue-400 border-blue-400/30", btn: "bg-blue-500/10 hover:bg-blue-500/30 text-blue-400 hover:text-white border border-blue-500/50" }
     : category.toLowerCase() === "consumable"
     ? { badge: "text-green-400 border-green-400/30", btn: "bg-green-500/10 hover:bg-green-500/30 text-green-400 hover:text-white border border-green-500/50" }
     : { badge: "text-purple-400 border-purple-400/30", btn: "bg-primary/20 hover:bg-primary text-primary hover:text-white border border-primary/50" };
 
+  const alreadyOwned = isEquipment && isOwned;
+
   return (
-    <Card className="glass-card border-white/10 bg-black/40 flex flex-col group hover:border-primary/30 transition-colors">
+    <Card className={cn("glass-card border-white/10 bg-black/40 flex flex-col group transition-colors", alreadyOwned ? "border-green-500/20" : "hover:border-primary/30")}>
       <CardHeader className="pb-4">
         <div className="flex justify-between items-start mb-2">
           <Badge variant="outline" className={cn("uppercase tracking-widest text-[10px] border-white/20", categoryColor.badge)}>
             {category}
           </Badge>
+          {alreadyOwned && (
+            <Badge variant="outline" className="text-green-400 border-green-400/30 uppercase text-[10px] tracking-widest">
+              ✓ Owned
+            </Badge>
+          )}
         </div>
-        <CardTitle className="font-serif text-xl text-white">{item.name}</CardTitle>
+        <CardTitle className="text-xl text-white">{item.name}</CardTitle>
         <CardDescription className="text-muted-foreground min-h-[40px]">
           {item.description}
         </CardDescription>
       </CardHeader>
-      
+
       <CardContent className="flex-1 pb-4">
         <div className="bg-black/50 p-3 rounded-lg border border-white/5 mb-4">
           <div className="flex items-start gap-2">
@@ -187,19 +195,25 @@ function ShopItemCard({ item, category, onBuy, isPending, canAfford }: any) {
           </div>
         </div>
       </CardContent>
-      
+
       <CardFooter className="pt-0 flex items-center justify-between border-t border-white/5 px-6 py-4">
         <div className="flex items-center gap-1.5">
           <span className="font-mono text-lg font-bold text-amber-400">{item.price.toLocaleString()}</span>
           <span className="text-[10px] text-muted-foreground uppercase tracking-widest">Gold</span>
         </div>
-        <Button 
-          onClick={() => onBuy(item.id)}
-          disabled={isPending || !canAfford}
-          className={cn("text-xs font-bold tracking-widest uppercase rounded-sm transition-all", categoryColor.btn)}
-        >
-          {!canAfford ? "Can't Afford" : "Purchase"}
-        </Button>
+        {alreadyOwned ? (
+          <Button disabled className="text-xs font-bold tracking-widest uppercase rounded-sm bg-green-500/10 text-green-400 border border-green-500/30 cursor-not-allowed">
+            Equipped
+          </Button>
+        ) : (
+          <Button
+            onClick={() => onBuy(item.id)}
+            disabled={isPending || !canAfford}
+            className={cn("text-xs font-bold tracking-widest uppercase rounded-sm transition-all", categoryColor.btn)}
+          >
+            {!canAfford ? "Can't Afford" : "Purchase"}
+          </Button>
+        )}
       </CardFooter>
     </Card>
   );

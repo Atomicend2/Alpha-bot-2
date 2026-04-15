@@ -149,6 +149,50 @@ export async function handleConverter(ctx: CommandContext): Promise<void> {
     return;
   }
 
+  if (cmd === "yt") {
+    const url = args[0];
+    if (!url || !url.includes("youtu")) {
+      await sendText(from, "❌ Usage: .yt <YouTube URL>\nExample: .yt https://youtu.be/xxxx");
+      return;
+    }
+    const type = args[1]?.toLowerCase() === "video" ? "video" : "audio";
+    await sendText(from, `⬇️ Downloading YouTube ${type}... Please wait.`);
+    try {
+      const dir = path.join(process.cwd(), "data", "tmp");
+      await fs.mkdir(dir, { recursive: true });
+      const id = randomUUID();
+
+      if (type === "video") {
+        const outputPath = path.join(dir, `${id}.mp4`);
+        try {
+          await runCommand("yt-dlp", [
+            "--no-playlist",
+            "-f", "bestvideo[height<=720][ext=mp4]+bestaudio[ext=m4a]/best[height<=720][ext=mp4]/best[height<=720]",
+            "--merge-output-format", "mp4",
+            "-o", outputPath,
+            url,
+          ]);
+          const videoBuffer = await fs.readFile(outputPath);
+          await fs.rm(outputPath, { force: true }).catch(() => {});
+          if (videoBuffer.length > 64 * 1024 * 1024) {
+            await sendText(from, "❌ Video is too large to send via WhatsApp (max 64MB). Try a shorter video or use .yt <url> audio.");
+            return;
+          }
+          await sock.sendMessage(from, { video: videoBuffer, mimetype: "video/mp4", caption: `🎬 Downloaded from: ${url}` });
+        } finally {
+          await fs.rm(outputPath, { force: true }).catch(() => {});
+        }
+      } else {
+        const mp3 = await downloadAudioWithYtDlp(url);
+        await sock.sendMessage(from, { audio: mp3, mimetype: "audio/mpeg", fileName: `${id}.mp3` });
+      }
+    } catch (err: any) {
+      logger.error({ err, url }, "Failed to download YouTube media");
+      await sendText(from, `❌ Failed to download: ${err?.message || "Unknown error"}\n\n> Make sure the URL is a valid YouTube link and the video is public.`);
+    }
+    return;
+  }
+
   if (cmd === "play") {
     const song = args.join(" ");
     if (!song) { await sendText(from, "❌ Usage: .play <song name>"); return; }

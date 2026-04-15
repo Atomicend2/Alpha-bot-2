@@ -766,7 +766,7 @@ export function getBot(id: string) {
 export function addBot(id: string, name: string, phone: string, imageData?: Buffer) {
   const db = getDb();
   db.prepare(`
-    INSERT INTO bots (id, name, phone, image_data, status)
+    INSERT OR REPLACE INTO bots (id, name, phone, image_data, status)
     VALUES (?, ?, ?, ?, 'offline')
   `).run(id, name, phone, imageData || null);
 }

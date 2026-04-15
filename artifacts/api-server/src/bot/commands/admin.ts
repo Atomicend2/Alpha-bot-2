@@ -604,6 +604,193 @@ export async function handleAdmin(ctx: CommandContext): Promise<void> {
     await sendText(from, `✅ @${mentioned.split("@")[0]} is now a mod in this group.`, [mentioned]);
     return;
   }
+
+  if (cmd === "pm" || cmd === "dm") {
+    const staffCheck = isOwner || (await import("../db/queries.js").then(m => m.getStaff(sender)));
+    if (!staffCheck) return noPerms(from);
+    const info = msg.message?.extendedTextMessage?.contextInfo;
+    const target = info?.mentionedJid?.[0] || info?.participant;
+    const msgText = args.filter(a => !a.startsWith("@")).join(" ");
+    if (!target) { await sendText(from, "❌ Mention someone and include a message.\nUsage: .pm @user your message"); return; }
+    if (!msgText.trim()) { await sendText(from, "❌ Include a message.\nUsage: .pm @user your message"); return; }
+    try {
+      await sock.sendMessage(target, { text: msgText });
+      await sendText(from, `✅ Message sent to @${target.split("@")[0]}.`, [target]);
+    } catch {
+      await sendText(from, "❌ Failed to send private message. The user may have privacy settings enabled.");
+    }
+    return;
+  }
+
+  if (cmd === "welcome") {
+    if (!canUse) return noPerms(from);
+    const val = args[0]?.toLowerCase();
+    if (val === "on") {
+      updateGroup(from, { welcome: "on" });
+      await sendText(from, "✅ Welcome messages *enabled*.\n> Use *.setwelcome* to set a custom message. Use @mention in your message to tag the new member.");
+    } else if (val === "off") {
+      updateGroup(from, { welcome: "off" });
+      await sendText(from, "🔕 Welcome messages *disabled*.");
+    } else {
+      const g = getGroup(from);
+      await sendText(from, `📩 Welcome messages: *${g?.welcome || "off"}*\nCurrent message: ${g?.welcome_msg || "(default)"}\n\nUsage: .welcome on | .welcome off | .setwelcome [message]`);
+    }
+    return;
+  }
+
+  if (cmd === "setwelcome") {
+    if (!canUse) return noPerms(from);
+    const customMsg = args.join(" ");
+    if (!customMsg.trim()) {
+      await sendText(from, "❌ Provide a welcome message.\nUsage: .setwelcome Welcome @mention to our group!\n\n> Use @mention to tag the new member.");
+      return;
+    }
+    updateGroup(from, { welcome_msg: customMsg, welcome: "on" });
+    await sendText(from, `✅ Welcome message set and enabled!\n\n"${customMsg}"\n\n> @mention will be replaced with the new member's tag.`);
+    return;
+  }
+
+  if (cmd === "leave") {
+    if (!canUse) return noPerms(from);
+    const val = args[0]?.toLowerCase();
+    if (val === "on") {
+      updateGroup(from, { leave: "on" });
+      await sendText(from, "✅ Leave messages *enabled*.\n> Use *.setleave* to set a custom message.");
+    } else if (val === "off") {
+      updateGroup(from, { leave: "off" });
+      await sendText(from, "🔕 Leave messages *disabled*.");
+    } else {
+      const g = getGroup(from);
+      await sendText(from, `🚪 Leave messages: *${g?.leave || "off"}*\nCurrent message: ${g?.leave_msg || "(default)"}\n\nUsage: .leave on | .leave off | .setleave [message]`);
+    }
+    return;
+  }
+
+  if (cmd === "setleave") {
+    if (!canUse) return noPerms(from);
+    const customMsg = args.join(" ");
+    if (!customMsg.trim()) {
+      await sendText(from, "❌ Provide a leave message.\nUsage: .setleave Goodbye @mention! We'll miss you.");
+      return;
+    }
+    updateGroup(from, { leave_msg: customMsg, leave: "on" });
+    await sendText(from, `✅ Leave message set and enabled!\n\n"${customMsg}"\n\n> @mention will be replaced with the leaving member's tag.`);
+    return;
+  }
+
+  if (cmd === "antism") {
+    if (!canUse) return noPerms(from);
+    const val = args[0]?.toLowerCase();
+    if (val === "on") {
+      updateGroup(from, { antispam: "on" });
+      await sendText(from, "🚫 Anti-Spam *enabled*. Members sending 5+ messages in 5 seconds will be kicked.");
+    } else if (val === "off") {
+      updateGroup(from, { antispam: "off" });
+      await sendText(from, "🟢 Anti-Spam *disabled*.");
+    } else {
+      const g = getGroup(from);
+      await sendText(from, `🚫 Anti-Spam: *${g?.antispam || "off"}*\nUsage: .antism on | .antism off`);
+    }
+    return;
+  }
+
+  if (cmd === "open") {
+    if (!canUse) return noPerms(from);
+    if (!isBotAdmin) return botNoAdmin(from);
+    try {
+      await sock.groupSettingUpdate(from, "not_announcement");
+      updateGroup(from, { locked: "off" });
+      await sendText(from, "🔓 Group is now *open*. All members can send messages.");
+    } catch {
+      await sendText(from, "❌ Failed to open the group.");
+    }
+    return;
+  }
+
+  if (cmd === "close") {
+    if (!canUse) return noPerms(from);
+    if (!isBotAdmin) return botNoAdmin(from);
+    try {
+      await sock.groupSettingUpdate(from, "announcement");
+      updateGroup(from, { locked: "on" });
+      await sendText(from, "🔒 Group is now *closed*. Only admins can send messages.");
+    } catch {
+      await sendText(from, "❌ Failed to close the group.");
+    }
+    return;
+  }
+
+  if (cmd === "mute") {
+    if (!canUse) return noPerms(from);
+    const info = msg.message?.extendedTextMessage?.contextInfo;
+    const target = info?.mentionedJid?.[0] || info?.participant;
+    if (!target) { await sendText(from, "❌ Mention someone to mute.\nUsage: .mute @user"); return; }
+    const durationArg = args.find(a => /^\d+[smhd]$/.test(a));
+    const durSeconds = durationArg ? parseDuration(durationArg) : null;
+    muteUser(target, from, durSeconds ? Math.floor(Date.now() / 1000) + durSeconds : 0, sender);
+    const label = durSeconds ? `for ${formatDuration(durSeconds)}` : "indefinitely";
+    await sendText(from, `🔇 @${target.split("@")[0]} has been muted ${label}.`, [target]);
+    return;
+  }
+
+  if (cmd === "unmute") {
+    if (!canUse) return noPerms(from);
+    const info = msg.message?.extendedTextMessage?.contextInfo;
+    const target = info?.mentionedJid?.[0] || info?.participant;
+    if (!target) { await sendText(from, "❌ Mention someone to unmute.\nUsage: .unmute @user"); return; }
+    unmuteUser(target, from);
+    await sendText(from, `🔊 @${target.split("@")[0]} has been unmuted.`, [target]);
+    return;
+  }
+
+  if (cmd === "hidetag") {
+    if (!canUse) return noPerms(from);
+    const participants = groupMeta?.participants || [];
+    const allJids = participants.map((p: any) => p.id || p);
+    const text = args.join(" ") || "📢 Attention all members!";
+    await sock.sendMessage(from, { text, mentions: allJids });
+    return;
+  }
+
+  if (cmd === "tagall") {
+    if (!canUse) return noPerms(from);
+    const participants = groupMeta?.participants || [];
+    const allJids = participants.map((p: any) => p.id || p);
+    const lines = allJids.map((jid: string) => `@${jid.split("@")[0]}`).join(" ");
+    const text = `${args.join(" ") || "📢 Attention everyone!"}\n\n${lines}`;
+    await sock.sendMessage(from, { text, mentions: allJids });
+    return;
+  }
+
+  if (cmd === "promote") {
+    if (!canUse) return noPerms(from);
+    if (!isBotAdmin) return botNoAdmin(from);
+    const info = msg.message?.extendedTextMessage?.contextInfo;
+    const target = info?.mentionedJid?.[0] || info?.participant;
+    if (!target) { await sendText(from, "❌ Mention someone to promote.\nUsage: .promote @user"); return; }
+    try {
+      await sock.groupParticipantsUpdate(from, [target], "promote");
+      await sendText(from, `👑 @${target.split("@")[0]} has been promoted to admin.`, [target]);
+    } catch {
+      await sendText(from, "❌ Failed to promote member.");
+    }
+    return;
+  }
+
+  if (cmd === "demote") {
+    if (!canUse) return noPerms(from);
+    if (!isBotAdmin) return botNoAdmin(from);
+    const info = msg.message?.extendedTextMessage?.contextInfo;
+    const target = info?.mentionedJid?.[0] || info?.participant;
+    if (!target) { await sendText(from, "❌ Mention someone to demote.\nUsage: .demote @user"); return; }
+    try {
+      await sock.groupParticipantsUpdate(from, [target], "demote");
+      await sendText(from, `📉 @${target.split("@")[0]} has been demoted from admin.`, [target]);
+    } catch {
+      await sendText(from, "❌ Failed to demote member.");
+    }
+    return;
+  }
 }
 
 async function noPerms(jid: string) {

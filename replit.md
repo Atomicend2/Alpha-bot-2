@@ -4,6 +4,38 @@
 
 pnpm workspace monorepo using TypeScript. Each package manages its own dependencies.
 
+## Recent Changes (2026-04-15) — Latest
+
+### Bot Commands Added
+- `.pm` / `.dm` — send private DM (mods/guardians/owner only)
+- `.welcome on/off` + `.setwelcome [message]` — toggle and customize welcome messages
+- `.leave on/off` + `.setleave [message]` — toggle and customize leave messages
+- `.antism on/off` — anti-spam toggle (kicks member after 5 messages in 5s)
+- `.open` / `.close` — open/close group messaging
+- `.mute @user [duration]` / `.unmute @user` — implemented mute/unmute
+- `.hidetag [message]` / `.tagall [message]` — mention all members
+- `.promote @user` / `.demote @user` — admin promote/demote (implemented)
+- `.restart` — restart bot process (mods/guardians/owner only)
+- `.logs` — show admin link from ADMIN_LINK env (mods/guardians/owner only)
+- `.yt <url> [audio|video]` — download YouTube audio (default) or video
+
+### Group Events
+- Bot sends greeting when it joins a new group (detect self-add)
+- Auto-approve join requests for staff (mod/guardian/otp roles) via `pending_approval` event
+
+### Web Profile Page
+- Full rewrite: avatar upload (camera button), background upload, inline bio editing
+- Frame tab: select/unset profile frames
+- Skills tab: assign skill points to STR/AGI/INT/VIT/LUK with visual bars
+- Inventory tab: shows items with quantity badges
+- Achievements tab: earned achievement cards
+- Live data refresh every 10s
+
+### Web Shop Page
+- "Equipped" / "Owned" badge shown for equipment already in inventory
+- Import `useGetUserInventory` to detect owned items
+- Better error messages from actual server response
+
 ## Recent Changes (2026-04-15)
 
 ### Role System

@@ -184,4 +184,86 @@ router.get("/achievements", requireAuth, (req: AuthRequest, res) => {
   });
 });
 
+router.get("/avatar", requireAuth, (req: AuthRequest, res) => {
+  const db = getDb();
+  const row = db.prepare("SELECT avatar_data FROM users WHERE id = ?").get(req.userId!) as any;
+  if (!row?.avatar_data) {
+    res.status(404).json({ success: false, message: "No avatar" });
+    return;
+  }
+  const buf = Buffer.isBuffer(row.avatar_data) ? row.avatar_data : Buffer.from(row.avatar_data);
+  res.set("Content-Type", "image/jpeg");
+  res.set("Cache-Control", "no-store");
+  res.send(buf);
+});
+
+router.post("/avatar", requireAuth, (req: AuthRequest, res) => {
+  const { imageBase64 } = req.body as { imageBase64?: string };
+  if (!imageBase64) {
+    res.status(400).json({ success: false, message: "imageBase64 is required" });
+    return;
+  }
+  let buf: Buffer;
+  try { buf = Buffer.from(imageBase64, "base64"); } catch {
+    res.status(400).json({ success: false, message: "Invalid base64" });
+    return;
+  }
+  try {
+    const db = getDb();
+    db.exec("ALTER TABLE users ADD COLUMN avatar_data BLOB").toString();
+  } catch { /* column already exists */ }
+  const db = getDb();
+  db.prepare("UPDATE users SET avatar_data = ?, updated_at = unixepoch() WHERE id = ?").run(buf, req.userId!);
+  res.json({ success: true, message: "Avatar updated" });
+});
+
+router.post("/background", requireAuth, (req: AuthRequest, res) => {
+  const { imageBase64, bgType } = req.body as { imageBase64?: string; bgType?: string };
+  const db = getDb();
+  try { db.exec("ALTER TABLE users ADD COLUMN bg_data BLOB"); } catch { /* exists */ }
+  if (imageBase64) {
+    let buf: Buffer;
+    try { buf = Buffer.from(imageBase64, "base64"); } catch {
+      res.status(400).json({ success: false, message: "Invalid base64" });
+      return;
+    }
+    db.prepare("UPDATE users SET bg_data = ?, bg_type = ?, updated_at = unixepoch() WHERE id = ?").run(buf, bgType || "static", req.userId!);
+  } else if (bgType) {
+    db.prepare("UPDATE users SET bg_type = ?, updated_at = unixepoch() WHERE id = ?").run(bgType, req.userId!);
+  }
+  res.json({ success: true, message: "Background updated" });
+});
+
+router.get("/background", requireAuth, (req: AuthRequest, res) => {
+  const db = getDb();
+  let row: any;
+  try { row = db.prepare("SELECT bg_data FROM users WHERE id = ?").get(req.userId!); } catch { row = null; }
+  if (!row?.bg_data) {
+    res.status(404).json({ success: false, message: "No background" });
+    return;
+  }
+  const buf = Buffer.isBuffer(row.bg_data) ? row.bg_data : Buffer.from(row.bg_data);
+  res.set("Content-Type", "image/jpeg");
+  res.set("Cache-Control", "no-store");
+  res.send(buf);
+});
+
+router.post("/frame", requireAuth, (req: AuthRequest, res) => {
+  const { frameId } = req.body as { frameId?: string };
+  const db = getDb();
+  db.prepare("UPDATE users SET profile_frame = ?, updated_at = unixepoch() WHERE id = ?").run(frameId || "", req.userId!);
+  res.json({ success: true, message: "Frame updated" });
+});
+
+router.post("/bio", requireAuth, (req: AuthRequest, res) => {
+  const { bio } = req.body as { bio?: string };
+  if (typeof bio !== "string") {
+    res.status(400).json({ success: false, message: "bio is required" });
+    return;
+  }
+  const db = getDb();
+  db.prepare("UPDATE users SET bio = ?, updated_at = unixepoch() WHERE id = ?").run(bio.slice(0, 200), req.userId!);
+  res.json({ success: true, message: "Bio updated" });
+});
+
 export { router as userRouter };

@@ -535,10 +535,37 @@ async function dispatch(ctx: CommandContext): Promise<void> {
     case "toimg":
     case "turnimg":
     case "play":
+    case "yt":
     case "speech":
     case "mood":
     case "pintimg":
       return handleConverter(ctx);
+
+    case "restart": {
+      const staffRestart = getStaff(sender);
+      if (!ctx.isOwner && staffRestart?.role !== "mod" && staffRestart?.role !== "guardian") {
+        await sendText(from, "❌ Only mods, guardians and owner can use this command.");
+        return;
+      }
+      await sendText(from, "🔄 Restarting bot and clearing cache... Please wait.");
+      setTimeout(() => process.exit(0), 1000);
+      return;
+    }
+
+    case "logs": {
+      const staffLogs = getStaff(sender);
+      if (!ctx.isOwner && staffLogs?.role !== "mod" && staffLogs?.role !== "guardian") {
+        await sendText(from, "❌ Only mods, guardians and owner can use this command.");
+        return;
+      }
+      const adminLink = process.env.ADMIN_LINK || process.env.WEBSITE_URL;
+      if (!adminLink) {
+        await sendText(from, "⚠️ ADMIN_LINK is not configured. Set it in your environment variables.");
+        return;
+      }
+      await sendText(from, `📋 *Admin Panel / Logs*\n\n${adminLink}\n\n> Use the admin panel to view logs and manage the bot.`);
+      return;
+    }
 
     case "summer":
     case "token":
