@@ -170,7 +170,7 @@ async function getInteractionUpload(ctx: CommandContext): Promise<Buffer | null>
     target as any,
     "buffer",
     {},
-    { reuploadRequest: (ctx.sock as any).updateMediaMessage }
+    { reuploadRequest: (ctx.sock as any).updateMediaMessage, logger: logger as any }
   );
   const buf = Buffer.isBuffer(downloaded) ? downloaded : Buffer.from(downloaded as any);
   return buf.length > 0 ? buf : null;

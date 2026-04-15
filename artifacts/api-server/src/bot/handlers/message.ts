@@ -27,6 +27,7 @@ export async function handleMessage(
   msg: proto.IWebMessageInfo
 ): Promise<void> {
   if (!msg.message) return;
+  if (!msg.key) return;
 
   const from = msg.key.remoteJid!;
   if (from === "status@broadcast") return;
@@ -111,7 +112,7 @@ export async function handleMessage(
   }
 
   if (isGroup && getActiveMute(sender, from)) {
-    await sock.sendMessage(from, { delete: normalizedMsg.key }).catch(() => {});
+    await sock.sendMessage(from, { delete: normalizedMsg.key as any }).catch(() => {});
     return;
   }
 
@@ -224,7 +225,7 @@ async function sendMentionStickerIfNeeded(sock: WASocket, from: string, mentione
     if (!canUseMentionSticker(jid)) continue;
     const sticker = getBotSetting(`mention_sticker:${jid}`);
     if (!sticker) continue;
-    await sock.sendMessage(from, { sticker }, { quoted });
+    await sock.sendMessage(from, { sticker }, { quoted: quoted as any });
   }
 }
 

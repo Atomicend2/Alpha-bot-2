@@ -144,9 +144,16 @@ export async function handleEconomy(ctx: CommandContext): Promise<void> {
       await sendText(from, `⏳ Daily cooldown: ${formatDuration(remaining)} left.`);
       return;
     }
-    const amount = DAILY_AMOUNT + (user.premium ? 500 : 0);
+    const inv = getInventory(sender);
+    const hasLuckyCharm = inv.some((i) => i.item.toLowerCase().includes("lucky charm"));
+    let amount = DAILY_AMOUNT + (user.premium ? 500 : 0);
+    let bonusNote = "";
+    if (hasLuckyCharm) {
+      amount = Math.floor(amount * 1.5);
+      bonusNote = "\n🍀 *Lucky Charm* bonus: +50%!";
+    }
     updateUser(sender, { balance: (user.balance || 0) + amount, last_daily: now });
-    await sendText(from, `🎁 Daily reward: *$${formatNumber(amount)}*!\nNew balance: $${formatNumber((user.balance || 0) + amount)}`);
+    await sendText(from, `🎁 Daily reward: *$${formatNumber(amount)}*!${bonusNote}\nNew balance: $${formatNumber((user.balance || 0) + amount)}`);
     return;
   }
 
@@ -177,8 +184,19 @@ export async function handleEconomy(ctx: CommandContext): Promise<void> {
       await sendText(from, `❌ Not enough in wallet. Wallet: $${formatNumber(wallet)}`);
       return;
     }
-    updateUser(sender, { balance: wallet - amount, bank: (user.bank || 0) + amount });
-    await sendText(from, `✅ Deposited $${formatNumber(amount)} to bank.\nBank: $${formatNumber((user.bank || 0) + amount)}`);
+    const bankMax = user.bank_max || 100000;
+    const currentBank = user.bank || 0;
+    const space = bankMax - currentBank;
+    if (space <= 0) {
+      await sendText(from, `❌ Bank is full! Max: $${formatNumber(bankMax)}.\nBuy a *Bank Note* from *.shop* to expand.`);
+      return;
+    }
+    const depositable = Math.min(amount, space);
+    const refund = amount - depositable;
+    updateUser(sender, { balance: wallet - depositable - (refund > 0 ? 0 : 0), bank: currentBank + depositable });
+    let msg = `✅ Deposited *$${formatNumber(depositable)}* to bank.\nBank: $${formatNumber(currentBank + depositable)} / $${formatNumber(bankMax)}`;
+    if (refund > 0) msg += `\n⚠️ Bank full — $${formatNumber(refund)} not deposited. Buy a *Bank Note* to expand.`;
+    await sendText(from, msg);
     return;
   }
 
@@ -407,44 +425,62 @@ export async function handleEconomy(ctx: CommandContext): Promise<void> {
     return;
   }
 
+  const ALL_ITEM_EMOJIS: Record<string, string> = {
+    "Health Potion": "🧪",
+    "Mana Potion": "💧",
+    "Elixir": "⚗️",
+    "Mega Elixir": "✨",
+    "Sword": "⚔️",
+    "Steel Sword": "🗡️",
+    "Shadow Blade": "🌑",
+    "Shield": "🛡️",
+    "Diamond Shield": "🔷",
+    "Speed Boots": "👟",
+    "Turbo Boots": "🥾",
+    "Lucky Charm": "🍀",
+    "Dungeon Key": "🗝️",
+    "Guild License": "📜",
+    "Rename Sheet📃": "📃",
+    "Pistol": "🔫",
+    "Protection Ward": "🔐",
+    "Mystery Box": "🎁",
+    "XP Scroll": "⚡",
+    "Iron Helmet": "⛑️",
+    "Iron Chestplate": "🦺",
+    "Iron Sword": "🔪",
+    "Shadow Cloak": "🧥",
+    "10K Bank Note": "💵",
+    "50K Bank Note": "💴",
+    "100K Bank Note": "💶",
+    "Gem Shard": "💎",
+    "Gem Crystal": "🔮",
+    "Gem Stone": "🪨",
+    "Lottery Ticket": "🎟️",
+    "Golden Ticket": "🏅",
+  };
+
   if (cmd === "inventory" || cmd === "inv") {
-    const ITEM_EMOJIS: Record<string, string> = {
-      "Health Potion": "🧪",
-      "Elixir": "⚗️",
-      "Sword": "⚔️",
-      "Shield": "🛡️",
-      "Speed Boots": "👟",
-      "Lucky Charm": "🍀",
-      "Dungeon Key": "🗝️",
-      "Guild License": "📜",
-    };
     const inv = getInventory(sender);
     if (inv.length === 0) {
       await sendText(from, "🎒 Your inventory is empty.");
       return;
     }
     const text = `🎒 *Inventory — @${sender.split("@")[0]}*\n\n` +
-      inv.map((i) => `${ITEM_EMOJIS[i.item] || "📦"} *${i.item}* x${i.quantity}`).join("\n");
+      inv.map((i) => `${ALL_ITEM_EMOJIS[i.item] || "📦"} *${i.item}* x${i.quantity}`).join("\n");
     await sendText(from, text);
     return;
   }
 
   if (cmd === "shop") {
-    const ITEM_EMOJIS: Record<string, string> = {
-      "Health Potion": "🧪",
-      "Elixir": "⚗️",
-      "Sword": "⚔️",
-      "Shield": "🛡️",
-      "Speed Boots": "👟",
-      "Lucky Charm": "🍀",
-      "Dungeon Key": "🗝️",
-    };
     const CAT_EMOJIS: Record<string, string> = {
       rpg: "⚔️",
       general: "🛍️",
       premium: "👑",
       cards: "🎴",
+      passive: "💰",
+      lottery: "🎟️",
     };
+    const CAT_ORDER = ["general", "rpg", "passive", "lottery", "premium", "cards"];
     const items = getShop();
     const seen = new Set<string>();
     const categories: Record<string, any[]> = {};
@@ -454,19 +490,22 @@ export async function handleEconomy(ctx: CommandContext): Promise<void> {
       if (!categories[item.category]) categories[item.category] = [];
       categories[item.category].push(item);
     }
+    const sortedCats = [...CAT_ORDER.filter((c) => categories[c]), ...Object.keys(categories).filter((c) => !CAT_ORDER.includes(c))];
     let text = "┌─⟡ 『 🏪 𝗦𝗛𝗢𝗣 』⟡\n║\n";
-    for (const [cat, catItems] of Object.entries(categories)) {
+    for (const cat of sortedCats) {
+      const catItems = categories[cat];
+      if (!catItems?.length) continue;
       const catEmoji = CAT_EMOJIS[cat] || "📦";
       text += `╠─⟡ ${catEmoji} *${cat.toUpperCase()}*\n`;
       text += `║ ┌────────────────────\n`;
       for (const item of catItems) {
-        const emoji = ITEM_EMOJIS[item.name] || "•";
+        const emoji = ALL_ITEM_EMOJIS[item.name] || "•";
         text += `║ ║ ${emoji} *${item.name}* — $${formatNumber(item.price)}\n`;
         if (item.description) text += `║ ║    _${item.description}_\n`;
       }
       text += `║ └────────────────────\n║\n`;
     }
-    text += `╚══════════════════╝\n> Use *.buy [item name]* to purchase`;
+    text += `╚══════════════════╝\n> *.buy [item name]* to purchase · *.use [item name]* to use`;
     await sendText(from, text);
     return;
   }
@@ -503,23 +542,142 @@ export async function handleEconomy(ctx: CommandContext): Promise<void> {
     const itemName = args.join(" ");
     const inv = getInventory(sender);
     const entry = inv.find((i) => i.item.toLowerCase() === itemName.toLowerCase());
-    if (!entry) { await sendText(from, "❌ You don't have that item."); return; }
+    if (!entry) { await sendText(from, "❌ You don't have that item. Check *.inv* for your inventory."); return; }
 
     const item = getShopItem(entry.item);
-    if (!item) { await sendText(from, "❌ Unknown item effect."); return; }
+    if (!item) { await sendText(from, "❌ This item cannot be used directly."); return; }
 
-    if (item.effect.startsWith("heal:")) {
-      const rpg = ensureRpg(sender);
-      let heal = item.effect === "heal:full" ? rpg.max_hp : parseInt(item.effect.split(":")[1]);
-      const newHp = Math.min(rpg.hp + heal, rpg.max_hp);
+    const effect = item.effect;
+
+    // Heal effects
+    if (effect.startsWith("heal:")) {
       const { updateRpg } = await import("../db/queries.js");
+      const rpg = ensureRpg(sender);
+      const heal = effect === "heal:full" ? rpg.max_hp : parseInt(effect.split(":")[1]);
+      const newHp = Math.min(rpg.hp + heal, rpg.max_hp);
       updateRpg(sender, { hp: newHp });
       removeFromInventory(sender, entry.item);
-      await sendText(from, `❤️ Used *${entry.item}*. HP: ${newHp}/${rpg.max_hp}`);
-    } else {
-      removeFromInventory(sender, entry.item);
-      await sendText(from, `✅ Used *${entry.item}*. Effect applied!`);
+      await sendText(from, `❤️ Used *${entry.item}*.\nHP restored: +${newHp - rpg.hp} → ${newHp}/${rpg.max_hp}`);
+      return;
     }
+
+    // RPG stat boosts
+    if (effect.startsWith("attack:") || effect.startsWith("defense:") || effect.startsWith("speed:")) {
+      const { updateRpg } = await import("../db/queries.js");
+      const rpg = ensureRpg(sender);
+      const [stat, valStr] = effect.split(":");
+      const val = parseInt(valStr);
+      const updated: Record<string, number> = {};
+      if (stat === "attack") updated.attack = (rpg.attack || 10) + val;
+      if (stat === "defense") updated.defense = (rpg.defense || 5) + val;
+      if (stat === "speed") updated.speed = (rpg.speed || 5) + val;
+      updateRpg(sender, updated);
+      removeFromInventory(sender, entry.item);
+      const statName = stat.charAt(0).toUpperCase() + stat.slice(1);
+      await sendText(from, `⚔️ Used *${entry.item}*.\n${statName} increased by +${val}!`);
+      return;
+    }
+
+    // Bank cap expansion
+    if (effect.startsWith("bank_cap:")) {
+      const increase = parseInt(effect.split(":")[1]);
+      const currentMax = user.bank_max || 100000;
+      const newMax = currentMax + increase;
+      updateUser(sender, { bank_max: newMax });
+      removeFromInventory(sender, entry.item);
+      await sendText(from, `💰 Used *${entry.item}*.\nBank capacity: $${formatNumber(currentMax)} → *$${formatNumber(newMax)}*!`);
+      return;
+    }
+
+    // Gem conversion
+    if (effect.startsWith("gems:")) {
+      const gems = parseInt(effect.split(":")[1]);
+      updateUser(sender, { gems: (user.gems || 0) + gems });
+      removeFromInventory(sender, entry.item);
+      await sendText(from, `💎 Used *${entry.item}*.\n+${gems} gems added! Total: ${(user.gems || 0) + gems} gems`);
+      return;
+    }
+
+    // XP scroll
+    if (effect.startsWith("xp:")) {
+      const xpGain = parseInt(effect.split(":")[1]);
+      const { addUserXp } = await import("../db/queries.js");
+      addUserXp(sender, xpGain);
+      removeFromInventory(sender, entry.item);
+      await sendText(from, `⚡ Used *${entry.item}*.\n+${xpGain} XP granted!`);
+      return;
+    }
+
+    // Mystery box
+    if (effect === "mystery_box") {
+      const roll = Math.random();
+      let reward = "";
+      if (roll < 0.4) {
+        const cash = 500 + Math.floor(Math.random() * 4500);
+        updateUser(sender, { balance: (user.balance || 0) + cash });
+        reward = `💰 You found *$${formatNumber(cash)}*!`;
+      } else if (roll < 0.7) {
+        const gems = 5 + Math.floor(Math.random() * 20);
+        updateUser(sender, { gems: (user.gems || 0) + gems });
+        reward = `💎 You found *${gems} gems*!`;
+      } else if (roll < 0.9) {
+        addToInventory(sender, "Health Potion");
+        reward = `🧪 You found a *Health Potion*!`;
+      } else {
+        addToInventory(sender, "Gem Shard");
+        reward = `💎 You found a *Gem Shard*! Lucky!`;
+      }
+      removeFromInventory(sender, entry.item);
+      await sendText(from, `🎁 *Mystery Box opened!*\n\n${reward}`);
+      return;
+    }
+
+    // Protection Ward
+    if (effect.startsWith("protection:")) {
+      const duration = parseInt(effect.split(":")[1]);
+      const expiresAt = now + duration;
+      updateUser(sender, { protected_until: expiresAt });
+      removeFromInventory(sender, entry.item);
+      const hours = Math.floor(duration / 3600);
+      await sendText(from, `🔐 Used *${entry.item}*.\nYou are protected from theft for *${hours} hours*!`);
+      return;
+    }
+
+    // Lottery ticket — redirect to .lottery
+    if (effect === "lottery_ticket" || effect === "lottery_ticket_gold") {
+      await sendText(from, `🎟️ You have *${entry.item}* in your inventory.\nType *.lottery* to enter the draw with it!`);
+      return;
+    }
+
+    // Items that are passively checked (Pistol, Rename Sheet, Guild License) — don't consume, explain usage
+    if (effect === "steal") {
+      await sendText(from, `🔫 *Pistol* is a passive tool. Just type *.steal @user* to use it!`);
+      return;
+    }
+    if (effect === "rename") {
+      await sendText(from, `📃 *Rename Sheet* is a passive item. Type *.setname [new name]* to use it!`);
+      return;
+    }
+    if (effect === "guild_license") {
+      await sendText(from, `📜 *Guild License* is a passive item. Type *.guild create [name]* to use it!`);
+      return;
+    }
+    if (effect === "daily_boost") {
+      await sendText(from, `🍀 *Lucky Charm* is a passive item. Keep it in your inventory and your daily rewards will be boosted by 50%%!`);
+      return;
+    }
+    if (effect === "dungeon_key") {
+      await sendText(from, `🗝️ *Dungeon Key* unlocks special floors. Type *.dungeon* to use it!`);
+      return;
+    }
+    if (effect.startsWith("dungeon:")) {
+      await sendText(from, `⚔️ *${entry.item}* is dungeon equipment. It is applied automatically when you enter the dungeon with *.dungeon*!`);
+      return;
+    }
+
+    // Fallback
+    removeFromInventory(sender, entry.item);
+    await sendText(from, `✅ Used *${entry.item}*. Effect applied!`);
     return;
   }
 
@@ -619,6 +777,13 @@ export async function handleEconomy(ctx: CommandContext): Promise<void> {
     }
     if (isBot(targetId)) {
       await sendText(from, "❌ Bots are not part of the economy system.");
+      return;
+    }
+    const targetUser = ensureUser(targetId);
+    const protectedUntil = targetUser.protected_until || 0;
+    if (now < protectedUntil) {
+      const remaining = protectedUntil - now;
+      await sendText(from, `🔐 @${targetId.split("@")[0]} is protected by a *Protection Ward* for ${formatDuration(remaining)} more.`, [targetId]);
       return;
     }
     const inv = getInventory(sender);

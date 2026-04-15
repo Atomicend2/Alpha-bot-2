@@ -43,7 +43,7 @@ export async function handleConverter(ctx: CommandContext): Promise<void> {
         target = msg;
       }
 
-      const downloaded = await downloadMediaMessage(target as any, "buffer", {}, { reuploadRequest: (sock as any).updateMediaMessage });
+      const downloaded = await downloadMediaMessage(target as any, "buffer", {}, { reuploadRequest: (sock as any).updateMediaMessage, logger: logger as any });
       const input = Buffer.isBuffer(downloaded) ? downloaded : Buffer.from(downloaded as any);
       let webp: Buffer;
 
@@ -83,7 +83,7 @@ export async function handleConverter(ctx: CommandContext): Promise<void> {
         },
         message: quoted,
       };
-      const downloaded = await downloadMediaMessage(target as any, "buffer", {}, { reuploadRequest: (sock as any).updateMediaMessage });
+      const downloaded = await downloadMediaMessage(target as any, "buffer", {}, { reuploadRequest: (sock as any).updateMediaMessage, logger: logger as any });
       const buf = Buffer.isBuffer(downloaded) ? downloaded : Buffer.from(downloaded as any);
       await sock.sendMessage(from, { image: buf, caption: "Here's your image! 🖼️" });
     } catch {
@@ -112,10 +112,10 @@ export async function handleConverter(ctx: CommandContext): Promise<void> {
         },
         message: quoted,
       };
-      const downloaded = await downloadMediaMessage(target as any, "buffer", {}, { reuploadRequest: (sock as any).updateMediaMessage });
+      const downloaded = await downloadMediaMessage(target as any, "buffer", {}, { reuploadRequest: (sock as any).updateMediaMessage, logger: logger as any });
       const input = Buffer.isBuffer(downloaded) ? downloaded : Buffer.from(downloaded as any);
       const renamed = addWebpExif(input, packName, stickerName);
-      await sock.sendMessage(from, {
+      await (sock as any).sendMessage(from, {
         sticker: renamed,
         packname: packName,
         author: stickerName,

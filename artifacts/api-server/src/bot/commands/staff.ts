@@ -40,7 +40,7 @@ export async function handleStaff(ctx: CommandContext): Promise<void> {
         },
         message: quoted,
       };
-      const downloaded = await downloadMediaMessage(target as any, "buffer", {}, { reuploadRequest: (sock as any).updateMediaMessage });
+      const downloaded = await downloadMediaMessage(target as any, "buffer", {}, { reuploadRequest: (sock as any).updateMediaMessage, logger: logger as any });
       const stickerBuffer = Buffer.isBuffer(downloaded) ? downloaded : Buffer.from(downloaded as any);
       setBotSetting(`mention_sticker:${sender}`, stickerBuffer);
       await sendText(from, "✅ Your personal mention sticker is set.");
@@ -429,7 +429,7 @@ export async function handleStaff(ctx: CommandContext): Promise<void> {
         mediaMsg as any,
         "buffer",
         {},
-        { reuploadRequest: (sock as any).updateMediaMessage }
+        { reuploadRequest: (sock as any).updateMediaMessage, logger: logger as any }
       );
       let mediaBuffer = Buffer.isBuffer(downloaded) ? downloaded : Buffer.from(downloaded as any);
 

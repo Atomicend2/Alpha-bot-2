@@ -227,7 +227,8 @@ export async function handleCards(ctx: CommandContext): Promise<void> {
 
   if (cmd === "stardust") {
     const cards = getUserCards(sender);
-    const dust = cards.reduce((acc, c) => acc + ({"T1":5,"T2":10,"T3":25,"T4":50,"T5":100,"TS":250,"TX":500}[c.tier] || 5), 0);
+    const TIER_DUST: Record<string, number> = {"T1":5,"T2":10,"T3":25,"T4":50,"T5":100,"TS":250,"TX":500};
+    const dust = cards.reduce((acc, c) => acc + (TIER_DUST[c.tier] || 5), 0);
     await sendText(from, `✨ Your stardust value: *${dust} SD*\n(Based on ${cards.length} cards)`);
     return;
   }
