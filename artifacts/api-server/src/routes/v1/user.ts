@@ -54,6 +54,7 @@ router.get("/stats", requireAuth, (req: AuthRequest, res) => {
       balance: user.balance || 0,
       bank: user.bank || 0,
       bankMax,
+      lotteryTickets: user.lottery_tickets || 0,
       premium: user.premium || 0,
       bio: user.bio || "",
       registeredAt: user.created_at || 0,

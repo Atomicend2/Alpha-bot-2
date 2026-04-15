@@ -377,6 +377,7 @@ async function dispatch(ctx: CommandContext): Promise<void> {
       return handleCards(ctx);
 
     case "lottery":
+    case "ll":
     case "lp":
     case "drawlottery":
       return handleLottery(ctx);

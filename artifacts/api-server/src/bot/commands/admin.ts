@@ -536,21 +536,27 @@ export async function handleAdmin(ctx: CommandContext): Promise<void> {
   }
 
   if (cmd === "gcl" || cmd === "gclink") {
-    if (!canUse) return noPerms(from);
     if (!isBotAdmin) return botNoAdmin(from);
     const now = Math.floor(Date.now() / 1000);
+    // 30-second bot-side cooldown between link generations (not per-user)
     const gclCooldown = 30;
     const lastGcl = Number(group?.last_gcl || 0);
     const gclDiff = now - lastGcl;
-    if (gclDiff < gclCooldown) {
-      await sendText(from, `⏳ Please wait ${gclCooldown - gclDiff}s before getting the link again.`);
-      return;
+    if (gclDiff < gclCooldown && lastGcl > 0) {
+      // Bot is still in cooldown — send the link after the remaining wait
+      const waitMs = (gclCooldown - gclDiff) * 1000;
+      await sendText(from, `⏳ Generating invite link... please wait ${gclCooldown - gclDiff}s for the preview to load.`);
+      await new Promise((r) => setTimeout(r, waitMs));
+    } else {
+      // Fresh request — acknowledge and wait the full 30s for WhatsApp metadata to load
+      await sendText(from, "🔗 Generating invite link...\n\n_Please wait ~30 seconds for the link preview to load._");
+      await new Promise((r) => setTimeout(r, 30000));
     }
     try {
       const inviteCode = await sock.groupInviteCode(from);
       const link = `https://chat.whatsapp.com/${inviteCode}`;
       const { updateGroup } = await import("../db/queries.js");
-      updateGroup(from, { last_gcl: now });
+      updateGroup(from, { last_gcl: Math.floor(Date.now() / 1000) });
       await sock.sendMessage(from, { text: link });
     } catch {
       await sendText(from, "❌ Failed to get group invite link. Make sure the bot is an admin.");

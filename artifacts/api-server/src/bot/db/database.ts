@@ -362,6 +362,12 @@ function initSchema(db: Database.Database): void {
       ('50K Bank Note', 'A high-value treasury note bearing the Shadow Garden seal. Major bank expansion.', 50000, 'bank_cap:250000', 'passive'),
       ('100K Bank Note', 'A sovereign-grade treasury note. Only the wealthiest operatives possess one.', 100000, 'bank_cap:750000', 'passive')
   `).run();
+
+  // Lottery Ticket — used with .lottery command (max 5 per day)
+  db.prepare(`
+    INSERT OR IGNORE INTO shop_items (name, description, price, effect, category) VALUES
+      ('Lottery Ticket', 'A golden ticket to enter the Shadow Garden global lottery pool. Type .lottery to enter. Max 5 purchases per day.', 5000, 'lottery_ticket', 'lottery')
+  `).run();
   db.prepare("DELETE FROM shop_items WHERE LOWER(name) IN ('card pack', 'premium card pack', 'vip pass', 'vip access')").run();
   db.prepare("DELETE FROM inventory WHERE LOWER(item) IN ('card pack', 'premium card pack', 'vip pass', 'vip access')").run();
 
@@ -444,6 +450,11 @@ function initSchema(db: Database.Database): void {
   ensureColumn(db, "groups", "last_gcl", "INTEGER DEFAULT 0");
   ensureColumn(db, "rpg_characters", "skill_points", "INTEGER DEFAULT 0");
   ensureColumn(db, "cards", "is_animated", "INTEGER DEFAULT 0");
+
+  // Lottery ticket system
+  ensureColumn(db, "users", "lottery_tickets", "INTEGER DEFAULT 0");
+  ensureColumn(db, "users", "lottery_tickets_bought_today", "INTEGER DEFAULT 0");
+  ensureColumn(db, "users", "lottery_tickets_reset_date", "TEXT DEFAULT ''");
 }
 
 function ensureColumn(db: Database.Database, table: string, column: string, definition: string): void {

@@ -70,7 +70,7 @@ export default function Shop() {
       <div className="space-y-20">
 
         {/* LOTTERY SECTION */}
-        <LotterySection lotteryData={lotteryData} lotteryLoading={lotteryLoading} />
+        <LotterySection lotteryData={lotteryData} lotteryLoading={lotteryLoading} userStats={userStats} />
 
         {/* SHOP ITEMS */}
         {loadingShop ? (
@@ -92,7 +92,7 @@ export default function Shop() {
               <div key={category.name}>
                 <div className="flex items-center gap-4 mb-8">
                   <h2 className="font-serif text-2xl font-bold text-white capitalize tracking-widest">
-                    {category.name === "passive" ? "Bank Notes" : category.name}
+                    {category.name === "passive" ? "Bank Notes" : category.name === "lottery" ? "Lottery Tickets" : category.name}
                   </h2>
                   {category.name === "passive" && (
                     <Badge variant="outline" className="text-blue-400 border-blue-400/30 uppercase text-[10px] tracking-widest">
@@ -109,6 +109,24 @@ export default function Shop() {
                       <div>
                         <p className="text-sm text-blue-300 font-semibold mb-1">Bank Note System</p>
                         <p className="text-xs text-muted-foreground">Purchasing a Bank Note permanently increases your maximum bank storage capacity. Higher denomination notes grant more storage space. Your current bank max: <span className="text-blue-400 font-bold">{userStats?.profile?.bankMax?.toLocaleString?.() ?? "50,000"}</span></p>
+                      </div>
+                    </div>
+                  </div>
+                )}
+                {category.name === "lottery" && (
+                  <div className="mb-6 glass-card rounded-lg p-4 border border-amber-400/20 bg-amber-500/5">
+                    <div className="flex items-start gap-3">
+                      <Ticket className="w-5 h-5 text-amber-400 mt-0.5 shrink-0" />
+                      <div className="flex-1">
+                        <div className="flex items-center justify-between gap-2">
+                          <p className="text-sm text-amber-300 font-semibold mb-1">Lottery Ticket System</p>
+                          {userStats && (
+                            <span className="text-xs font-mono text-amber-400 font-bold">
+                              🎫 {(userStats as any).profile?.lotteryTickets ?? 0} ticket{((userStats as any).profile?.lotteryTickets ?? 0) !== 1 ? "s" : ""} in your wallet
+                            </span>
+                          )}
+                        </div>
+                        <p className="text-xs text-muted-foreground">Each ticket grants one entry into the Shadow Garden global lottery. Type <span className="font-mono text-amber-400">.lottery</span> in WhatsApp to enter, or <span className="font-mono text-amber-400">.ll</span> to check the pool. <span className="text-amber-400 font-semibold">Max 5 tickets per day.</span> 3 winners are drawn automatically when 15 operatives enter.</p>
                       </div>
                     </div>
                   </div>
@@ -187,7 +205,7 @@ function ShopItemCard({ item, category, onBuy, isPending, canAfford }: any) {
   );
 }
 
-function LotterySection({ lotteryData, lotteryLoading }: any) {
+function LotterySection({ lotteryData, lotteryLoading, userStats }: any) {
   const [tickerIndex, setTickerIndex] = useState(0);
   const recentWinners = lotteryData?.recentWinners || [];
 
@@ -210,6 +228,12 @@ function LotterySection({ lotteryData, lotteryLoading }: any) {
         <h2 className="font-serif text-2xl font-bold text-white tracking-widest uppercase flex items-center gap-2">
           <Ticket className="w-6 h-6 text-amber-400" /> Shadow Lottery
         </h2>
+        {userStats && (
+          <div className="flex items-center gap-1.5 bg-amber-500/10 border border-amber-500/25 rounded-full px-3 py-1 shrink-0">
+            <Ticket className="w-3 h-3 text-amber-400" />
+            <span className="text-xs text-amber-300 font-mono font-bold">{(userStats as any).profile?.lotteryTickets ?? 0} tickets</span>
+          </div>
+        )}
         <div className="h-[1px] flex-1 bg-gradient-to-r from-amber-500/50 to-transparent" />
       </div>
 

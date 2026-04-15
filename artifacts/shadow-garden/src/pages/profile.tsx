@@ -4,7 +4,7 @@ import { useGetUserStats, useGetUserInventory, useGetUserAchievements } from "@w
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Card, CardContent } from "@/components/ui/card";
 import { Progress } from "@/components/ui/progress";
-import { Trophy, Wallet, Landmark, Shield, Swords, Zap, Activity } from "lucide-react";
+import { Trophy, Wallet, Landmark, Shield, Swords, Zap, Activity, Ticket } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 export default function Profile() {
@@ -47,7 +47,7 @@ export default function Profile() {
               {stats?.profile.bio || "An operative of the shadows. No bio provided."}
             </p>
             
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-4 w-full">
+            <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-5 gap-4 w-full">
               <div className="bg-black/40 p-3 rounded-lg border border-white/5">
                 <p className="text-xs text-muted-foreground uppercase tracking-wider mb-1">Level</p>
                 <p className="text-2xl font-serif font-bold text-primary">{stats?.profile.level || 1}</p>
@@ -63,6 +63,10 @@ export default function Profile() {
               <div className="bg-black/40 p-3 rounded-lg border border-white/5">
                 <p className="text-xs text-muted-foreground uppercase tracking-wider mb-1 flex items-center gap-1"><Landmark className="w-3 h-3"/> Bank</p>
                 <p className="text-xl font-bold text-blue-400">{stats?.profile.bank?.toLocaleString() || 0}</p>
+              </div>
+              <div className="bg-black/40 p-3 rounded-lg border border-white/5">
+                <p className="text-xs text-muted-foreground uppercase tracking-wider mb-1 flex items-center gap-1"><Ticket className="w-3 h-3 text-amber-400"/> Lottery Tickets</p>
+                <p className="text-xl font-bold text-amber-400">{stats?.profile.lotteryTickets ?? 0}</p>
               </div>
             </div>
 
