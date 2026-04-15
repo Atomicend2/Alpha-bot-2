@@ -507,6 +507,43 @@ function initSchema(db: Database.Database): void {
   // Bot table columns
   ensureColumn(db, "bots", "status", "TEXT DEFAULT 'offline'");
   ensureColumn(db, "bots", "image_data", "BLOB");
+
+  seedDefaultFrames(db);
+}
+
+function makeFrameSvg(color: string, glow: string, label: string): Buffer {
+  const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="256" height="256" viewBox="0 0 256 256">
+    <defs>
+      <radialGradient id="glow" cx="50%" cy="50%" r="50%">
+        <stop offset="70%" stop-color="${color}" stop-opacity="0"/>
+        <stop offset="100%" stop-color="${glow}" stop-opacity="0.6"/>
+      </radialGradient>
+    </defs>
+    <circle cx="128" cy="128" r="126" fill="none" stroke="${color}" stroke-width="10"/>
+    <circle cx="128" cy="128" r="120" fill="none" stroke="${glow}" stroke-width="3" stroke-dasharray="8 4"/>
+    <circle cx="128" cy="128" r="126" fill="url(#glow)"/>
+    <text x="128" y="248" text-anchor="middle" font-family="Arial" font-size="13" font-weight="bold" fill="${color}" opacity="0.9">${label}</text>
+  </svg>`;
+  return Buffer.from(svg, "utf8");
+}
+
+function seedDefaultFrames(db: Database.Database): void {
+  const count = (db.prepare("SELECT COUNT(*) as cnt FROM profile_frames").get() as any)?.cnt || 0;
+  if (Number(count) > 0) return;
+
+  const defaultFrames = [
+    { id: "frame-golden-crown", name: "Golden Crown", color: "#f5c518", glow: "#fff9c4" },
+    { id: "frame-shadow-veil", name: "Shadow Veil", color: "#9b59b6", glow: "#e8d5f5" },
+    { id: "frame-guardian-shield", name: "Guardian Shield", color: "#2980b9", glow: "#d6eaf8" },
+    { id: "frame-crimson-edge", name: "Crimson Edge", color: "#e74c3c", glow: "#fadbd8" },
+    { id: "frame-emerald-aura", name: "Emerald Aura", color: "#27ae60", glow: "#d5f5e3" },
+  ];
+
+  const insert = db.prepare("INSERT OR IGNORE INTO profile_frames (id, name, image_data) VALUES (?, ?, ?)");
+  for (const f of defaultFrames) {
+    const svg = makeFrameSvg(f.color, f.glow, f.name);
+    insert.run(f.id, f.name, svg);
+  }
 }
 
 function ensureColumn(db: Database.Database, table: string, column: string, definition: string): void {

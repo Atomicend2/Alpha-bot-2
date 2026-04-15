@@ -738,6 +738,26 @@ export function getAllBots() {
   return db.prepare("SELECT id, name, phone, status, created_at, updated_at FROM bots ORDER BY created_at ASC").all() as any[];
 }
 
+export function getAllFrames() {
+  const db = getDb();
+  return db.prepare("SELECT id, name, created_at FROM profile_frames ORDER BY created_at ASC").all() as any[];
+}
+
+export function getFrame(id: string) {
+  const db = getDb();
+  return db.prepare("SELECT * FROM profile_frames WHERE id = ?").get(id) as any;
+}
+
+export function addFrame(id: string, name: string, imageData: Buffer) {
+  const db = getDb();
+  db.prepare("INSERT OR REPLACE INTO profile_frames (id, name, image_data) VALUES (?, ?, ?)").run(id, name, imageData);
+}
+
+export function removeFrame(id: string) {
+  const db = getDb();
+  db.prepare("DELETE FROM profile_frames WHERE id = ?").run(id);
+}
+
 export function getBot(id: string) {
   const db = getDb();
   return db.prepare("SELECT * FROM bots WHERE id = ?").get(id) as any;

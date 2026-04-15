@@ -566,6 +566,7 @@ async function dispatch(ctx: CommandContext): Promise<void> {
     case "ac":
     case "rc":
     case "upload":
+    case "frame":
     case "ban":
     case "unban":
     case "banlist":

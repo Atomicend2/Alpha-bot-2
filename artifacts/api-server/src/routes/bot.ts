@@ -9,7 +9,8 @@ import {
   isCredsRegistered,
   clearAuth,
 } from "../bot/connection.js";
-import { getAllBots, addBot, removeBot } from "../bot/db/queries.js";
+import { getAllBots, addBot, removeBot, getAllFrames, getFrame, addFrame, removeFrame } from "../bot/db/queries.js";
+import { getDb } from "../bot/db/database.js";
 import { logger } from "../lib/logger.js";
 import { randomUUID } from "crypto";
 
@@ -221,6 +222,94 @@ router.delete("/bots/:id", requireAdminPassword, (req, res) => {
   try {
     removeBot(id);
     res.json({ success: true, message: "Bot removed." });
+  } catch (err: any) {
+    res.status(500).json({ success: false, message: err.message });
+  }
+});
+
+// GET /api/bot/bots/:id/image — serve a bot's image
+router.get("/bots/:id/image", (req, res) => {
+  const { id } = req.params;
+  try {
+    const db = getDb();
+    const row = db.prepare("SELECT image_data FROM bots WHERE id = ?").get(id) as any;
+    if (!row || !row.image_data) {
+      res.status(404).json({ success: false, message: "No image." });
+      return;
+    }
+    const buf = Buffer.isBuffer(row.image_data) ? row.image_data : Buffer.from(row.image_data);
+    res.set("Content-Type", "image/jpeg");
+    res.set("Cache-Control", "public, max-age=3600");
+    res.send(buf);
+  } catch (err: any) {
+    res.status(500).json({ success: false, message: err.message });
+  }
+});
+
+// ── FRAME ROUTES ──────────────────────────────────────────────────────────────
+
+// GET /api/bot/frames — list all profile frames
+router.get("/frames", (_req, res) => {
+  try {
+    const frames = getAllFrames();
+    res.json({ frames: frames.map((f: any) => ({ id: f.id, name: f.name, createdAt: f.created_at || 0 })) });
+  } catch (err: any) {
+    res.status(500).json({ success: false, message: err.message });
+  }
+});
+
+// GET /api/bot/frames/:id/image — serve a frame image
+router.get("/frames/:id/image", (req, res) => {
+  const { id } = req.params;
+  try {
+    const frame = getFrame(id);
+    if (!frame || !frame.image_data) {
+      res.status(404).json({ success: false, message: "Frame not found." });
+      return;
+    }
+    const buf = Buffer.isBuffer(frame.image_data) ? frame.image_data : Buffer.from(frame.image_data);
+    const isSvg = buf.slice(0, 5).toString().trimStart().startsWith("<");
+    res.set("Content-Type", isSvg ? "image/svg+xml" : "image/png");
+    res.set("Cache-Control", "public, max-age=3600");
+    res.send(buf);
+  } catch (err: any) {
+    res.status(500).json({ success: false, message: err.message });
+  }
+});
+
+// POST /api/bot/frames — add a new frame (admin only)
+router.post("/frames", requireAdminPassword, (req, res) => {
+  const { name, imageBase64 } = req.body as { name?: string; imageBase64?: string };
+  if (!name?.trim()) {
+    res.status(400).json({ success: false, message: "Frame name is required." });
+    return;
+  }
+  if (!imageBase64) {
+    res.status(400).json({ success: false, message: "Frame image (imageBase64) is required." });
+    return;
+  }
+  let imageData: Buffer;
+  try {
+    imageData = Buffer.from(imageBase64, "base64");
+  } catch {
+    res.status(400).json({ success: false, message: "Invalid base64 image data." });
+    return;
+  }
+  try {
+    const id = randomUUID();
+    addFrame(id, name.trim(), imageData);
+    res.json({ success: true, message: "Frame added.", id });
+  } catch (err: any) {
+    res.status(500).json({ success: false, message: err.message });
+  }
+});
+
+// DELETE /api/bot/frames/:id — remove a frame (admin only)
+router.delete("/frames/:id", requireAdminPassword, (req, res) => {
+  const { id } = req.params;
+  try {
+    removeFrame(id);
+    res.json({ success: true, message: "Frame removed." });
   } catch (err: any) {
     res.status(500).json({ success: false, message: err.message });
   }

@@ -1,6 +1,6 @@
 import type { CommandContext } from "./index.js";
 import { BOT_OWNER_LID, sendText } from "../connection.js";
-import { addStaff, removeStaff, getStaffList, getStaff, ensureUser, getUser, updateUser, getCard, getAllCards, addBan, removeBan, getBanList, setBotSetting, deleteBotSetting, resetUserBalance, resetUserProfile, isBanned } from "../db/queries.js";
+import { addStaff, removeStaff, getStaffList, getStaff, ensureUser, getUser, updateUser, getCard, getAllCards, addBan, removeBan, getBanList, setBotSetting, deleteBotSetting, resetUserBalance, resetUserProfile, isBanned, addFrame, getAllFrames } from "../db/queries.js";
 import { getTierEmoji, isValidTier, generateId, IMAGE_TIERS, VIDEO_TIERS } from "../utils.js";
 import { INTERACTION_NAMES, uploadInteractionGif } from "./interactions.js";
 import { getDb } from "../db/database.js";
@@ -361,6 +361,70 @@ export async function handleStaff(ctx: CommandContext): Promise<void> {
     const target = getUser(userId)!;
     updateUser(userId, { balance: Math.max(0, (target.balance || 0) - amount) });
     await sendText(from, `✅ Removed $${amount} from @${userId.split("@")[0]}.`, [userId]);
+    return;
+  }
+
+  if (cmd === "frame") {
+    const canManageFrames = isOwner || staffRecord?.role === "mod" || staffRecord?.role === "guardian";
+    if (!canManageFrames) {
+      await sendText(from, "❌ Only owner, mods, and guardians can manage frames.");
+      return;
+    }
+    const subCmd = args[0]?.toLowerCase();
+
+    if (subCmd === "list") {
+      const frames = getAllFrames();
+      if (frames.length === 0) {
+        await sendText(from, "🖼️ No profile frames uploaded yet.");
+        return;
+      }
+      const list = frames.map((f: any, i: number) => `${i + 1}. *${f.name}* — ID: \`${f.id}\``).join("\n");
+      await sendText(from, `🖼️ *Profile Frames* (${frames.length})\n\n${list}`);
+      return;
+    }
+
+    if (subCmd === "upload") {
+      const frameName = args.slice(1).join(" ").trim();
+      if (!frameName) {
+        await sendText(from, "❌ Usage: .frame upload <name>\nReply to an image with this command to upload a profile frame.");
+        return;
+      }
+      const quoted = msg.message?.extendedTextMessage?.contextInfo;
+      const quotedMsg = quoted?.quotedMessage;
+      const hasImage = !!(quotedMsg?.imageMessage || msg.message?.imageMessage);
+      if (!hasImage) {
+        await sendText(from, "❌ Reply to an image to upload it as a profile frame.");
+        return;
+      }
+      try {
+        await sendText(from, "⏳ Processing frame...");
+        const context = msg.message?.extendedTextMessage?.contextInfo;
+        let mediaMsg: any;
+        if (quotedMsg?.imageMessage) {
+          mediaMsg = { key: { remoteJid: from, fromMe: false, id: context?.stanzaId || "", participant: context?.participant }, message: quotedMsg };
+        } else {
+          mediaMsg = msg;
+        }
+        const downloaded = await downloadMediaMessage(
+          mediaMsg as any,
+          "buffer",
+          {},
+          { reuploadRequest: (sock as any).updateMediaMessage, logger: logger as any }
+        );
+        let imgBuf = Buffer.isBuffer(downloaded) ? downloaded : Buffer.from(downloaded as any);
+        const sharp = (await import("sharp")).default;
+        imgBuf = await sharp(imgBuf).resize(256, 256, { fit: "cover" }).png().toBuffer();
+        const { randomUUID } = await import("crypto");
+        const frameId = randomUUID();
+        addFrame(frameId, frameName, imgBuf);
+        await sendText(from, `✅ Frame *${frameName}* uploaded!\n🆔 ID: \`${frameId}\`\n\nUsers can set it with .setframe ${frameId}`);
+      } catch (err: any) {
+        await sendText(from, `❌ Failed to upload frame: ${err?.message || "unknown error"}`);
+      }
+      return;
+    }
+
+    await sendText(from, "❌ Usage:\n.frame list — list all frames\n.frame upload <name> — reply to image to upload a frame");
     return;
   }
 
