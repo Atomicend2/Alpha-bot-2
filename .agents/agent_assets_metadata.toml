@@ -1,0 +1,14 @@
+uploads = []
+outputs = []
+
+[[generated]]
+id = "W8dsIMog2jE5x-XGbHveu"
+uri = "file://artifacts/shadow-garden/public/images/hero-bg.png"
+type = "image"
+title = "Shadow Garden dark elegant hero background"
+
+[[generated]]
+id = "WptIlypt0RSsqB0I_Nnr-"
+uri = "file://artifacts/shadow-garden/public/images/world-map.png"
+type = "image"
+title = "Dark fantasy world map Oriana Kingdom"
