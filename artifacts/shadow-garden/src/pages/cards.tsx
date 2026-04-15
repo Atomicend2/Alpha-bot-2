@@ -5,7 +5,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Search, Heart, CreditCard, Lock, Flame, Gavel, Sparkles, Star, Users, ImageOff, Swords } from "lucide-react";
+import { Search, Heart, CreditCard, Lock, Flame, Gavel, Sparkles, Star, Users, ImageOff, Swords, Shield, Zap } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useToast } from "@/hooks/use-toast";
 
