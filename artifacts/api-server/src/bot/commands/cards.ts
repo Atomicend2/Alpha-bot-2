@@ -57,12 +57,31 @@ export async function handleCards(ctx: CommandContext): Promise<void> {
   }
 
   if (cmd === "cardinfo" || cmd === "ci") {
-    const searchName = args.join(" ");
-    if (!searchName) { await sendText(from, "❌ Usage: .ci <card name>"); return; }
+    if (args.length === 0) { await sendText(from, "❌ Usage: .ci <card name> [tier]"); return; }
+
+    // Tier map: "1"→"T1" ... "6"→"T6", "s"→"TS", "x"→"TX", "z"→"TZ"
+    const tierMap: Record<string, string> = {
+      "1": "T1", "2": "T2", "3": "T3", "4": "T4", "5": "T5", "6": "T6",
+      "s": "TS", "x": "TX", "z": "TZ",
+    };
+    const lastArg = args[args.length - 1].toLowerCase();
+    let searchTier: string | null = null;
+    let nameParts = args;
+
+    if (tierMap[lastArg]) {
+      searchTier = tierMap[lastArg];
+      nameParts = args.slice(0, -1);
+    }
+
+    const searchName = nameParts.join(" ");
+    if (!searchName) { await sendText(from, "❌ Usage: .ci <card name> [tier]"); return; }
+
     const allCards = getAllCards();
-    const matches = allCards.filter((c) =>
-      c.name.toLowerCase().includes(searchName.toLowerCase())
-    );
+    const matches = allCards.filter((c) => {
+      const nameMatch = c.name.toLowerCase().includes(searchName.toLowerCase());
+      const tierMatch = searchTier ? c.tier === searchTier : true;
+      return nameMatch && tierMatch;
+    });
     if (matches.length === 0) { await sendText(from, "❌ Card not found."); return; }
     if (matches.length === 1) {
       const found = matches[0];
@@ -93,7 +112,8 @@ export async function handleCards(ctx: CommandContext): Promise<void> {
         `∘₊✦────────✦₊∘`;
       await sock.sendMessage(from, { image: buf, caption, mentions: ownerMentions });
     } else {
-      let text = `∘₊✦────────✦₊∘\n🎴 𝗖𝗔𝗥𝗗 𝗜𝗡𝗙𝗢 — Multiple Results\n∘₊✦────────✦₊∘\n\n`;
+      const tierLabel = searchTier ? ` [${searchTier}]` : "";
+      let text = `∘₊✦────────✦₊∘\n🎴 𝗖𝗔𝗥𝗗 𝗜𝗡𝗙𝗢 — Multiple Results${tierLabel}\n∘₊✦────────✦₊∘\n\n`;
       for (let i = 0; i < matches.length; i++) {
         const c = matches[i];
         const owners = getCardOwners(c.id);
