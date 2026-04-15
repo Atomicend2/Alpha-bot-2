@@ -16,6 +16,10 @@ services:
         value: 10000
       - key: BOT_PHONE_NUMBER
         sync: false
+      - key: WEBSITE_URL
+        sync: false
+      - key: SHOP_URL
+        sync: false
     disk:
       name: bot-data
       mountPath: /opt/render/project/src/data

@@ -293,7 +293,7 @@ function CardDisplay({ card, count, showOwner }: { card: any, count?: number, sh
         "hover:" + theme.glow
       )}>
         {/* Card Header image area */}
-        <div className={cn("h-40 w-full relative", theme.bg)}>
+        <div className={cn("aspect-[7/9] w-full relative", theme.bg)}>
           {card.imageUrl ? (
             <img
               src={card.imageUrl}
@@ -391,7 +391,7 @@ function CardDisplay({ card, count, showOwner }: { card: any, count?: number, sh
 function CardSkeleton() {
   return (
     <div className="glass-card rounded-xl overflow-hidden border border-white/5 animate-pulse">
-      <div className="h-40 w-full bg-white/5" />
+      <div className="aspect-[7/9] w-full bg-white/5" />
       <div className="p-4 bg-black/40 space-y-4">
         <div className="grid grid-cols-3 gap-2">
           <div className="h-10 bg-white/5 rounded" />

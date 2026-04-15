@@ -52,8 +52,9 @@ export async function handleStaff(ctx: CommandContext): Promise<void> {
   }
 
   if (cmd === "ac" || cmd === "rc") {
-    if (!canUsePrivilegedPersonalCommand(sender)) {
-      await sendText(from, "❌ Only owner, mods, guardians, and premium members can use this command.");
+    const canManageCash = isOwner || staffRecord?.role === "mod" || staffRecord?.role === "guardian";
+    if (!canManageCash) {
+      await sendText(from, "❌ Only the owner, mods, and guardians can use this command.");
       return;
     }
     const amount = parseInt(args[0]);
@@ -441,7 +442,7 @@ export async function handleStaff(ctx: CommandContext): Promise<void> {
 
       if (isImageTier) {
         const sharp = (await import("sharp")).default;
-        mediaBuffer = await sharp(mediaBuffer).resize(800, 800, { fit: "inside", withoutEnlargement: true }).jpeg({ quality: 85 }).toBuffer();
+        mediaBuffer = await sharp(mediaBuffer).resize(700, 900, { fit: "cover" }).jpeg({ quality: 85 }).toBuffer();
       }
 
       const { generateUniqueCardId } = await import("../utils.js");

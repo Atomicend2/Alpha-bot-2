@@ -1,4 +1,7 @@
 import type { WASocket, proto } from "@whiskeysockets/baileys";
+import fs from "fs";
+import path from "path";
+import { fileURLToPath } from "url";
 import { BOT_OWNER_LID, PREFIX, sendText, runWithReplyContext } from "../connection.js";
 import { ensureUser, ensureGroup, incrementMessageCount, incrementGroupActivity, getStaff, isBanned, isUserBanned, getBotSetting, getUser, addUserXp, getActiveMute } from "../db/queries.js";
 import { checkAntilink, checkAntispam, checkBlacklist } from "./antispam.js";
@@ -21,6 +24,9 @@ import { handleLottery } from "../commands/lottery.js";
 import { handleConverter } from "../commands/converter.js";
 import { logger } from "../../lib/logger.js";
 import type { CommandContext } from "../commands/index.js";
+
+const __dirname = path.dirname(fileURLToPath(import.meta.url));
+const LINK_IMAGE_NAME = "878aeb5c2d72cc1d2fcf2485457e50d2_1776254753808.jpg";
 
 export async function handleMessage(
   sock: WASocket,
@@ -263,8 +269,8 @@ async function dispatch(ctx: CommandContext): Promise<void> {
       return handleInfo(ctx);
 
     case "website": {
-      const siteUrl = process.env.WEBSITE_URL || "https://shadow-garden.onrender.com";
-      await sendText(from, `🌐 *Shadow Garden Website*\n\n${siteUrl}\n\n_View your profile, cards, shop, leaderboard and more._`);
+      const siteUrl = getWebsiteUrl();
+      await sendLinkImage(ctx, siteUrl);
       return;
     }
 
@@ -354,7 +360,6 @@ async function dispatch(ctx: CommandContext): Promise<void> {
     case "setage":
     case "inventory":
     case "inv":
-    case "shop":
     case "buy":
     case "sell":
     case "use":
@@ -368,6 +373,12 @@ async function dispatch(ctx: CommandContext): Promise<void> {
     case "roast":
     case "stats":
       return handleEconomy(ctx);
+
+    case "shop": {
+      const shopUrl = getShopUrl();
+      await sendLinkImage(ctx, shopUrl);
+      return;
+    }
 
     case "bc":
       if (ctx.args.length === 0) return handleEconomy(ctx);
@@ -567,6 +578,42 @@ async function dispatch(ctx: CommandContext): Promise<void> {
     default:
       break;
   }
+}
+
+function getWebsiteUrl(): string {
+  return (process.env.WEBSITE_URL || "https://shadow-garden.onrender.com").trim();
+}
+
+function getShopUrl(): string {
+  const configured = process.env.SHOP_URL?.trim();
+  if (configured) return configured;
+  return `${getWebsiteUrl().replace(/\/+$/, "")}/shop`;
+}
+
+async function sendLinkImage(ctx: CommandContext, url: string): Promise<void> {
+  const image = getLinkImageBuffer();
+  if (image) {
+    await ctx.sock.sendMessage(ctx.from, { image, caption: url });
+    return;
+  }
+  await sendText(ctx.from, url);
+}
+
+function getLinkImageBuffer(): Buffer | null {
+  const candidates = [
+    path.resolve(process.cwd(), "attached_assets", LINK_IMAGE_NAME),
+    path.resolve(process.cwd(), "..", "..", "attached_assets", LINK_IMAGE_NAME),
+    path.resolve(__dirname, "..", "..", "..", "..", "attached_assets", LINK_IMAGE_NAME),
+    path.resolve(__dirname, "..", "..", "..", "..", "..", "attached_assets", LINK_IMAGE_NAME),
+  ];
+  for (const candidate of candidates) {
+    try {
+      if (fs.existsSync(candidate)) return fs.readFileSync(candidate);
+    } catch (err) {
+      logger.debug({ err, candidate }, "Could not read link image");
+    }
+  }
+  return null;
 }
 
 async function sendWithRetry(fn: () => Promise<any>, retries = 4): Promise<any> {

@@ -521,6 +521,12 @@ export async function handleEconomy(ctx: CommandContext): Promise<void> {
       return;
     }
     updateUser(sender, { balance: (user.balance || 0) - item.price });
+    if (item.effect === "lottery_ticket" || item.effect === "lottery_ticket_gold") {
+      const ticketValue = item.effect === "lottery_ticket_gold" ? 3 : 1;
+      updateUser(sender, { lottery_tickets: Number(user.lottery_tickets || 0) + ticketValue });
+      await sendText(from, `✅ Purchased *${item.name}* for $${formatNumber(item.price)}!\n🎟️ Lottery entries added: ${ticketValue}`);
+      return;
+    }
     addToInventory(sender, item.name);
     await sendText(from, `✅ Purchased *${item.name}* for $${formatNumber(item.price)}!`);
     return;

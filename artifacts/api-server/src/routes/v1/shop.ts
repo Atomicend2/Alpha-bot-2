@@ -54,8 +54,7 @@ router.post("/buy", requireAuth, (req: AuthRequest, res) => {
   const qty = Math.max(1, Number(quantity));
   const totalCost = item.price * qty;
 
-  // Enforce daily lottery ticket cap
-  if ((item.effect || "") === "lottery_ticket") {
+  if ((item.effect || "") === "lottery_ticket" || (item.effect || "") === "lottery_ticket_gold") {
     const today = new Date().toISOString().slice(0, 10);
     const freshUser = db.prepare("SELECT * FROM users WHERE id = ?").get(user.id) as any;
     const resetDate = freshUser?.lottery_tickets_reset_date || "";
@@ -83,14 +82,13 @@ router.post("/buy", requireAuth, (req: AuthRequest, res) => {
 
   const newBalance = (user.balance || 0) - totalCost;
   db.prepare("UPDATE users SET balance = ?, updated_at = unixepoch() WHERE id = ?").run(newBalance, user.id);
-  addToInventory(user.id, item.name, qty);
 
-  // If lottery ticket, increment ticket counter and daily tracking
-  if ((item.effect || "") === "lottery_ticket") {
+  if ((item.effect || "") === "lottery_ticket" || (item.effect || "") === "lottery_ticket_gold") {
     const today = new Date().toISOString().slice(0, 10);
     const freshUser = db.prepare("SELECT * FROM users WHERE id = ?").get(user.id) as any;
     const resetDate = freshUser?.lottery_tickets_reset_date || "";
     const prevBought = resetDate === today ? (freshUser?.lottery_tickets_bought_today || 0) : 0;
+    const ticketValue = (item.effect || "") === "lottery_ticket_gold" ? 3 : 1;
 
     db.prepare(`
       UPDATE users SET
@@ -98,7 +96,9 @@ router.post("/buy", requireAuth, (req: AuthRequest, res) => {
         lottery_tickets_bought_today = ?,
         lottery_tickets_reset_date = ?
       WHERE id = ?
-    `).run(qty, prevBought + qty, today, user.id);
+    `).run(qty * ticketValue, prevBought + qty, today, user.id);
+  } else {
+    addToInventory(user.id, item.name, qty);
   }
 
   res.json({

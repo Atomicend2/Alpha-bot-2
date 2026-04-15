@@ -38,7 +38,7 @@ pnpm workspace monorepo using TypeScript. Each package manages its own dependenc
 - `.mute @user <time>` or replying with `.mute <time>` stores a per-user group mute and deletes that user's messages until `.unmute @user`/reply removes it or the timer expires.
 - `.kick` works by mention or by replying to a user's message.
 - `.resetbal` globally resets all users' wallet and bank balances to zero for the owner.
-- `.ac <amount> @user` and `.rc <amount> @user` can be used by owner, mods, guardians, and active premium users. They also work while replying to a user's message, auto-create missing users, store wallet/bank, and never reduce wallet below zero.
+- `.ac <amount> @user` and `.rc <amount> @user` can be used by the owner, mods, and guardians only. Premium users cannot use them. They also work while replying to a user's message, auto-create missing users, store wallet/bank, and never reduce wallet below zero.
 - SQLite startup migrations add missing bot columns/tables in place so older `bot.db` files do not lose existing data.
 - Bot command responses are quoted to the command message where possible so the user can see who the reply is for.
 - Card uploads use `.upload T<tier> <name>. <series>` while replying to an image/sticker.
@@ -82,8 +82,10 @@ Edit these files:
 - `artifacts/api-server/src/bot/handlers/message.ts` — Line 250: change `.ping` response (e.g. "Alpha's here!")
 
 ### Website Link (the URL the bot sends when someone types `.website`)
-Edit `artifacts/api-server/src/bot/handlers/message.ts` around line 267-269.
-Replace `https://shadow-garden.onrender.com` with your Render deployment URL.
+Set `WEBSITE_URL` in Render. The bot sends only that URL with the Shadow Garden link image.
+
+### Shop Link (the URL the bot sends when someone types `.shop`)
+Set `SHOP_URL` in Render. If `SHOP_URL` is not set, the bot uses `WEBSITE_URL` plus `/shop`. The bot sends only that URL with the Shadow Garden link image.
 
 ### Hero & World Map Images (shown on the website)
 Place image files in `artifacts/shadow-garden/public/images/`:

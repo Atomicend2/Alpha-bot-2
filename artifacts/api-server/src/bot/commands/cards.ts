@@ -57,29 +57,29 @@ export async function handleCards(ctx: CommandContext): Promise<void> {
   }
 
   if (cmd === "cardinfo" || cmd === "ci") {
-    if (args.length === 0) { await sendText(from, "❌ Usage: .ci <card name> [tier]"); return; }
+    if (args.length < 2) { await sendText(from, "❌ Usage: .ci <card name> <tier>\nExample: .ci Zero Two 3"); return; }
 
-    // Tier map: "1"→"T1" ... "6"→"T6", "s"→"TS", "x"→"TX", "z"→"TZ"
     const tierMap: Record<string, string> = {
       "1": "T1", "2": "T2", "3": "T3", "4": "T4", "5": "T5", "6": "T6",
       "s": "TS", "x": "TX", "z": "TZ",
+      "t1": "T1", "t2": "T2", "t3": "T3", "t4": "T4", "t5": "T5", "t6": "T6",
+      "ts": "TS", "tx": "TX", "tz": "TZ",
     };
     const lastArg = args[args.length - 1].toLowerCase();
-    let searchTier: string | null = null;
-    let nameParts = args;
-
-    if (tierMap[lastArg]) {
-      searchTier = tierMap[lastArg];
-      nameParts = args.slice(0, -1);
+    const searchTier = tierMap[lastArg];
+    if (!searchTier) {
+      await sendText(from, "❌ Tier required after the card name.\nExample: .ci Zero Two 3");
+      return;
     }
+    const nameParts = args.slice(0, -1);
 
     const searchName = nameParts.join(" ");
-    if (!searchName) { await sendText(from, "❌ Usage: .ci <card name> [tier]"); return; }
+    if (!searchName) { await sendText(from, "❌ Usage: .ci <card name> <tier>\nExample: .ci Zero Two 3"); return; }
 
     const allCards = getAllCards();
     const matches = allCards.filter((c) => {
       const nameMatch = c.name.toLowerCase().includes(searchName.toLowerCase());
-      const tierMatch = searchTier ? c.tier === searchTier : true;
+      const tierMatch = c.tier === searchTier;
       return nameMatch && tierMatch;
     });
     if (matches.length === 0) { await sendText(from, "❌ Card not found."); return; }
@@ -102,6 +102,7 @@ export async function handleCards(ctx: CommandContext): Promise<void> {
         `🎴 𝗖𝗔𝗥𝗗 𝗜𝗡𝗙𝗢\n` +
         `∘₊✦────────✦₊∘\n\n` +
         `𝗡𝗮𝗺𝗲: ${found.name}\n` +
+        `𝗖𝗮𝗿𝗱 𝗜𝗗: ${found.id}\n` +
         `𝗦𝗲𝗿𝗶𝗲𝘀: ${found.series || "General"}\n` +
         `𝗧𝗶𝗲𝗿: ${found.tier}\n` +
         `𝗧𝗼𝘁𝗮𝗹 𝗢𝘄𝗻𝗲𝗿𝘀: ${owners.length}\n\n` +
@@ -141,6 +142,7 @@ export async function handleCards(ctx: CommandContext): Promise<void> {
           `🎴 𝗖𝗔𝗥𝗗 𝗜𝗡𝗙𝗢 — Result ${i + 1}/${limit}\n` +
           `∘₊✦────────✦₊∘\n\n` +
           `𝗡𝗮𝗺𝗲: ${found.name}\n` +
+          `𝗖𝗮𝗿𝗱 𝗜𝗗: ${found.id}\n` +
           `𝗦𝗲𝗿𝗶𝗲𝘀: ${found.series || "General"}\n` +
           `𝗧𝗶𝗲𝗿: ${found.tier}\n` +
           `𝗧𝗼𝘁𝗮𝗹 𝗢𝘄𝗻𝗲𝗿𝘀: ${owners.length}\n\n` +

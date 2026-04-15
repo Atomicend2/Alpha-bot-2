@@ -2,6 +2,7 @@ import type { CommandContext } from "./index.js";
 import { sendText } from "../connection.js";
 import { ensureUser, updateUser } from "../db/queries.js";
 import { getDb } from "../db/database.js";
+import { logger } from "../../lib/logger.js";
 import sharp from "sharp";
 
 const MAX_PARTICIPANTS = 15;
@@ -16,15 +17,19 @@ export async function handleLottery(ctx: CommandContext): Promise<void> {
     const db2 = getDb();
 
     // Migrate any inventory-based tickets into the column (web purchases land in inventory)
-    const invRow = db2.prepare(
-      "SELECT quantity FROM inventory WHERE user_id = ? AND LOWER(item) = 'lottery ticket'"
-    ).get(sender) as any;
-    if (invRow?.quantity > 0) {
+    const invRows = db2.prepare(
+      "SELECT item, quantity FROM inventory WHERE user_id = ? AND LOWER(item) IN ('lottery ticket', 'golden ticket')"
+    ).all(sender) as any[];
+    const migratedTickets = invRows.reduce((total, row) => {
+      const quantity = Number(row.quantity || 0);
+      return total + (String(row.item).toLowerCase() === "golden ticket" ? quantity * 3 : quantity);
+    }, 0);
+    if (migratedTickets > 0) {
       db2.prepare(
         "UPDATE users SET lottery_tickets = COALESCE(lottery_tickets, 0) + ? WHERE id = ?"
-      ).run(invRow.quantity, sender);
+      ).run(migratedTickets, sender);
       db2.prepare(
-        "DELETE FROM inventory WHERE user_id = ? AND LOWER(item) = 'lottery ticket'"
+        "DELETE FROM inventory WHERE user_id = ? AND LOWER(item) IN ('lottery ticket', 'golden ticket')"
       ).run(sender);
     }
 
@@ -54,11 +59,7 @@ export async function handleLottery(ctx: CommandContext): Promise<void> {
     if (existing) {
       await sendText(from, "🎰 *Already Entered!*\n\nYou are already in this drawing. Wait for the results!");
       // Still send the status card
-      const image = await buildLotteryImage(lottery.id);
-      await ctx.sock.sendMessage(from, {
-        image,
-        caption: "🎲 *Lottery Pool Status — SHADOW GARDEN*",
-      });
+      await sendLotteryImage(ctx, from, lottery.id, "🎲 *Lottery Pool Status — SHADOW GARDEN*");
       return;
     }
 
@@ -74,11 +75,7 @@ export async function handleLottery(ctx: CommandContext): Promise<void> {
     );
 
     // Send the visual status card
-    const image = await buildLotteryImage(lottery.id);
-    await ctx.sock.sendMessage(from, {
-      image,
-      caption: "🎲 *Lottery Pool Status — SHADOW GARDEN*",
-    });
+    await sendLotteryImage(ctx, from, lottery.id, "🎲 *Lottery Pool Status — SHADOW GARDEN*");
 
     // Auto-draw when 15 people have entered
     if (entryCount >= MAX_PARTICIPANTS) {
@@ -110,11 +107,7 @@ export async function handleLottery(ctx: CommandContext): Promise<void> {
       return;
     }
 
-    const image = await buildLotteryImage(lottery.id);
-    await ctx.sock.sendMessage(from, {
-      image,
-      caption: "🎲 *Lottery Pool Status — SHADOW GARDEN*",
-    });
+    await sendLotteryImage(ctx, from, lottery.id, "🎲 *Lottery Pool Status — SHADOW GARDEN*");
     return;
   }
 
@@ -128,8 +121,7 @@ export async function handleLottery(ctx: CommandContext): Promise<void> {
     const entries = (db.prepare("SELECT COUNT(*) as count FROM lottery_entries WHERE lottery_id = ?").get(lottery.id) as any)?.count || 0;
     await sendText(from, `🎰 *Shadow Garden Lottery*\n\n👥 Participants: ${entries}/${MAX_PARTICIPANTS}\n🏆 Winners drawn automatically when ${MAX_PARTICIPANTS} enter`);
 
-    const image = await buildLotteryImage(lottery.id);
-    await ctx.sock.sendMessage(from, { image, caption: "🎲 Lottery Pool Status" });
+    await sendLotteryImage(ctx, from, lottery.id, "🎲 Lottery Pool Status");
     return;
   }
 
@@ -147,6 +139,16 @@ export async function handleLottery(ctx: CommandContext): Promise<void> {
 
     await performLotteryDraw(ctx, lottery.id, from);
     return;
+  }
+}
+
+async function sendLotteryImage(ctx: CommandContext, from: string, lotteryId: number, caption: string): Promise<void> {
+  try {
+    const image = await buildLotteryImage(lotteryId);
+    await ctx.sock.sendMessage(from, { image, caption });
+  } catch (err) {
+    logger.error({ err, lotteryId }, "Failed to send lottery status image");
+    await sendText(from, "🎲 Lottery entry/status saved, but the status image could not be generated.");
   }
 }
 
