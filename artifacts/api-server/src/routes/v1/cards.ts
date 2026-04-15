@@ -21,11 +21,33 @@ function getCardOwner(db: any, cardId: string): { name: string; id: string } | n
   return row ? { id: row.id, name: row.name || "Unknown" } : null;
 }
 
+// Serve card image/video from DB blob
+router.get("/:id/image", (req, res) => {
+  const db = getDb();
+  const card = db.prepare("SELECT id, image_data, image_url, is_animated, tier FROM cards WHERE id = ?").get(req.params.id) as any;
+  if (!card) { res.status(404).end(); return; }
+
+  if (card.image_data) {
+    const buf = Buffer.isBuffer(card.image_data) ? card.image_data : Buffer.from(card.image_data);
+    const isVideo = card.is_animated === 1 || ["T6","TS","TX","TZ"].includes(card.tier);
+    const mime = isVideo ? "video/mp4" : "image/jpeg";
+    res.set("Content-Type", mime);
+    res.set("Cache-Control", "public, max-age=86400");
+    res.send(buf);
+    return;
+  }
+  if (card.image_url) {
+    res.redirect(card.image_url);
+    return;
+  }
+  res.status(404).end();
+});
+
 router.get("/", optionalAuth, (req, res) => {
   const db = getDb();
   const { tier, series } = req.query as { tier?: string; series?: string };
 
-  let query = "SELECT * FROM cards";
+  let query = "SELECT id, name, tier, series, description, image_url, is_animated FROM cards";
   const params: any[] = [];
   const conditions: string[] = [];
 
@@ -53,13 +75,15 @@ router.get("/", optionalAuth, (req, res) => {
       WHERE uc.card_id = ?
       LIMIT 5
     `).all(card.id) as any[];
+    // Use the blob-serving endpoint as imageUrl so the browser can load the image
+    const imageUrl = `/api/v1/cards/${card.id}/image`;
     return {
       id: card.id,
       name: card.name,
       tier: card.tier,
       series: card.series || "General",
       description: card.description || "",
-      imageUrl: card.image_url || "",
+      imageUrl,
       totalCopies,
       ownerName: owner?.name || "Unclaimed",
       ownerId: owner?.id || null,
@@ -96,7 +120,7 @@ router.get("/my", requireAuth, (req: AuthRequest, res) => {
         tier: uc.tier,
         series: uc.series || "General",
         description: uc.description || "",
-        imageUrl: uc.image_url || "",
+        imageUrl: `/api/v1/cards/${uc.id}/image`,
         totalCopies,
         ownerName: req.user?.name || "You",
         ownerId: req.userId,
