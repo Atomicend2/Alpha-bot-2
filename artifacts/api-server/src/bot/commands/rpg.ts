@@ -432,19 +432,28 @@ async function processDungeonMove(ctx: CommandContext, battle: DungeonBattle, rp
     const reward = battle.enemyReward;
     const newFloor = battle.floor + 1;
     const hpAfter = Math.max(1, battle.playerHp);
-    updateRpg(sender, { dungeon_floor: newFloor, hp: hpAfter, xp: rpgFresh.xp + xp });
+    const earnedSkillPt = battle.floor % 3 === 0 ? 1 : 0;
+    updateRpg(sender, {
+      dungeon_floor: newFloor,
+      hp: hpAfter,
+      xp: rpgFresh.xp + xp,
+      skill_points: (rpgFresh.skill_points || 0) + earnedSkillPt,
+    });
     updateUser(sender, { balance: (user?.balance || 0) + reward });
     addToInventory(sender, "Dungeon Key");
     checkLevelUp(sender, rpgFresh.xp + xp, rpgFresh.level);
     activeDungeonBattles.delete(sender);
+    const skillLine = earnedSkillPt > 0
+      ? `\n🌟 *+1 Skill Point earned!* Use *.skills* or assign on the website.`
+      : "";
     const victoryMsg =
       resultLines.join("\n") + "\n\n" +
       `🏆 *VICTORY!* You defeated *${battle.enemyName}*!\n\n` +
       `💰 Reward: $${formatNumber(reward)}\n` +
       `✨ XP: +${xp}\n` +
       `🗝️ Dungeon Key obtained!\n` +
-      `🏰 Next floor: *Floor ${newFloor}*\n\n` +
-      `_Use *.dungeon* to continue._`;
+      `🏰 Next floor: *Floor ${newFloor}*` +
+      skillLine + `\n\n_Use *.dungeon* to continue._`;
     await sendText(from, victoryMsg);
     return;
   }

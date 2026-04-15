@@ -479,6 +479,11 @@ function initSchema(db: Database.Database): void {
   ensureColumn(db, "users", "last_steal", "INTEGER DEFAULT 0");
   ensureColumn(db, "groups", "last_gcl", "INTEGER DEFAULT 0");
   ensureColumn(db, "rpg_characters", "skill_points", "INTEGER DEFAULT 0");
+  ensureColumn(db, "rpg_characters", "str_skill", "INTEGER DEFAULT 0");
+  ensureColumn(db, "rpg_characters", "agi_skill", "INTEGER DEFAULT 0");
+  ensureColumn(db, "rpg_characters", "int_skill", "INTEGER DEFAULT 0");
+  ensureColumn(db, "rpg_characters", "vit_skill", "INTEGER DEFAULT 0");
+  ensureColumn(db, "rpg_characters", "luk_skill", "INTEGER DEFAULT 0");
   ensureColumn(db, "cards", "is_animated", "INTEGER DEFAULT 0");
 
   // Lottery ticket system

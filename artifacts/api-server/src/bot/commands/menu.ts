@@ -12,16 +12,6 @@ export async function handleMenu(ctx: CommandContext): Promise<void> {
   const senderName = sender.split("@")[0];
   const botName = sock?.user?.name || "Alpha";
 
-  const bots = getAllBots();
-  let botsSection = "";
-  if (bots.length > 0) {
-    const botLines = bots.map((b: any) => {
-      const indicator = b.status === "online" ? "🟢" : "🔴";
-      return `║    │✑  ${indicator} ${b.name}`;
-    }).join("\n");
-    botsSection = `\n║\n╠─❖ 「 𝗕𝗢𝗧𝗦 」\n${botLines}\n║    └────────────┈ ⳹`;
-  }
-
   const menuText = `┌─⟡ 『 𝗦𝗛𝗔𝗗𝗢𝗪 𝗚𝗔𝗥𝗗𝗘𝗡 』⟡
 ║
 ║ ┌────────────────────
@@ -29,12 +19,13 @@ export async function handleMenu(ctx: CommandContext): Promise<void> {
 ║ ║ 👾 𝗕𝗼𝘁 : ${botName}
 ║ ║ 👑 𝗖𝗿𝗲𝗮𝘁𝗼𝗿 : Ryuk
 ║ ║ 🔹 𝗣𝗿𝗲𝗳𝗶𝘅 : [ . ]
-║ └────────────────────${botsSection}
+║ └────────────────────
 ║
 ╠─⟡ 📋 𝗠𝗔𝗜𝗡
 ║ ┌────────────────────
 ║ ║ ➩ .menu
 ║ ║ ➩ .ping
+║ ║ ➩ .bots
 ║ ║ ➩ .website
 ║ ║ ➩ .community
 ║ ║ ➩ .afk
@@ -321,13 +312,14 @@ export async function handleMenu(ctx: CommandContext): Promise<void> {
 
 export async function handleInfo(ctx: CommandContext): Promise<void> {
   const { from, sender, sock } = ctx;
+  const botName = sock?.user?.name || "Alpha";
   const uptime = process.uptime();
   const h = Math.floor(uptime / 3600);
   const m = Math.floor((uptime % 3600) / 60);
   const s = Math.floor(uptime % 60);
 
-  const info = `🤖 *Alpha Bot — Shadow Garden*\n\n` +
-    `👾 Bot: Alpha\n` +
+  const info = `🤖 *${botName} — Shadow Garden*\n\n` +
+    `👾 Bot: ${botName}\n` +
     `👑 Creator: Ryuk\n` +
     `🔹 Prefix: [ . ]\n` +
     `📡 Status: Online ✅\n` +
@@ -336,4 +328,35 @@ export async function handleInfo(ctx: CommandContext): Promise<void> {
     `🛡️ Shadow Garden Bot`;
 
   await sock.sendMessage(from, { text: info, mentions: [sender] });
+}
+
+export async function handleBots(ctx: CommandContext): Promise<void> {
+  const { from, sock } = ctx;
+  const bots = getAllBots();
+
+  if (bots.length === 0) {
+    await sock.sendMessage(from, { text: "🤖 *Shadow Garden Bots*\n\nNo bots registered yet. Use the admin panel at the website to add bots." });
+    return;
+  }
+
+  const header = `🤖 *Shadow Garden Bots* (${bots.length} registered)\n` +
+    `━━━━━━━━━━━━━━━━━━━━\n`;
+
+  for (const bot of bots as any[]) {
+    const indicator = bot.status === "online" ? "🟢 Online" : "🔴 Offline";
+    const caption = `${header}` +
+      `👾 *${bot.name}*\n` +
+      `📞 Number: ${bot.phone || "N/A"}\n` +
+      `📡 Status: ${indicator}\n` +
+      `━━━━━━━━━━━━━━━━━━━━`;
+
+    if (bot.image_data) {
+      await sock.sendMessage(from, {
+        image: Buffer.from(bot.image_data),
+        caption,
+      });
+    } else {
+      await sock.sendMessage(from, { text: caption });
+    }
+  }
 }

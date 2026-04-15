@@ -1,15 +1,19 @@
 import { useLocation } from "wouter";
+import { useState } from "react";
 import { useAuth } from "@/lib/auth";
 import { useGetUserStats, useGetUserInventory, useGetUserAchievements } from "@workspace/api-client-react/src/generated/api";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Card, CardContent } from "@/components/ui/card";
 import { Progress } from "@/components/ui/progress";
-import { Trophy, Wallet, Landmark, Shield, Swords, Zap, Activity, Ticket } from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { Trophy, Wallet, Landmark, Shield, Swords, Zap, Activity, Ticket, Flame, Wind, Brain, Heart, Star, Plus, Loader2 } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { useQueryClient } from "@tanstack/react-query";
+import { useToast } from "@/hooks/use-toast";
 
 export default function Profile() {
   const [, setLocation] = useLocation();
-  const { isAuthenticated, user } = useAuth();
+  const { isAuthenticated, user, token } = useAuth();
 
   if (!isAuthenticated) {
     setLocation("/login");
@@ -84,7 +88,7 @@ export default function Profile() {
       {/* Tabs */}
       <Tabs defaultValue="overview" className="w-full">
         <TabsList className="w-full justify-start border-b border-primary/20 bg-transparent rounded-none h-auto p-0 mb-6 gap-6 overflow-x-auto">
-          {["Overview", "Inventory", "Pets", "Achievements"].map((tab) => (
+          {["Overview", "Skills", "Inventory", "Pets", "Achievements"].map((tab) => (
             <TabsTrigger 
               key={tab.toLowerCase()} 
               value={tab.toLowerCase()}
@@ -142,6 +146,10 @@ export default function Profile() {
               </Card>
             </div>
           )}
+        </TabsContent>
+
+        <TabsContent value="skills" className="space-y-6">
+          <SkillsPanel stats={stats} statsLoading={statsLoading} token={token} />
         </TabsContent>
 
         <TabsContent value="inventory">
@@ -239,6 +247,153 @@ function StatBar({ icon: Icon, label, value, max, color }: any) {
           className={cn("h-full rounded-full", color)} 
           style={{ width: `${percentage}%` }}
         />
+      </div>
+    </div>
+  );
+}
+
+const SKILLS_META = [
+  { key: "str", label: "Strength", icon: Flame, color: "text-orange-400", barColor: "bg-orange-500", effect: "+2 Attack per point", statKey: "strSkill" },
+  { key: "agi", label: "Agility", icon: Wind, color: "text-cyan-400", barColor: "bg-cyan-500", effect: "+2 Speed per point", statKey: "agiSkill" },
+  { key: "int", label: "Intellect", icon: Brain, color: "text-violet-400", barColor: "bg-violet-500", effect: "+5% XP gained per point", statKey: "intSkill" },
+  { key: "vit", label: "Vitality", icon: Heart, color: "text-red-400", barColor: "bg-red-500", effect: "+10 Max HP per point", statKey: "vitSkill" },
+  { key: "luk", label: "Luck", icon: Star, color: "text-amber-400", barColor: "bg-amber-500", effect: "+3% gold drops per point", statKey: "lukSkill" },
+] as const;
+
+function SkillsPanel({ stats, statsLoading, token }: any) {
+  const [assigning, setAssigning] = useState<string | null>(null);
+  const queryClient = useQueryClient();
+  const { toast } = useToast();
+  const rpg = stats?.rpg;
+  const skillPoints = rpg?.skillPoints ?? 0;
+  const SKILL_MAX = 20;
+
+  async function assign(stat: string) {
+    if (!token || skillPoints <= 0) return;
+    setAssigning(stat);
+    try {
+      const base = import.meta.env.BASE_URL?.replace(/\/$/, "") || "";
+      const res = await fetch(`${base}/api/v1/user/skills/assign`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+        body: JSON.stringify({ stat, points: 1 }),
+      });
+      const data = await res.json();
+      if (data.success) {
+        toast({ title: "Skill Upgraded!", description: data.message });
+        queryClient.invalidateQueries({ queryKey: ["/api/v1/user/stats"] });
+      } else {
+        toast({ title: "Failed", description: data.message, variant: "destructive" });
+      }
+    } catch {
+      toast({ title: "Error", description: "Could not assign skill point.", variant: "destructive" });
+    } finally {
+      setAssigning(null);
+    }
+  }
+
+  if (statsLoading) return <div className="h-64 glass-card rounded-lg animate-pulse" />;
+
+  if (!rpg) {
+    return (
+      <div className="glass-card rounded-xl p-12 border border-white/10 flex flex-col items-center justify-center text-center">
+        <Swords className="w-16 h-16 text-muted-foreground mb-4 opacity-30" />
+        <h3 className="font-serif text-xl font-bold text-white mb-2">No RPG Character</h3>
+        <p className="text-muted-foreground">Use <span className="font-mono text-primary">.dungeon</span> in WhatsApp to create your character and start earning skill points.</p>
+      </div>
+    );
+  }
+
+  return (
+    <div className="space-y-6">
+      {/* Skill Points Banner */}
+      <div className={cn(
+        "glass-card rounded-xl p-6 border flex items-center justify-between gap-4",
+        skillPoints > 0 ? "border-amber-500/40 bg-amber-500/5" : "border-white/10"
+      )}>
+        <div>
+          <h3 className="font-serif text-xl font-bold text-white mb-1 flex items-center gap-2">
+            <Star className={cn("w-5 h-5", skillPoints > 0 ? "text-amber-400" : "text-muted-foreground")} />
+            Skill Points Available
+          </h3>
+          <p className="text-sm text-muted-foreground">Earned by clearing dungeon floors (every 3rd floor). Max 20 per skill.</p>
+        </div>
+        <div className={cn(
+          "text-5xl font-serif font-bold shrink-0",
+          skillPoints > 0 ? "text-amber-400" : "text-muted-foreground"
+        )}>
+          {skillPoints}
+        </div>
+      </div>
+
+      {/* Skill Cards */}
+      <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
+        {SKILLS_META.map(({ key, label, icon: Icon, color, barColor, effect, statKey }) => {
+          const current = rpg[statKey] ?? 0;
+          const pct = Math.round((current / SKILL_MAX) * 100);
+          const isMaxed = current >= SKILL_MAX;
+          const isLoading = assigning === key;
+
+          return (
+            <Card key={key} className={cn(
+              "glass-card border-white/10 bg-black/30 transition-colors",
+              skillPoints > 0 && !isMaxed ? "hover:border-primary/30" : ""
+            )}>
+              <CardContent className="p-5 space-y-4">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <div className={cn("w-9 h-9 rounded-lg bg-black/50 border border-white/10 flex items-center justify-center", color)}>
+                      <Icon className="w-5 h-5" />
+                    </div>
+                    <div>
+                      <p className="font-bold text-white uppercase tracking-wider text-sm">{label}</p>
+                      <p className="text-[10px] text-muted-foreground">{effect}</p>
+                    </div>
+                  </div>
+                  <span className={cn("text-2xl font-serif font-bold", color)}>{current}</span>
+                </div>
+
+                <div>
+                  <div className="flex justify-between text-[10px] text-muted-foreground mb-1.5">
+                    <span>Level {current} / {SKILL_MAX}</span>
+                    <span>{pct}%</span>
+                  </div>
+                  <div className="h-2 bg-black rounded-full overflow-hidden border border-white/5">
+                    <div className={cn("h-full rounded-full transition-all", barColor)} style={{ width: `${pct}%` }} />
+                  </div>
+                </div>
+
+                <Button
+                  onClick={() => assign(key)}
+                  disabled={isLoading || skillPoints <= 0 || isMaxed}
+                  className={cn(
+                    "w-full text-xs font-bold uppercase tracking-wider h-8",
+                    isMaxed
+                      ? "bg-white/5 text-muted-foreground border border-white/10 cursor-not-allowed"
+                      : skillPoints > 0
+                      ? "bg-primary/20 hover:bg-primary text-primary hover:text-white border border-primary/50"
+                      : "bg-white/5 text-muted-foreground border border-white/10 cursor-not-allowed"
+                  )}
+                >
+                  {isLoading ? (
+                    <><Loader2 className="w-3 h-3 mr-1 animate-spin" /> Assigning...</>
+                  ) : isMaxed ? (
+                    "Maxed Out"
+                  ) : (
+                    <><Plus className="w-3 h-3 mr-1" /> Assign Point {skillPoints > 0 && `(${skillPoints} left)`}</>
+                  )}
+                </Button>
+              </CardContent>
+            </Card>
+          );
+        })}
+      </div>
+
+      {/* Info Box */}
+      <div className="glass-card rounded-xl p-4 border border-white/10 bg-black/20">
+        <p className="text-xs text-muted-foreground leading-relaxed">
+          <span className="text-primary font-bold">How to earn skill points:</span> Clear dungeon floors in WhatsApp with <span className="font-mono text-primary">.dungeon</span>. You earn <span className="text-white font-bold">1 skill point every 3 floors</span> you complete. Skill effects apply automatically during dungeon battles.
+        </p>
       </div>
     </div>
   );

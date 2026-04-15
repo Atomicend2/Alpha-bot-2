@@ -18,7 +18,7 @@ import { handleRpg } from "../commands/rpg.js";
 import { handleGuilds } from "../commands/guilds.js";
 import { handleStaff } from "../commands/staff.js";
 import { handleAI } from "../commands/ai.js";
-import { handleMenu, handleInfo } from "../commands/menu.js";
+import { handleMenu, handleInfo, handleBots } from "../commands/menu.js";
 import { handleSummer } from "../commands/summer.js";
 import { handleLottery } from "../commands/lottery.js";
 import { handleConverter } from "../commands/converter.js";
@@ -253,9 +253,14 @@ async function dispatch(ctx: CommandContext): Promise<void> {
     case "menu":
       return handleMenu(ctx);
 
-    case "ping":
-      await sendText(from, `Alpha's here!\n> ${getPingMs(msg)}ms`);
+    case "bots":
+      return handleBots(ctx);
+
+    case "ping": {
+      const botName = ctx.sock?.user?.name || "Alpha";
+      await sendText(from, `${botName}'s here!\n> ${getPingMs(msg)}ms`);
       return;
+    }
 
     case "uptime": {
       const u = process.uptime();

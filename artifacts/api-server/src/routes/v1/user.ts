@@ -24,6 +24,12 @@ router.get("/stats", requireAuth, (req: AuthRequest, res) => {
         defense: rpgRow.defense || 10,
         speed: rpgRow.speed || 15,
         dungeonFloor: rpgRow.dungeon_floor || 1,
+        skillPoints: rpgRow.skill_points || 0,
+        strSkill: rpgRow.str_skill || 0,
+        agiSkill: rpgRow.agi_skill || 0,
+        intSkill: rpgRow.int_skill || 0,
+        vitSkill: rpgRow.vit_skill || 0,
+        lukSkill: rpgRow.luk_skill || 0,
       }
     : null;
 
@@ -86,6 +92,51 @@ router.get("/stats", requireAuth, (req: AuthRequest, res) => {
     rank,
     totalUsers: Number(totalUsers),
     xpNeeded,
+  });
+});
+
+const VALID_SKILLS = ["str", "agi", "int", "vit", "luk"] as const;
+type SkillKey = typeof VALID_SKILLS[number];
+const SKILL_MAX = 20;
+
+router.post("/skills/assign", requireAuth, (req: AuthRequest, res) => {
+  const { stat, points } = req.body as { stat: string; points: number };
+  if (!VALID_SKILLS.includes(stat as SkillKey)) {
+    res.status(400).json({ success: false, message: "Invalid skill. Choose: str, agi, int, vit, luk" });
+    return;
+  }
+  const spend = Math.max(1, Math.floor(Number(points) || 1));
+  const db = getDb();
+  const rpgRow = db.prepare("SELECT * FROM rpg_characters WHERE user_id = ?").get(req.user.id) as any;
+  if (!rpgRow) {
+    res.status(400).json({ success: false, message: "No RPG character found. Use .dungeon on WhatsApp first." });
+    return;
+  }
+  const available = rpgRow.skill_points || 0;
+  if (available < spend) {
+    res.status(400).json({ success: false, message: `Not enough skill points. You have ${available}.` });
+    return;
+  }
+  const currentVal = rpgRow[`${stat}_skill`] || 0;
+  if (currentVal + spend > SKILL_MAX) {
+    res.status(400).json({ success: false, message: `${stat.toUpperCase()} is already at or near the max (${SKILL_MAX}).` });
+    return;
+  }
+  db.prepare(`UPDATE rpg_characters SET ${stat}_skill = ${stat}_skill + ?, skill_points = skill_points - ? WHERE user_id = ?`)
+    .run(spend, spend, req.user.id);
+
+  const statLabels: Record<SkillKey, string> = {
+    str: "Strength → +Attack",
+    agi: "Agility → +Speed",
+    int: "Intellect → +XP Gain",
+    vit: "Vitality → +Max HP",
+    luk: "Luck → +Gold Drops",
+  };
+  res.json({
+    success: true,
+    message: `Assigned ${spend} point${spend !== 1 ? "s" : ""} to ${statLabels[stat as SkillKey]}. ${available - spend} points remaining.`,
+    remaining: available - spend,
+    newValue: currentVal + spend,
   });
 });
 
