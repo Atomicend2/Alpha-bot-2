@@ -112,17 +112,40 @@ export async function handleCards(ctx: CommandContext): Promise<void> {
         `∘₊✦────────✦₊∘`;
       await sock.sendMessage(from, { image: buf, caption, mentions: ownerMentions });
     } else {
-      const tierLabel = searchTier ? ` [${searchTier}]` : "";
-      let text = `∘₊✦────────✦₊∘\n🎴 𝗖𝗔𝗥𝗗 𝗜𝗡𝗙𝗢 — Multiple Results${tierLabel}\n∘₊✦────────✦₊∘\n\n`;
-      for (let i = 0; i < matches.length; i++) {
-        const c = matches[i];
-        const owners = getCardOwners(c.id);
-        text += `🃏 ${i + 1}. *${c.name}*\n`;
-        text += `   𝗦𝗲𝗿𝗶𝗲𝘀: ${c.series || "General"}\n`;
-        text += `   𝗧𝗶𝗲𝗿: ${c.tier}\n`;
-        text += `   𝗢𝘄𝗻𝗲𝗿𝘀: ${owners.length}\n\n`;
+      // Send each result as a separate image message
+      const limit = Math.min(matches.length, 8);
+      if (matches.length > 8) {
+        await sendText(from, `🔍 Found *${matches.length}* results for "*${searchName}*". Showing the first 8 — be more specific to narrow it down.`);
       }
-      await sendText(from, text.trim());
+      for (let i = 0; i < limit; i++) {
+        const found = matches[i];
+        const owners = getCardOwners(found.id);
+        const buf = await getCardImageBuffer(found);
+        const ownerMentions: string[] = [];
+        let ownersSection = "_⛔ No owners yet_";
+        if (owners.length > 0) {
+          const shown = owners.slice(0, 5);
+          ownersSection = shown.map((o: any) => {
+            ownerMentions.push(o.user_id);
+            return `• @${o.user_id.split("@")[0]}`;
+          }).join("\n");
+          if (owners.length > 5) ownersSection += `\n_...and ${owners.length - 5} more_`;
+        }
+        const caption =
+          `∘₊✦────────✦₊∘\n` +
+          `🎴 𝗖𝗔𝗥𝗗 𝗜𝗡𝗙𝗢 — Result ${i + 1}/${limit}\n` +
+          `∘₊✦────────✦₊∘\n\n` +
+          `𝗡𝗮𝗺𝗲: ${found.name}\n` +
+          `𝗦𝗲𝗿𝗶𝗲𝘀: ${found.series || "General"}\n` +
+          `𝗧𝗶𝗲𝗿: ${found.tier}\n` +
+          `𝗧𝗼𝘁𝗮𝗹 𝗢𝘄𝗻𝗲𝗿𝘀: ${owners.length}\n\n` +
+          `✦────⋆⋅✧⋅⋆────✦\n` +
+          `👥 𝗢𝗪𝗡𝗘𝗥𝗦\n` +
+          `✦────⋆⋅✧⋅⋆────✦\n\n` +
+          `${ownersSection}\n\n` +
+          `∘₊✦────────✦₊∘`;
+        await sock.sendMessage(from, { image: buf, caption, mentions: ownerMentions });
+      }
     }
     return;
   }

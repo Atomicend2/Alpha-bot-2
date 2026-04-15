@@ -159,17 +159,18 @@ async function performLotteryDraw(ctx: CommandContext, lotteryId: number, from: 
   const shuffled = [...entries].sort(() => Math.random() - 0.5);
   const winners = shuffled.slice(0, Math.min(AUTO_DRAW_WINNERS, entries.length));
 
-  // Award each winner an equal split (prize pool is based on number of entries, symbolic)
-  const prize = entries.length * 5000; // 5000 per entry
-  const perWinner = Math.floor(prize / winners.length);
+  // Fixed prize tiers: 1st = 300,000 | 2nd = 200,000 | 3rd = 100,000
+  const PRIZE_TIERS = [300000, 200000, 100000];
 
   const winnerMentions: string[] = [];
   const winnerNames: string[] = [];
 
-  for (const winner of winners) {
+  for (let i = 0; i < winners.length; i++) {
+    const winner = winners[i];
+    const prize = PRIZE_TIERS[i] ?? 100000;
     const winnerUser = db.prepare("SELECT * FROM users WHERE id = ?").get(winner.user_id) as any;
     if (winnerUser) {
-      db.prepare("UPDATE users SET balance = balance + ? WHERE id = ?").run(perWinner, winner.user_id);
+      db.prepare("UPDATE users SET balance = balance + ? WHERE id = ?").run(prize, winner.user_id);
     }
     winnerMentions.push(winner.user_id);
     winnerNames.push(`@${winner.user_id.split("@")[0]}`);
@@ -178,13 +179,17 @@ async function performLotteryDraw(ctx: CommandContext, lotteryId: number, from: 
   // Close the lottery and record the first winner
   db.prepare("UPDATE lotteries SET active = 0, winner_id = ?, ended_at = unixepoch() WHERE id = ?").run(winners[0].user_id, lotteryId);
 
+  const prizeLines = winners.map((_, i) => {
+    const prize = PRIZE_TIERS[i] ?? 100000;
+    return `${["🥇","🥈","🥉"][i] || "🏅"} ${winnerNames[i]} — *${prize.toLocaleString()} Gold*`;
+  }).join("\n");
+
   const announcement =
     `🎰 *LOTTERY DRAW — SHADOW GARDEN* 🎰\n\n` +
     `The shadows have chosen!\n\n` +
     `🏆 *Winners:*\n` +
-    winnerNames.map((n, i) => `${["🥇","🥈","🥉"][i] || "🏅"} ${n}`).join("\n") +
-    `\n\n💰 *Prize:* ${perWinner.toLocaleString()} Gold each\n\n` +
-    `_A new lottery pool will begin shortly. Buy tickets from the shop!_`;
+    prizeLines +
+    `\n\n_A new lottery pool will begin shortly. Buy tickets from the shop!_`;
 
   await ctx.sock.sendMessage(from, {
     text: announcement,
