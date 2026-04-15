@@ -187,6 +187,34 @@ router.post("/bots", requireAdminPassword, (req, res) => {
   }
 });
 
+// PATCH /api/bot/bots/:id/image — update a bot's image
+router.patch("/bots/:id/image", requireAdminPassword, (req, res) => {
+  const { id } = req.params;
+  const { imageBase64 } = req.body as { imageBase64?: string };
+  if (!imageBase64) {
+    res.status(400).json({ success: false, message: "imageBase64 is required." });
+    return;
+  }
+  let imageData: Buffer;
+  try {
+    imageData = Buffer.from(imageBase64, "base64");
+  } catch {
+    res.status(400).json({ success: false, message: "Invalid base64 image data." });
+    return;
+  }
+  try {
+    const db = getDb();
+    const result = db.prepare("UPDATE bots SET image_data = ? WHERE id = ?").run(imageData, id);
+    if (result.changes === 0) {
+      res.status(404).json({ success: false, message: "Bot not found." });
+      return;
+    }
+    res.json({ success: true, message: "Bot image updated." });
+  } catch (err: any) {
+    res.status(500).json({ success: false, message: err.message });
+  }
+});
+
 // DELETE /api/bot/bots/:id — remove a bot (requires admin password via x-admin-password header)
 router.delete("/bots/:id", requireAdminPassword, (req, res) => {
   const { id } = req.params;
