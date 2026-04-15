@@ -15,6 +15,7 @@ import { AsyncLocalStorage } from "node:async_hooks";
 import { logger } from "../lib/logger.js";
 import { handleMessage } from "./handlers/message.js";
 import { handleGroupUpdate, handleGroupParticipantsUpdate } from "./handlers/group.js";
+import { ensureUser, updateUser } from "./db/queries.js";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const DATA_DIR = path.join(__dirname, "../../..", "data");
@@ -219,6 +220,22 @@ export async function connectToWhatsApp(phoneNumber?: string): Promise<WASocket>
       isConnecting = false;
       pairingCode = null;
       logger.info("Connected to WhatsApp successfully");
+      // Mark bot's own JID as is_bot = 1 so it never appears in leaderboards
+      try {
+        const currentSock = sock;
+        if (currentSock) {
+          const botJid = currentSock.user?.id;
+          if (botJid) {
+            ensureUser(botJid, "Bot");
+            updateUser(botJid, { is_bot: 1 });
+          }
+          const lidJid = currentSock.user?.lid;
+          if (lidJid) {
+            ensureUser(lidJid, "Bot");
+            updateUser(lidJid, { is_bot: 1 });
+          }
+        }
+      } catch {}
       setTimeout(() => {
         if (generation === connectionGeneration && isConnected) {
           reconnectAttempts = 0;

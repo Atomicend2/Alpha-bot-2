@@ -262,9 +262,11 @@ async function dispatch(ctx: CommandContext): Promise<void> {
     case "help":
       return handleInfo(ctx);
 
-    case "website":
-      await sendText(from, "🌐 *Shadow Garden Website*\n\nhttps://shadow-garden.onrender.com\n\n_View your profile, cards, shop, leaderboard and more._");
+    case "website": {
+      const siteUrl = process.env.WEBSITE_URL || "https://shadow-garden.onrender.com";
+      await sendText(from, `🌐 *Shadow Garden Website*\n\n${siteUrl}\n\n_View your profile, cards, shop, leaderboard and more._`);
       return;
+    }
 
     case "community":
       await sendText(from, "👥 *Join Shadow Garden!*\n\nhttps://chat.whatsapp.com/LDnXqYWuvZMELxVaOpAAHI\n\n_The elite secret society awaits._");

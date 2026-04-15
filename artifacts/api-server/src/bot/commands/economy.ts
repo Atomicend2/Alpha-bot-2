@@ -80,14 +80,16 @@ export async function handleEconomy(ctx: CommandContext): Promise<void> {
     const displayName = user.name || sender.split("@")[0];
     const wallet = user.balance || 0;
     const bank = user.bank || 0;
+    const bankMax = user.bank_max || 100000;
     const total = wallet + bank;
+    const bankPct = Math.min(100, Math.round((bank / bankMax) * 100));
     await sendText(
       from,
       `💰 𝗔𝗖𝗖𝗢𝗨𝗡𝗧 𝗕𝗔𝗟𝗔𝗡𝗖𝗘 💰\n\n` +
       `╭━✩ 𝐒𝐇𝚫𝐃𝐎𝐖 𝐆𝚫𝐑𝐃𝚵𝐍 ☆━╮\n\n` +
       `🌟 𝗡𝗮𝗺𝗲: ${displayName}\n\n` +
       `🪙 𝗪𝗮𝗹𝗹𝗲𝘁: \`⎾$${formatNumber(wallet)}⏌\`\n\n` +
-      `🏦 𝗕𝗮𝗻𝗸:   \`⎾$${formatNumber(bank)}⏌\`\n\n` +
+      `🏦 𝗕𝗮𝗻𝗸:   \`⎾$${formatNumber(bank)} / $${formatNumber(bankMax)}⏌\` (${bankPct}%)\n\n` +
       `🌠  𝗧𝗼𝘁𝗮𝗹: \`⎾$${formatNumber(total)}⏌\`\n\n` +
       `╰━━━━━━━━━━━━━━━━━╯`
     );
