@@ -15,33 +15,46 @@ export async function handleConverter(ctx: CommandContext): Promise<void> {
   const { from, sender, args, command: cmd, msg, sock } = ctx;
 
   if (cmd === "sticker" || cmd === "s") {
-    const quoted = msg.message?.extendedTextMessage?.contextInfo?.quotedMessage || msg.message?.imageMessage;
-    if (!quoted?.imageMessage && !quoted?.stickerMessage && !msg.message?.imageMessage) {
-      await sendText(from, "❌ Reply to an image/sticker or send an image with .s caption to make a sticker.");
+    const context = msg.message?.extendedTextMessage?.contextInfo;
+    const quotedMsg = context?.quotedMessage;
+    const hasQuotedImage = !!(quotedMsg?.imageMessage || quotedMsg?.stickerMessage);
+    const hasQuotedVideo = !!(quotedMsg?.videoMessage);
+    const hasDirect = !!(msg.message?.imageMessage || msg.message?.videoMessage);
+
+    if (!hasQuotedImage && !hasQuotedVideo && !hasDirect) {
+      await sendText(from, "❌ Reply to an image or video, or send media with .s caption.");
       return;
     }
+
     try {
-      const target = msg.message?.imageMessage
-        ? msg
-        : {
-            key: {
-              remoteJid: from,
-              fromMe: false,
-              id: msg.message?.extendedTextMessage?.contextInfo?.stanzaId || "",
-              participant: msg.message?.extendedTextMessage?.contextInfo?.participant,
-            },
-            message: quoted,
-          };
+      const isVideo = !!(hasQuotedVideo || msg.message?.videoMessage);
+      let target: any;
+      if (hasQuotedImage || hasQuotedVideo) {
+        target = {
+          key: {
+            remoteJid: from,
+            fromMe: false,
+            id: context?.stanzaId || "",
+            participant: context?.participant,
+          },
+          message: quotedMsg,
+        };
+      } else {
+        target = msg;
+      }
+
       const downloaded = await downloadMediaMessage(target as any, "buffer", {}, { reuploadRequest: (sock as any).updateMediaMessage });
       const input = Buffer.isBuffer(downloaded) ? downloaded : Buffer.from(downloaded as any);
       let webp: Buffer;
-      if (quoted?.stickerMessage) {
-        // Already a sticker — just re-stamp the metadata
+
+      if (quotedMsg?.stickerMessage && !isVideo) {
         webp = input;
+      } else if (isVideo) {
+        webp = await convertVideoToStickerWebp(input);
       } else {
-        // Convert image → 512×512 WebP, compress to <100KB
         webp = await convertToStickerWebp(input);
       }
+
       const buf = addWebpExif(webp, DEFAULT_STICKER_PACK, DEFAULT_STICKER_NAME);
       await sock.sendMessage(from, {
         sticker: buf,
@@ -181,17 +194,49 @@ export async function handleConverter(ctx: CommandContext): Promise<void> {
 }
 
 async function convertToStickerWebp(input: Buffer): Promise<Buffer> {
-  const MAX_SIZE = 95 * 1024; // 95KB target (leaves room for EXIF chunk)
+  const MAX_SIZE = 95 * 1024;
   let quality = 80;
   let result: Buffer;
   do {
     result = await sharp(input, { animated: false })
-      .resize(512, 512, { fit: "cover", position: "centre" })
-      .webp({ quality, effort: 6, lossless: false })
+      .resize(512, 512, { fit: "contain", background: { r: 0, g: 0, b: 0, alpha: 0 } })
+      .webp({ quality, effort: 6, lossless: false, smartSubsample: true })
       .toBuffer();
     quality -= 10;
   } while (result.length > MAX_SIZE && quality > 10);
   return result;
+}
+
+async function convertVideoToStickerWebp(input: Buffer): Promise<Buffer> {
+  const dir = path.join(process.cwd(), "data", "tmp");
+  await fs.mkdir(dir, { recursive: true });
+  const id = randomUUID();
+  const inputPath = path.join(dir, `${id}.input`);
+  const outputPath = path.join(dir, `${id}.webp`);
+  await fs.writeFile(inputPath, input);
+  try {
+    await runFfmpeg([
+      "-y",
+      "-i", inputPath,
+      "-t", "7",
+      "-vf", "scale=512:512:force_original_aspect_ratio=decrease,pad=512:512:(ow-iw)/2:(oh-ih)/2:color=0x00000000,fps=12",
+      "-loop", "0",
+      "-lossless", "0",
+      "-quality", "75",
+      "-compression_level", "6",
+      "-preset", "default",
+      "-an",
+      outputPath,
+    ]);
+    const buf = await fs.readFile(outputPath);
+    if (buf.length > 1000 * 1024) {
+      throw new Error("Video too large to convert to sticker (max ~1MB).");
+    }
+    return buf;
+  } finally {
+    await fs.rm(inputPath, { force: true }).catch(() => {});
+    await fs.rm(outputPath, { force: true }).catch(() => {});
+  }
 }
 
 async function readStream(stream: NodeJS.ReadableStream): Promise<Buffer> {

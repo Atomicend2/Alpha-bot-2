@@ -46,8 +46,10 @@ export function getTierEmoji(tier: string): string {
     T3: "🔵",
     T4: "🟣",
     T5: "🔴",
+    T6: "🌀",
     TS: "⭐",
     TX: "💎",
+    TZ: "🔱",
   };
   return map[tier] || "❓";
 }
@@ -59,11 +61,16 @@ export function getTierValue(tier: string): number {
     T3: 3,
     T4: 4,
     T5: 5,
-    TS: 6,
-    TX: 7,
+    T6: 6,
+    TS: 7,
+    TX: 8,
+    TZ: 9,
   };
   return map[tier] || 0;
 }
+
+export const IMAGE_TIERS = new Set(["T1", "T2", "T3", "T4", "T5"]);
+export const VIDEO_TIERS = new Set(["T6", "TS", "TX", "TZ"]);
 
 export function getRandomCard(cards: any[]): any {
   if (cards.length === 0) return null;
@@ -128,7 +135,7 @@ export function mentionTag(jid: string): string {
 }
 
 export function isValidTier(tier: string): boolean {
-  return ["T1","T2","T3","T4","T5","TS","TX"].includes(tier.toUpperCase());
+  return ["T1","T2","T3","T4","T5","T6","TS","TX","TZ"].includes(tier.toUpperCase());
 }
 
 export function normalizeId(id: string): string {

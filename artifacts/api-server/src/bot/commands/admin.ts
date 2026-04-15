@@ -535,12 +535,23 @@ export async function handleAdmin(ctx: CommandContext): Promise<void> {
     return;
   }
 
-  if (cmd === "gcl") {
+  if (cmd === "gcl" || cmd === "gclink") {
     if (!canUse) return noPerms(from);
     if (!isBotAdmin) return botNoAdmin(from);
+    const now = Math.floor(Date.now() / 1000);
+    const gclCooldown = 30;
+    const lastGcl = Number(group?.last_gcl || 0);
+    const gclDiff = now - lastGcl;
+    if (gclDiff < gclCooldown) {
+      await sendText(from, `⏳ Please wait ${gclCooldown - gclDiff}s before getting the link again.`);
+      return;
+    }
     try {
       const inviteCode = await sock.groupInviteCode(from);
-      await sock.sendMessage(from, { text: `https://chat.whatsapp.com/${inviteCode}` });
+      const link = `https://chat.whatsapp.com/${inviteCode}`;
+      const { updateGroup } = await import("../db/queries.js");
+      updateGroup(from, { last_gcl: now });
+      await sock.sendMessage(from, { text: link });
     } catch {
       await sendText(from, "❌ Failed to get group invite link. Make sure the bot is an admin.");
     }

@@ -1,7 +1,7 @@
 import type { CommandContext } from "./index.js";
 import { BOT_OWNER_LID, sendText } from "../connection.js";
 import { addStaff, removeStaff, getStaffList, getStaff, ensureUser, getUser, updateUser, getCard, getAllCards, addBan, removeBan, getBanList, setBotSetting, deleteBotSetting, resetUserBalance, resetUserProfile, isBanned } from "../db/queries.js";
-import { getTierEmoji, isValidTier, generateId } from "../utils.js";
+import { getTierEmoji, isValidTier, generateId, IMAGE_TIERS, VIDEO_TIERS } from "../utils.js";
 import { INTERACTION_NAMES, uploadInteractionGif } from "./interactions.js";
 import { getDb } from "../db/database.js";
 import { spawnCard } from "../handlers/cardspawn.js";
@@ -374,18 +374,31 @@ export async function handleStaff(ctx: CommandContext): Promise<void> {
     }
     const tier = args[0]?.toUpperCase();
     if (!tier || !isValidTier(tier)) {
-      await sendText(from, "❌ Usage: .upload T<tier> <name>. <series>\nExample: .upload T4 Shadow Monarch. Solo Leveling\nReply to an image/sticker.\n\nFor interaction GIFs: .upload hug/kiss/slap/etc (reply to GIF)");
+      await sendText(from, "❌ Usage: .upload <tier> <name>|<series>\nImage tiers (photo only): T1 T2 T3 T4 T5\nAnimated tiers (gif/video): T6 TS TX TZ\nExample: .upload T4 Shadow Monarch|Solo Leveling");
       return;
     }
+
+    const isImageTier = IMAGE_TIERS.has(tier);
+    const isVideoTier = VIDEO_TIERS.has(tier);
+
     const quoted = msg.message?.extendedTextMessage?.contextInfo;
     const quotedMsg = quoted?.quotedMessage;
-    if (!quotedMsg) {
-      await sendText(from, "❌ Reply to an image with .upload [tier]");
+
+    const hasImage = !!(quotedMsg?.imageMessage || quotedMsg?.stickerMessage || msg.message?.imageMessage);
+    const hasVideo = !!(quotedMsg?.videoMessage || msg.message?.videoMessage);
+    const hasGif = !!(quotedMsg?.videoMessage?.gifPlayback || msg.message?.videoMessage?.gifPlayback);
+
+    if (!hasImage && !hasVideo) {
+      await sendText(from, "❌ Reply with the correct media to upload a card.\nImage tiers (T1–T5): reply to a photo.\nAnimated tiers (T6/TS/TX/TZ): reply to a GIF or short video.");
       return;
     }
-    const imgMsg = quotedMsg.imageMessage || quotedMsg.stickerMessage;
-    if (!imgMsg) {
-      await sendText(from, "❌ Reply to an image (not a video or document).");
+
+    if (isImageTier && (hasVideo || hasGif) && !hasImage) {
+      await sendText(from, "❌ This tier requires an image.");
+      return;
+    }
+    if (isVideoTier && hasImage && !hasVideo) {
+      await sendText(from, "❌ This tier requires a GIF or short video.");
       return;
     }
 
@@ -398,41 +411,79 @@ export async function handleStaff(ctx: CommandContext): Promise<void> {
     const existingIds = new Set(db.prepare("SELECT id FROM cards").all().map((r: any) => r.id));
 
     try {
-      await sendText(from, "⏳ Downloading image and saving card...");
+      await sendText(from, "⏳ Processing and saving card...");
       const context = msg.message?.extendedTextMessage?.contextInfo;
-      const quotedWebMessage = {
-        key: {
-          remoteJid: from,
-          fromMe: false,
-          id: context?.stanzaId || "",
-          participant: context?.participant,
-        },
-        message: quotedMsg,
-      };
+
+      let mediaMsg: any;
+      if (hasVideo && quotedMsg?.videoMessage) {
+        mediaMsg = { key: { remoteJid: from, fromMe: false, id: context?.stanzaId || "", participant: context?.participant }, message: quotedMsg };
+      } else if (hasVideo && msg.message?.videoMessage) {
+        mediaMsg = msg;
+      } else if (hasImage && msg.message?.imageMessage) {
+        mediaMsg = msg;
+      } else {
+        mediaMsg = { key: { remoteJid: from, fromMe: false, id: context?.stanzaId || "", participant: context?.participant }, message: quotedMsg };
+      }
+
       const downloaded = await downloadMediaMessage(
-        quotedWebMessage as any,
+        mediaMsg as any,
         "buffer",
         {},
         { reuploadRequest: (sock as any).updateMediaMessage }
       );
-      const imageBuffer = Buffer.isBuffer(downloaded) ? downloaded : Buffer.from(downloaded as any);
+      let mediaBuffer = Buffer.isBuffer(downloaded) ? downloaded : Buffer.from(downloaded as any);
+
+      const MAX_SIZE = 10 * 1024 * 1024;
+      if (mediaBuffer.length > MAX_SIZE) {
+        await sendText(from, `❌ File too large (${(mediaBuffer.length / 1024 / 1024).toFixed(1)}MB). Max 10MB.`);
+        return;
+      }
+
+      if (isImageTier) {
+        const sharp = (await import("sharp")).default;
+        mediaBuffer = await sharp(mediaBuffer).resize(800, 800, { fit: "inside", withoutEnlargement: true }).jpeg({ quality: 85 }).toBuffer();
+      }
 
       const { generateUniqueCardId } = await import("../utils.js");
       const cardId = generateUniqueCardId(existingIds);
+      const isAnimated = isVideoTier ? 1 : 0;
 
       addCard({
         id: cardId,
         name: cardName,
         tier,
         series: cardSeries,
-        image_data: imageBuffer,
+        image_data: mediaBuffer,
         description: cardDesc,
         uploaded_by: sender,
       });
+      db.prepare("UPDATE cards SET is_animated = ? WHERE id = ?").run(isAnimated, cardId);
 
-      await sendText(from, `✅ Card uploaded!\n\n${getTierEmoji(tier)} *${cardName}*\n📦 Series: ${cardSeries}\n🎖️ Tier: ${tier}\n🆔 ID: \`${cardId}\`\n\nUse .spawncard to spawn it!`);
+      await sendText(from, `✅ Card uploaded!\n\n${getTierEmoji(tier)} *${cardName}*\n📦 Series: ${cardSeries}\n🎖️ Tier: ${tier}\n${isAnimated ? "🎬 Type: Animated\n" : ""}🆔 ID: \`${cardId}\`\n\nUse .spawncard to spawn it!`);
     } catch (err: any) {
       await sendText(from, `❌ Failed to upload card: ${err.message}`);
+    }
+    return;
+  }
+
+  if (cmd === "addrole") {
+    if (!isOwner && staffRecord?.role !== "mod" && staffRecord?.role !== "guardian") {
+      await sendText(from, "❌ Only mods, guardians, and the owner can use this command.");
+      return;
+    }
+    const role = args[0]?.toLowerCase();
+    const info = ctx.msg.message?.extendedTextMessage?.contextInfo;
+    const targetId = info?.mentionedJid?.[0] || info?.participant;
+    if (!targetId || !role) {
+      await sendText(from, "❌ Usage: .addrole bot @user\n(Currently only 'bot' role is supported)");
+      return;
+    }
+    if (role === "bot") {
+      ensureUser(targetId);
+      updateUser(targetId, { is_bot: 1 });
+      await sendText(from, `✅ @${targetId.split("@")[0]} has been flagged as a bot and excluded from the economy system.`, [targetId]);
+    } else {
+      await sendText(from, `❌ Unknown role: *${role}*. Currently only 'bot' is supported.`);
     }
     return;
   }

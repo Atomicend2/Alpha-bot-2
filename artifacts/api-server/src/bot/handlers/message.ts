@@ -319,6 +319,7 @@ async function dispatch(ctx: CommandContext): Promise<void> {
     case "groupstats":
     case "gs":
     case "gcl":
+    case "gclink":
       return handleAdmin(ctx);
 
     case "balance":
@@ -360,6 +361,7 @@ async function dispatch(ctx: CommandContext): Promise<void> {
     case "dig":
     case "fish":
     case "beg":
+    case "steal":
     case "roast":
     case "stats":
       return handleEconomy(ctx);
@@ -550,6 +552,7 @@ async function dispatch(ctx: CommandContext): Promise<void> {
     case "reset":
     case "addinv":
     case "rules":
+    case "addrole":
       return handleStaff(ctx);
 
     case "cds":

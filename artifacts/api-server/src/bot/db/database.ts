@@ -343,7 +343,14 @@ function initSchema(db: Database.Database): void {
       ('Shield', 'Increases defense by 10', 3000, 'defense:10', 'rpg'),
       ('Speed Boots', 'Increases speed by 10', 3000, 'speed:10', 'rpg'),
       ('Lucky Charm', 'Boosts daily rewards', 1500, 'daily_boost', 'general'),
-      ('Guild License', 'Required to create a guild', 11000000, 'guild_license', 'general');
+      ('Guild License', 'Required to create a guild', 11000000, 'guild_license', 'general'),
+      ('Rename Sheet📃', 'Allows you to change your name once', 91000, 'rename', 'general'),
+      ('Pistol', 'Required to steal from other players', 15000, 'steal', 'general'),
+      ('Iron Helmet', 'Dungeon equipment: reduces dmg by 5', 8000, 'dungeon:helmet:5', 'rpg'),
+      ('Iron Chestplate', 'Dungeon equipment: reduces dmg by 10', 18000, 'dungeon:chest:10', 'rpg'),
+      ('Iron Sword', 'Dungeon equipment: increases atk by 15', 12000, 'dungeon:sword:15', 'rpg'),
+      ('Shadow Cloak', 'Dungeon equipment: increases speed by 8', 10000, 'dungeon:cloak:8', 'rpg'),
+      ('Dungeon Key', 'Unlocks special dungeon floors', 5000, 'dungeon_key', 'rpg');
   `);
 
   db.prepare("UPDATE shop_items SET price = 11000000, description = 'Required to create a guild', effect = 'guild_license', category = 'general' WHERE LOWER(name) = 'guild license'").run();
@@ -424,6 +431,11 @@ function initSchema(db: Database.Database): void {
   ensureColumn(db, "groups", "recent_spawned_cards", "TEXT DEFAULT '[]'");
   ensureColumn(db, "groups", "rpg_enabled", "TEXT DEFAULT 'on'");
   ensureColumn(db, "card_spawns", "spawn_token", "TEXT");
+  ensureColumn(db, "users", "is_bot", "INTEGER DEFAULT 0");
+  ensureColumn(db, "users", "last_steal", "INTEGER DEFAULT 0");
+  ensureColumn(db, "groups", "last_gcl", "INTEGER DEFAULT 0");
+  ensureColumn(db, "rpg_characters", "skill_points", "INTEGER DEFAULT 0");
+  ensureColumn(db, "cards", "is_animated", "INTEGER DEFAULT 0");
 }
 
 function ensureColumn(db: Database.Database, table: string, column: string, definition: string): void {

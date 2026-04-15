@@ -325,8 +325,14 @@ export function getCardOwnerCount(cardId: string): number {
 export function getXpLeaderboard(limit = 10) {
   const db = getDb();
   return db.prepare(
-    "SELECT id, name, xp, level FROM users ORDER BY COALESCE(level, 1) DESC, COALESCE(xp, 0) DESC LIMIT ?"
+    "SELECT id, name, xp, level FROM users WHERE COALESCE(is_bot, 0) = 0 ORDER BY COALESCE(level, 1) DESC, COALESCE(xp, 0) DESC LIMIT ?"
   ).all(limit) as any[];
+}
+
+export function isBot(userId: string): boolean {
+  const db = getDb();
+  const row = db.prepare("SELECT is_bot FROM users WHERE id = ?").get(userId) as any;
+  return row?.is_bot === 1;
 }
 
 export function claimSpawn(spawnId: number, userId: string) {
@@ -379,12 +385,14 @@ export function getRichList(groupId?: string, limit = 10) {
       SELECT u.id, u.name, u.balance + u.bank as total
       FROM users u
       WHERE u.id IN (SELECT user_id FROM message_counts WHERE group_id = ?)
+        AND COALESCE(u.is_bot, 0) = 0
       ORDER BY total DESC LIMIT ?
     `).all(groupId, limit) as any[];
   }
   return db.prepare(`
     SELECT id, name, balance + bank as total
-    FROM users ORDER BY total DESC LIMIT ?
+    FROM users WHERE COALESCE(is_bot, 0) = 0
+    ORDER BY total DESC LIMIT ?
   `).all(limit) as any[];
 }
 

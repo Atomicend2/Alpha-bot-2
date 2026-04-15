@@ -3,7 +3,7 @@ import { BOT_OWNER_LID, sendText } from "../connection.js";
 import {
   getUser, ensureUser, updateUser, getInventory, addToInventory, removeFromInventory,
   getShop, getShopItem, getRichList, ensureRpg, getUserRank, getUserGuild, isBanned, getStaff, isMod,
-  getXpLeaderboard,
+  getXpLeaderboard, isBot,
 } from "../db/queries.js";
 import { formatNumber, timeAgo } from "../utils.js";
 import sharp from "sharp";
@@ -21,6 +21,7 @@ const WORK_COOLDOWN = 3600;
 const DIG_COOLDOWN = 120;
 const FISH_COOLDOWN = 120;
 const BEG_COOLDOWN = 300;
+const STEAL_COOLDOWN = 6000;
 const DIG_FISH_MIN_REWARD = 180;
 const DIG_FISH_MAX_REWARD = 383;
 
@@ -188,6 +189,10 @@ export async function handleEconomy(ctx: CommandContext): Promise<void> {
       await sendText(from, "❌ Usage: .donate @user [amount] or reply with .donate [amount]");
       return;
     }
+    if (isBot(mentioned)) {
+      await sendText(from, "❌ Bots are not part of the economy system.");
+      return;
+    }
     if (amount > (user.balance || 0)) {
       await sendText(from, "❌ Not enough in wallet.");
       return;
@@ -216,6 +221,7 @@ export async function handleEconomy(ctx: CommandContext): Promise<void> {
       { emoji: "🎡", name: "Roulette",    cd: 300,              last: user.last_roulette || 0 },
       { emoji: "🏇", name: "Horse",       cd: 240,              last: user.last_horse || 0 },
       { emoji: "🌀", name: "Spin",        cd: 180,              last: user.last_spin || 0 },
+      { emoji: "🔫", name: "Steal",       cd: STEAL_COOLDOWN,   last: user.last_steal || 0 },
       { emoji: "🏰", name: "Raid",        cd: 21600,            last: rpg.last_raid || 0 },
       { emoji: "📜", name: "Quest",       cd: 240,              last: rpg.last_quest || 0 },
     ];
@@ -279,9 +285,23 @@ export async function handleEconomy(ctx: CommandContext): Promise<void> {
 
   if (cmd === "setname") {
     const name = args.join(" ");
-    if (!name) { await sendText(from, "❌ Usage: .setname <name>"); return; }
+    if (!name) {
+      await sendText(from, "❌ Usage: .setname <name>\n📃 Requires: *Rename Sheet📃* (buy from .shop for $91,000)\nName must be 2–20 characters.");
+      return;
+    }
+    if (name.length < 2 || name.length > 20) {
+      await sendText(from, "❌ Name must be between 2 and 20 characters.");
+      return;
+    }
+    const inv = getInventory(sender);
+    const sheet = inv.find((i) => i.item.toLowerCase().includes("rename sheet"));
+    if (!sheet) {
+      await sendText(from, "❌ You need a *Rename Sheet📃* to change your name.\nBuy one from the *.shop* for $91,000.");
+      return;
+    }
+    removeFromInventory(sender, sheet.item);
     updateUser(sender, { name });
-    await sendText(from, `✅ Name set to: *${name}*`);
+    await sendText(from, `✅ Name changed to: *${name}*\n📃 1 Rename Sheet consumed.`);
     return;
   }
 
@@ -331,6 +351,7 @@ export async function handleEconomy(ctx: CommandContext): Promise<void> {
     const age = target.age || "Not set";
     const bio = target.bio || "No bio set";
     const registered = formatProfileDate(Number(target.created_at || now));
+    const daysSinceReg = Math.floor((now - Number(target.created_at || now)) / 86400);
     const hasVideoProfile = Buffer.isBuffer(target.profile_picture_video) || Buffer.isBuffer(target.profile_background_video);
     const animatedProfile = hasVideoProfile
       ? await buildAnimatedProfileGif(ctx, targetId, target, rpg, rank, role).catch(async () => null)
@@ -345,9 +366,10 @@ export async function handleEconomy(ctx: CommandContext): Promise<void> {
       `✧ 𝗡𝗮𝗺𝗲: ۶ৎ ${name}\n` +
       `✧ 𝗔𝗴𝗲: ${age}\n` +
       `✧ 𝗕𝗶𝗼: ${bio}\n` +
-      `✧ 𝗥𝗲𝗴𝗶𝘀𝘁𝗲𝗿𝗲𝗱: ${registered}\n` +
+      `✧ 𝗥𝗲𝗴𝗶𝘀𝘁𝗲𝗿𝗲𝗱: ${registered} (${daysSinceReg}d ago)\n` +
       `✧ 𝗥𝗼𝗹𝗲: ${role}\n` +
-      `✧ 𝗚𝘂𝗶𝗹𝗱: ${guild?.name || "None"}\n\n` +
+      `✧ 𝗚𝘂𝗶𝗹𝗱: ${guild?.name || "None"}\n` +
+      `✧ 𝗗𝘂𝗻𝗴𝗲𝗼𝗻: Floor ${rpg.dungeon_floor} · Lv.${rpg.level}\n\n` +
       `✧ 𝗕𝗮𝗻𝗻𝗲𝗱: ${isBanned("user", targetId) ? "Yes" : "No"}`;
 
     if (animatedProfile) {
@@ -375,8 +397,8 @@ export async function handleEconomy(ctx: CommandContext): Promise<void> {
       return;
     }
     const ageNum = parseInt(age, 10);
-    if (ageNum < 1 || ageNum > 120) {
-      await sendText(from, "❌ Please enter a valid age between 1 and 120.");
+    if (ageNum < 13 || ageNum > 50) {
+      await sendText(from, "❌ Age must be between 13 and 50.");
       return;
     }
     updateUser(sender, { age });
@@ -580,6 +602,66 @@ export async function handleEconomy(ctx: CommandContext): Promise<void> {
     const earned = 10 + Math.floor(Math.random() * 90);
     updateUser(sender, { balance: (user.balance || 0) + earned, last_beg: now });
     await sendText(from, `🙏 ${response}\nYou received *$${formatNumber(earned)}*.`);
+    return;
+  }
+
+  if (cmd === "steal") {
+    const info = ctx.msg.message?.extendedTextMessage?.contextInfo;
+    const targetId = info?.mentionedJid?.[0] || info?.participant;
+    if (!targetId) {
+      await sendText(from, "❌ Usage: .steal @user or reply to their message with .steal");
+      return;
+    }
+    if (targetId === sender) {
+      await sendText(from, "❌ You can't steal from yourself.");
+      return;
+    }
+    if (isBot(targetId)) {
+      await sendText(from, "❌ Bots are not part of the economy system.");
+      return;
+    }
+    const inv = getInventory(sender);
+    const pistol = inv.find((i) => i.item.toLowerCase() === "pistol");
+    if (!pistol) {
+      await sendText(from, "❌ You need a *Pistol* to steal.\nBuy one from the *.shop* for $15,000.");
+      return;
+    }
+    const lastSteal = user.last_steal || 0;
+    const diff = now - lastSteal;
+    if (diff < STEAL_COOLDOWN) {
+      await sendText(from, `⏳ Steal cooldown: ${formatDuration(STEAL_COOLDOWN - diff)} left.`);
+      return;
+    }
+    const target = ensureUser(targetId);
+    const targetBal = target.balance || 0;
+    if (targetBal <= 0) {
+      await sendText(from, `❌ @${targetId.split("@")[0]} has nothing to steal!`, [targetId]);
+      return;
+    }
+    updateUser(sender, { last_steal: now });
+    const success = Math.random() < 0.5;
+    if (success) {
+      const pct = 0.1 + Math.random() * 0.2;
+      const stolen = Math.max(1, Math.floor(targetBal * pct));
+      updateUser(sender, { balance: (user.balance || 0) + stolen });
+      updateUser(targetId, { balance: Math.max(0, targetBal - stolen) });
+      await sendText(from,
+        `🔫 *Heist Successful!*\n\n` +
+        `You robbed @${targetId.split("@")[0]} and got away with *$${formatNumber(stolen)}*!\n` +
+        `Your new balance: $${formatNumber((user.balance || 0) + stolen)}`,
+        [targetId]
+      );
+    } else {
+      const pct = 0.05 + Math.random() * 0.1;
+      const lost = Math.max(1, Math.floor((user.balance || 0) * pct));
+      updateUser(sender, { balance: Math.max(0, (user.balance || 0) - lost) });
+      await sendText(from,
+        `🚓 *Caught Red-Handed!*\n\n` +
+        `You failed to rob @${targetId.split("@")[0]} and lost *$${formatNumber(lost)}* in the chaos.\n` +
+        `Your new balance: $${formatNumber(Math.max(0, (user.balance || 0) - lost))}`,
+        [targetId]
+      );
+    }
     return;
   }
 
