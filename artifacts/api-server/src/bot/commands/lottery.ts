@@ -197,96 +197,60 @@ async function buildLotteryImage(lotteryId: number): Promise<Buffer> {
   const entries = db.prepare("SELECT le.user_id, u.name FROM lottery_entries le LEFT JOIN users u ON u.id = le.user_id WHERE le.lottery_id = ? ORDER BY le.created_at ASC").all(lotteryId) as any[];
   const participantCount = entries.length;
 
-  const W = 800;
-  const H = 460;
+  const W = 600;
+  const H = 280;
   const required = MAX_PARTICIPANTS;
   const participantPct = Math.min(participantCount / required, 1);
-  const requiredPct = 1; // always full bar for "Required"
-  const barTrackW = 600;
-  const reqBarW = Math.round(barTrackW * requiredPct);
-  const partBarW = Math.max(8, Math.round(barTrackW * participantPct));
+  const BAR_X = 30;
+  const BAR_W = W - 60;
+  const reqBarW = BAR_W; // always full
+  const partBarW = Math.max(12, Math.round(BAR_W * participantPct));
 
-  // Build participant name list (up to 5 names)
-  const nameList = entries.slice(0, 5).map((e: any, i: number) => e.name || `Shadow ${i + 1}`);
-  const extraCount = participantCount > 5 ? participantCount - 5 : 0;
-
-  const namesSvg = nameList.map((name: string, i: number) => {
-    const y = 310 + i * 22;
-    const safeName = name.replace(/[<>&"']/g, (c) => ({ "<": "&lt;", ">": "&gt;", "&": "&amp;", '"': "&quot;", "'": "&apos;" }[c] || c));
-    return `<text x="100" y="${y}" fill="rgba(255,255,255,0.65)" font-size="14" font-family="Arial, sans-serif">• ${safeName}</text>`;
-  }).join("");
-
-  const extraText = extraCount > 0
-    ? `<text x="100" y="${310 + nameList.length * 22}" fill="rgba(255,255,255,0.45)" font-size="13" font-family="Arial, sans-serif">...and ${extraCount} more</text>`
-    : "";
+  const now = new Date();
+  const timeStr = now.toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit", hour12: true });
 
   const svg = `<svg width="${W}" height="${H}" xmlns="http://www.w3.org/2000/svg">
     <defs>
-      <linearGradient id="bgGrad" x1="0" y1="0" x2="1" y2="1">
-        <stop offset="0%" stop-color="#0a0a0f"/>
-        <stop offset="100%" stop-color="#1a0a2e"/>
-      </linearGradient>
-      <linearGradient id="reqBar" x1="0" y1="0" x2="1" y2="0">
-        <stop offset="0%" stop-color="#7c3aed"/>
-        <stop offset="100%" stop-color="#a855f7"/>
-      </linearGradient>
-      <linearGradient id="partBar" x1="0" y1="0" x2="1" y2="0">
-        <stop offset="0%" stop-color="#d97706"/>
-        <stop offset="100%" stop-color="#f59e0b"/>
-      </linearGradient>
+      <clipPath id="card">
+        <rect width="${W}" height="${H}" rx="18"/>
+      </clipPath>
     </defs>
 
-    <!-- Background -->
-    <rect width="${W}" height="${H}" fill="url(#bgGrad)" rx="16"/>
+    <!-- Card background -->
+    <rect width="${W}" height="${H}" fill="#1e1e24" rx="18"/>
 
-    <!-- Top purple accent strip -->
-    <rect width="${W}" height="4" fill="#7c3aed" rx="2"/>
+    <!-- Content area clipped -->
+    <g clip-path="url(#card)">
 
-    <!-- Decorative glow circles -->
-    <circle cx="720" cy="80" r="120" fill="rgba(168,85,247,0.06)"/>
-    <circle cx="80" cy="380" r="80" fill="rgba(245,158,11,0.05)"/>
+      <!-- Title -->
+      <text x="${BAR_X}" y="44" fill="white" font-size="20" font-family="Arial, sans-serif" font-weight="bold">Lottery Pools in <tspan font-style="italic">SHADOW GARDEN</tspan></text>
 
-    <!-- Header -->
-    <text x="50%" y="52" text-anchor="middle" fill="white" font-size="13" font-family="Arial, sans-serif" font-weight="bold" letter-spacing="4" fill-opacity="0.5">SHADOW GARDEN</text>
-    <text x="50%" y="90" text-anchor="middle" fill="white" font-size="26" font-family="Georgia, serif" font-weight="bold" letter-spacing="2">Lottery Pools</text>
+      <!-- Divider -->
+      <line x1="${BAR_X}" y1="58" x2="${W - BAR_X}" y2="58" stroke="rgba(255,255,255,0.08)" stroke-width="1"/>
 
-    <!-- Divider -->
-    <line x1="50" y1="110" x2="${W - 50}" y2="110" stroke="rgba(255,255,255,0.08)" stroke-width="1"/>
+      <!-- REQUIRED label + number -->
+      <text x="${BAR_X}" y="90" fill="white" font-size="17" font-family="Arial, sans-serif" font-weight="bold">Required</text>
+      <text x="${W - BAR_X}" y="90" text-anchor="end" fill="white" font-size="17" font-family="Arial, sans-serif" font-weight="bold">${required}</text>
 
-    <!-- REQUIRED BAR -->
-    <text x="100" y="150" fill="rgba(255,255,255,0.9)" font-size="15" font-family="Arial, sans-serif" font-weight="bold">Required</text>
-    <text x="${W - 100}" y="150" text-anchor="end" fill="#a855f7" font-size="15" font-family="Arial, sans-serif" font-weight="bold">${required}</text>
+      <!-- Required bar track -->
+      <rect x="${BAR_X}" y="100" width="${BAR_W}" height="20" rx="10" fill="rgba(255,255,255,0.12)"/>
+      <!-- Required bar fill (full, blue) -->
+      <rect x="${BAR_X}" y="100" width="${reqBarW}" height="20" rx="10" fill="#1d8cf8"/>
 
-    <!-- Bar track -->
-    <rect x="100" y="158" width="${barTrackW}" height="30" rx="6" fill="rgba(255,255,255,0.06)"/>
-    <!-- Bar fill -->
-    <rect x="100" y="158" width="${reqBarW}" height="30" rx="6" fill="url(#reqBar)"/>
-    <!-- Bar text -->
-    <text x="${100 + reqBarW / 2}" y="178" text-anchor="middle" fill="white" font-size="13" font-family="Arial, sans-serif" font-weight="bold">${required} spots</text>
+      <!-- PARTICIPANTS label + number -->
+      <text x="${BAR_X}" y="150" fill="white" font-size="17" font-family="Arial, sans-serif" font-weight="bold">Participants</text>
+      <text x="${W - BAR_X}" y="150" text-anchor="end" fill="white" font-size="17" font-family="Arial, sans-serif" font-weight="bold">${participantCount}</text>
 
-    <!-- PARTICIPANTS BAR -->
-    <text x="100" y="225" fill="rgba(255,255,255,0.9)" font-size="15" font-family="Arial, sans-serif" font-weight="bold">Participants</text>
-    <text x="${W - 100}" y="225" text-anchor="end" fill="#f59e0b" font-size="15" font-family="Arial, sans-serif" font-weight="bold">${participantCount}</text>
+      <!-- Participants bar track -->
+      <rect x="${BAR_X}" y="160" width="${BAR_W}" height="20" rx="10" fill="rgba(255,255,255,0.12)"/>
+      <!-- Participants bar fill (dynamic, blue) -->
+      <rect x="${BAR_X}" y="160" width="${partBarW}" height="20" rx="10" fill="#1d8cf8"/>
 
-    <!-- Bar track -->
-    <rect x="100" y="233" width="${barTrackW}" height="30" rx="6" fill="rgba(255,255,255,0.06)"/>
-    <!-- Bar fill -->
-    <rect x="100" y="233" width="${partBarW}" height="30" rx="6" fill="url(#partBar)"/>
-    <!-- Bar text -->
-    <text x="${100 + Math.max(partBarW / 2, 40)}" y="253" text-anchor="middle" fill="white" font-size="13" font-family="Arial, sans-serif" font-weight="bold">${participantCount}/${required}</text>
+      <!-- Footer: time + hint -->
+      <text x="${W - BAR_X}" y="${H - 16}" text-anchor="end" fill="rgba(255,255,255,0.35)" font-size="12" font-family="Arial, sans-serif">${timeStr}</text>
+      <text x="${BAR_X}" y="${H - 16}" fill="rgba(255,255,255,0.35)" font-size="12" font-family="Arial, sans-serif">.lottery to enter  •  ${participantCount}/${required} spots filled</text>
 
-    <!-- Divider -->
-    <line x1="50" y1="290" x2="${W - 50}" y2="290" stroke="rgba(255,255,255,0.08)" stroke-width="1"/>
-
-    <!-- Participant names -->
-    ${participantCount > 0
-      ? `<text x="100" y="308" fill="rgba(255,255,255,0.4)" font-size="12" font-family="Arial, sans-serif" letter-spacing="2">ENTERED:</text>${namesSvg}${extraText}`
-      : `<text x="50%" y="330" text-anchor="middle" fill="rgba(255,255,255,0.3)" font-size="14" font-family="Arial, sans-serif">No participants yet. Type .lottery to enter!</text>`
-    }
-
-    <!-- Footer -->
-    <rect x="0" y="${H - 44}" width="${W}" height="44" fill="rgba(0,0,0,0.3)" rx="16"/>
-    <text x="50%" y="${H - 18}" text-anchor="middle" fill="rgba(255,255,255,0.35)" font-size="12" font-family="Arial, sans-serif">3 winners drawn automatically • .lottery to enter • .ll to check status</text>
+    </g>
   </svg>`;
 
   return sharp(Buffer.from(svg)).png().toBuffer();

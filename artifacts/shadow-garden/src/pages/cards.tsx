@@ -294,6 +294,18 @@ function CardDisplay({ card, count, showOwner }: { card: any, count?: number, sh
       )}>
         {/* Card Header image area */}
         <div className={cn("h-40 w-full relative", theme.bg)}>
+          {card.imageUrl ? (
+            <img
+              src={card.imageUrl}
+              alt={card.name}
+              className="absolute inset-0 w-full h-full object-cover"
+              onError={(e) => { (e.target as HTMLImageElement).style.display = "none"; }}
+            />
+          ) : (
+            <div className="absolute inset-0 flex items-center justify-center opacity-10">
+              <ImageOff className="w-10 h-10" />
+            </div>
+          )}
           <div className="absolute inset-0 bg-gradient-to-t from-black/80 to-transparent" />
           <div className="absolute top-2 right-2 px-2 py-1 bg-black/60 rounded border border-white/10 text-xs font-bold">
             {card.series}
