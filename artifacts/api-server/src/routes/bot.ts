@@ -9,9 +9,25 @@ import {
   isCredsRegistered,
   clearAuth,
 } from "../bot/connection.js";
+import { getAllBots, addBot, removeBot } from "../bot/db/queries.js";
 import { logger } from "../lib/logger.js";
+import { randomUUID } from "crypto";
 
 const router = express.Router();
+
+const ADMIN_PASSWORD = process.env["ADMIN_PASSWORD"] || "Admin";
+
+function requireAdminPassword(req: express.Request, res: express.Response, next: express.NextFunction): void {
+  const password =
+    (req.headers["x-admin-password"] as string) ||
+    req.body?.adminPassword ||
+    (req.query["adminPassword"] as string);
+  if (!password || password !== ADMIN_PASSWORD) {
+    res.status(401).json({ success: false, message: "Invalid admin password." });
+    return;
+  }
+  next();
+}
 
 // GET /api/bot/status — returns current bot status
 router.get("/status", (_req, res) => {
@@ -26,8 +42,18 @@ router.get("/status", (_req, res) => {
   });
 });
 
-// POST /api/bot/start — start the bot (optionally provide phone number for pairing)
-router.post("/start", async (req, res) => {
+// POST /api/bot/verify-password — verify admin password
+router.post("/verify-password", (req, res) => {
+  const { password } = req.body as { password?: string };
+  if (!password || password !== ADMIN_PASSWORD) {
+    res.status(401).json({ success: false, message: "Invalid password." });
+    return;
+  }
+  res.json({ success: true, message: "Password accepted." });
+});
+
+// POST /api/bot/start — start the bot (requires admin password)
+router.post("/start", requireAdminPassword, async (req, res) => {
   if (isSocketConnected() || isSocketConnecting()) {
     res.json({
       success: true,
@@ -49,8 +75,8 @@ router.post("/start", async (req, res) => {
   }
 });
 
-// POST /api/bot/pairing — request a pairing code for the given phone number
-router.post("/pairing", async (req, res) => {
+// POST /api/bot/pairing — request a pairing code (requires admin password)
+router.post("/pairing", requireAdminPassword, async (req, res) => {
   const { phone } = req.body as { phone?: string };
   if (!phone) {
     res.status(400).json({ success: false, message: "Phone number required" });
@@ -79,8 +105,8 @@ router.post("/pairing", async (req, res) => {
   }
 });
 
-// POST /api/bot/disconnect — logout and disconnect
-router.post("/disconnect", async (_req, res) => {
+// POST /api/bot/disconnect — logout and disconnect (requires admin password)
+router.post("/disconnect", requireAdminPassword, async (_req, res) => {
   const sock = getSocket();
   if (sock) {
     try {
@@ -90,10 +116,86 @@ router.post("/disconnect", async (_req, res) => {
   res.json({ success: true, message: "Disconnected" });
 });
 
-// POST /api/bot/clear — wipe all auth data (force re-pair next time)
-router.post("/clear", (_req, res) => {
+// POST /api/bot/clear — wipe all auth data (requires admin password)
+router.post("/clear", requireAdminPassword, (_req, res) => {
   clearAuth();
   res.json({ success: true, message: "Auth data cleared — ready for fresh pairing" });
+});
+
+// GET /api/bot/bots — list all registered bots (no auth required for read)
+router.get("/bots", (_req, res) => {
+  const bots = getAllBots();
+  const sock = getSocket();
+  const connectedPhone = sock?.user?.id?.split(":")[0]?.split("@")[0] || null;
+
+  const list = bots.map((b: any) => ({
+    id: b.id,
+    name: b.name,
+    phone: b.phone || "",
+    status: (connectedPhone && b.phone && b.phone === connectedPhone) ? "online" : (b.status || "offline"),
+    createdAt: b.created_at || 0,
+  }));
+
+  // Show currently connected bot at top (if any, even if not in list)
+  const activeConnected = isSocketConnected();
+  const botName = sock?.user?.name;
+  const botPhone = connectedPhone;
+  const alreadyInList = list.some((b: any) => b.phone === botPhone);
+
+  if (activeConnected && botPhone && !alreadyInList) {
+    list.unshift({
+      id: "__active__",
+      name: botName || "Active Bot",
+      phone: botPhone,
+      status: "online",
+      createdAt: 0,
+    });
+  }
+
+  res.json({ bots: list });
+});
+
+// POST /api/bot/bots — add a new bot profile (requires admin password)
+// Accepts JSON: { adminPassword, name, phone, imageBase64? }
+router.post("/bots", requireAdminPassword, (req, res) => {
+  const { name, phone, imageBase64 } = req.body as {
+    name?: string;
+    phone?: string;
+    imageBase64?: string;
+  };
+
+  if (!name || !name.trim()) {
+    res.status(400).json({ success: false, message: "Bot name is required." });
+    return;
+  }
+
+  const id = randomUUID();
+  let imageData: Buffer | undefined;
+  if (imageBase64) {
+    try {
+      imageData = Buffer.from(imageBase64, "base64");
+    } catch {
+      // ignore invalid base64
+    }
+  }
+
+  try {
+    addBot(id, name.trim(), (phone || "").replace(/\D/g, ""), imageData);
+    res.json({ success: true, message: "Bot registered successfully.", id });
+  } catch (err: any) {
+    res.status(500).json({ success: false, message: err.message });
+  }
+});
+
+// DELETE /api/bot/bots/:id — remove a bot (requires admin password via x-admin-password header)
+router.delete("/bots/:id", requireAdminPassword, (req, res) => {
+  const { id } = req.params;
+  try {
+    removeBot(id);
+    res.json({ success: true, message: "Bot removed." });
+  } catch (err: any) {
+    res.status(500).json({ success: false, message: err.message });
+  }
 });
 
 export { router as botRouter };

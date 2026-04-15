@@ -1,7 +1,8 @@
 import { Router } from "express";
 import { requireAuth, type AuthRequest } from "./middleware.js";
 import { getDb } from "../../bot/db/database.js";
-import { getUserRank, getUserGuild, getInventory } from "../../bot/db/queries.js";
+import { getUserRank, getUserGuild, getInventory, getStaff } from "../../bot/db/queries.js";
+import { BOT_OWNER_LID } from "../../bot/connection.js";
 
 const router = Router();
 
@@ -44,6 +45,23 @@ router.get("/stats", requireAuth, (req: AuthRequest, res) => {
   const baseBankMax = 50000;
   const bankMax = baseBankMax + extraBankCap;
 
+  // Determine role
+  const phone = user.id.split("@")[0];
+  let role = "normal";
+  if (phone === BOT_OWNER_LID || user.id === `${BOT_OWNER_LID}@s.whatsapp.net` || user.id === `${BOT_OWNER_LID}@lid`) {
+    role = "owner";
+  } else {
+    const staff = getStaff(user.id);
+    if (staff?.role === "guardian") role = "guardian";
+    else if (staff?.role === "mod") role = "mod";
+    else if (staff?.role === "recruit") role = "recruit";
+    else if (user.premium) {
+      const expiry = Number(user.premium_expiry || 0);
+      if (expiry === 0 || expiry > Math.floor(Date.now() / 1000)) role = "premium";
+    }
+  }
+  const canUseAnimatedBg = ["owner", "guardian", "mod", "premium"].includes(role);
+
   res.json({
     profile: {
       id: user.id,
@@ -58,6 +76,10 @@ router.get("/stats", requireAuth, (req: AuthRequest, res) => {
       premium: user.premium || 0,
       bio: user.bio || "",
       registeredAt: user.created_at || 0,
+      profileFrame: user.profile_frame || "",
+      bgType: user.bg_type || "static",
+      role,
+      canUseAnimatedBg,
     },
     rpg,
     guild,

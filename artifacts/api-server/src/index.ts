@@ -2,6 +2,7 @@ import app from "./app.js";
 import { logger } from "./lib/logger.js";
 import { connectToWhatsApp, isCredsRegistered } from "./bot/connection.js";
 import { getDb } from "./bot/db/database.js";
+import http from "http";
 
 const rawPort = process.env["PORT"];
 
@@ -36,4 +37,19 @@ app.listen(port, async (err?: Error) => {
   } else {
     logger.info("No WhatsApp credentials found — use the admin page at /admin to connect the bot");
   }
+
+  // Keep-alive: ping our own health endpoint every 4 minutes to prevent Render from sleeping
+  const PING_INTERVAL_MS = 4 * 60 * 1000;
+  setInterval(() => {
+    try {
+      http.get(`http://localhost:${port}/api/healthz`, (res) => {
+        res.resume();
+      }).on("error", () => {
+        // Silently ignore ping errors
+      });
+    } catch {
+      // Silently ignore
+    }
+  }, PING_INTERVAL_MS);
+  logger.info({ intervalMs: PING_INTERVAL_MS }, "Keep-alive ping scheduled");
 });

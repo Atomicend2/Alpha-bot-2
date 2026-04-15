@@ -4,13 +4,13 @@ import { useAuth } from "@/lib/auth";
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Wallet, Sparkles, AlertCircle, Ticket, Users, Crown, Trophy, ChevronRight, Landmark, ArrowRight } from "lucide-react";
+import { Wallet, Sparkles, AlertCircle, Ticket, Users, Crown, Trophy, ChevronRight, Landmark, ArrowRight, LogIn, Loader2 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { useQueryClient } from "@tanstack/react-query";
 import { cn } from "@/lib/utils";
 
 export default function Shop() {
-  const { isAuthenticated } = useAuth();
+  const { isAuthenticated, token } = useAuth();
   const { toast } = useToast();
   const queryClient = useQueryClient();
 
@@ -70,7 +70,7 @@ export default function Shop() {
       <div className="space-y-20">
 
         {/* LOTTERY SECTION */}
-        <LotterySection lotteryData={lotteryData} lotteryLoading={lotteryLoading} userStats={userStats} />
+        <LotterySection lotteryData={lotteryData} lotteryLoading={lotteryLoading} userStats={userStats} token={token} isAuthenticated={isAuthenticated} />
 
         {/* SHOP ITEMS */}
         {loadingShop ? (
@@ -205,8 +205,11 @@ function ShopItemCard({ item, category, onBuy, isPending, canAfford }: any) {
   );
 }
 
-function LotterySection({ lotteryData, lotteryLoading, userStats }: any) {
+function LotterySection({ lotteryData, lotteryLoading, userStats, token, isAuthenticated }: any) {
   const [tickerIndex, setTickerIndex] = useState(0);
+  const [joining, setJoining] = useState(false);
+  const { toast } = useToast();
+  const queryClient = useQueryClient();
   const recentWinners = lotteryData?.recentWinners || [];
 
   useEffect(() => {
@@ -221,6 +224,43 @@ function LotterySection({ lotteryData, lotteryLoading, userStats }: any) {
   const maxEntries = lotteryData?.maxEntries ?? 15;
   const entries = lotteryData?.entries ?? [];
   const fillPercent = Math.round((entryCount / maxEntries) * 100);
+  const ticketsAvailable = (userStats as any)?.profile?.lotteryTickets ?? 0;
+  const alreadyEntered = !!(userStats as any)?.profile?.id &&
+    entries.some((e: any) => e.userId === (userStats as any)?.profile?.id);
+
+  async function handleJoinLottery() {
+    if (!isAuthenticated || !token) {
+      toast({ title: "Login Required", description: "You must be logged in to join the lottery.", variant: "destructive" });
+      return;
+    }
+    if (ticketsAvailable <= 0) {
+      toast({ title: "No Tickets", description: "Buy a Lottery Ticket from the shop first.", variant: "destructive" });
+      return;
+    }
+    setJoining(true);
+    try {
+      const base = import.meta.env.BASE_URL?.replace(/\/$/, "") || "";
+      const res = await fetch(`${base}/api/v1/lottery/join`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
+        },
+      });
+      const data = await res.json();
+      if (data.success) {
+        toast({ title: "Lottery Entered!", description: data.message });
+        queryClient.invalidateQueries({ queryKey: ["/api/v1/lottery"] });
+        queryClient.invalidateQueries({ queryKey: ["/api/v1/user/stats"] });
+      } else {
+        toast({ title: "Could Not Enter", description: data.message, variant: "destructive" });
+      }
+    } catch {
+      toast({ title: "Error", description: "Failed to join lottery. Please try again.", variant: "destructive" });
+    } finally {
+      setJoining(false);
+    }
+  }
 
   return (
     <div className="space-y-4">
@@ -277,6 +317,36 @@ function LotterySection({ lotteryData, lotteryLoading, userStats }: any) {
                   </div>
                 </div>
               </div>
+
+              {/* Join Lottery Button */}
+              {isAuthenticated && (
+                <div className="flex items-center gap-3">
+                  {alreadyEntered ? (
+                    <div className="flex-1 flex items-center gap-2 justify-center py-2.5 rounded-lg border border-green-500/30 bg-green-500/10 text-green-400 text-sm font-semibold">
+                      <span>✓</span> You are in this drawing
+                    </div>
+                  ) : (
+                    <Button
+                      onClick={handleJoinLottery}
+                      disabled={joining || ticketsAvailable <= 0}
+                      className={cn(
+                        "flex-1 font-bold tracking-widest uppercase",
+                        ticketsAvailable > 0
+                          ? "bg-amber-500 hover:bg-amber-600 text-black"
+                          : "bg-gray-700 text-gray-400 cursor-not-allowed"
+                      )}
+                    >
+                      {joining ? (
+                        <><Loader2 className="w-4 h-4 mr-2 animate-spin" /> Entering...</>
+                      ) : ticketsAvailable > 0 ? (
+                        <><LogIn className="w-4 h-4 mr-2" /> Join Lottery ({ticketsAvailable} ticket{ticketsAvailable !== 1 ? "s" : ""})</>
+                      ) : (
+                        <><Ticket className="w-4 h-4 mr-2" /> No Tickets — Buy First</>
+                      )}
+                    </Button>
+                  )}
+                </div>
+              )}
 
               {/* Entry list */}
               {entries.length > 0 ? (

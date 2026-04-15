@@ -2,21 +2,34 @@ import type { CommandContext } from "./index.js";
 import fs from "fs";
 import path from "path";
 import { fileURLToPath } from "url";
+import { getAllBots } from "../db/queries.js";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
+
 
 export async function handleMenu(ctx: CommandContext): Promise<void> {
   const { from, sender, sock } = ctx;
   const senderName = sender.split("@")[0];
+  const botName = sock?.user?.name || "Alpha";
+
+  const bots = getAllBots();
+  let botsSection = "";
+  if (bots.length > 0) {
+    const botLines = bots.map((b: any) => {
+      const indicator = b.status === "online" ? "🟢" : "🔴";
+      return `║    │✑  ${indicator} ${b.name}`;
+    }).join("\n");
+    botsSection = `\n║\n╠─❖ 「 𝗕𝗢𝗧𝗦 」\n${botLines}\n║    └────────────┈ ⳹`;
+  }
 
   const menuText = `┌─⟡ 『 𝗦𝗛𝗔𝗗𝗢𝗪 𝗚𝗔𝗥𝗗𝗘𝗡 』⟡
 ║
 ║ ┌────────────────────
 ║ ║ 👋 𝗛𝗲𝘆 : @${senderName}
-║ ║ 👾 𝗕𝗼𝘁 : Alpha
+║ ║ 👾 𝗕𝗼𝘁 : ${botName}
 ║ ║ 👑 𝗖𝗿𝗲𝗮𝘁𝗼𝗿 : Ryuk
 ║ ║ 🔹 𝗣𝗿𝗲𝗳𝗶𝘅 : [ . ]
-║ └────────────────────
+║ └────────────────────${botsSection}
 ║
 ╠─⟡ 📋 𝗠𝗔𝗜𝗡
 ║ ┌────────────────────

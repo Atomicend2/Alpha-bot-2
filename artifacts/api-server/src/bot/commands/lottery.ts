@@ -65,7 +65,7 @@ export async function handleLottery(ctx: CommandContext): Promise<void> {
 
     // Deduct 1 ticket and add entry
     db.prepare("UPDATE users SET lottery_tickets = lottery_tickets - 1 WHERE id = ?").run(sender);
-    db.prepare("INSERT INTO lottery_entries (lottery_id, user_id, amount) VALUES (?, ?, 1)").run(lottery.id, sender, 1);
+    db.prepare("INSERT INTO lottery_entries (lottery_id, user_id, amount) VALUES (?, ?, ?)").run(lottery.id, sender, 1);
 
     const entryCount = (db.prepare("SELECT COUNT(*) as cnt FROM lottery_entries WHERE lottery_id = ?").get(lottery.id) as any)?.cnt || 0;
 

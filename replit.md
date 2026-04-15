@@ -4,6 +4,45 @@
 
 pnpm workspace monorepo using TypeScript. Each package manages its own dependencies.
 
+## Recent Changes (2026-04-15)
+
+### Role System
+- Users have 5 roles: `owner`, `guardian`, `mod`, `recruit`, `premium`, `normal`
+- Owner is identified by `BOT_OWNER_LID` constant in `connection.ts`
+- Staff roles stored in `staff` table; premium in `users.premium`
+- Role and `canUseAnimatedBg` flag returned in `/api/v1/user/stats` response
+- Animated/video backgrounds restricted to owner, guardian, mod, and premium users
+
+### Rank Inconsistency Fix
+- `getUserRank` now filters bots (`COALESCE(is_bot, 0) = 0`) and uses correct comparison
+- Rank is now consistent across leaderboard page, profile view, and WhatsApp commands
+
+### Lottery System Fix
+- Fixed critical bug: `INSERT INTO lottery_entries` had mismatched parameter count
+- `.lottery` command now works without error
+- Web "Join Lottery" button added to shop page (requires auth + having tickets)
+- Web join calls `POST /api/v1/lottery/join`
+
+### Keep-Alive System
+- Server pings its own `/api/healthz` every 4 minutes to prevent Render from sleeping
+
+### Profile Customization
+- `profile_frame TEXT` column added to `users` table
+- `bg_type TEXT` column added to `users` table (values: `static`, `animated`, `video`)
+- `profile_frames` table added for future frame management
+
+### Multi-Bot Support
+- `bots` table added to database for storing multiple bot profiles
+- CRUD endpoints: `GET/POST /api/bot/bots`, `DELETE /api/bot/bots/:id`
+- Bot menu (`.menu` command) dynamically shows registered bots with online/offline status
+- Admin panel at `/admin` shows registered bots and allows adding/removing them
+
+### Admin Panel
+- Password-protected with password "Admin" (configurable via `ADMIN_PASSWORD` env var)
+- All sensitive bot routes require `x-admin-password` header
+- Multi-bot management UI with add/remove/view functionality
+- Bot menu preview shows in real-time
+
 ## Stack
 
 - **Monorepo tool**: pnpm workspaces

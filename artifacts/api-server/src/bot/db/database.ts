@@ -336,6 +336,23 @@ function initSchema(db: Database.Database): void {
       updated_at INTEGER DEFAULT (unixepoch())
     );
 
+    CREATE TABLE IF NOT EXISTS bots (
+      id TEXT PRIMARY KEY,
+      name TEXT NOT NULL,
+      phone TEXT DEFAULT '',
+      image_data BLOB,
+      status TEXT DEFAULT 'offline',
+      created_at INTEGER DEFAULT (unixepoch()),
+      updated_at INTEGER DEFAULT (unixepoch())
+    );
+
+    CREATE TABLE IF NOT EXISTS profile_frames (
+      id TEXT PRIMARY KEY,
+      name TEXT NOT NULL,
+      image_data BLOB,
+      created_at INTEGER DEFAULT (unixepoch())
+    );
+
     INSERT OR IGNORE INTO shop_items (name, description, price, effect, category) VALUES
       ('Health Potion', 'Restores 50 HP in battle', 500, 'heal:50', 'rpg'),
       ('Mana Potion', 'Restores 30 MP and boosts next attack', 800, 'heal:30', 'rpg'),
@@ -477,6 +494,14 @@ function initSchema(db: Database.Database): void {
 
   // Lucky charm boost — tracks if user's daily boost is active
   ensureColumn(db, "users", "lucky_charm_active", "INTEGER DEFAULT 0");
+
+  // Profile customization
+  ensureColumn(db, "users", "profile_frame", "TEXT DEFAULT ''");
+  ensureColumn(db, "users", "bg_type", "TEXT DEFAULT 'static'");
+
+  // Bot table columns
+  ensureColumn(db, "bots", "status", "TEXT DEFAULT 'offline'");
+  ensureColumn(db, "bots", "image_data", "BLOB");
 }
 
 function ensureColumn(db: Database.Database, table: string, column: string, definition: string): void {

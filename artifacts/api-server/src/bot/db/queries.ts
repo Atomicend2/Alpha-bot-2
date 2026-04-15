@@ -410,13 +410,19 @@ export function addUserXp(userId: string, amount: number) {
 
 export function getUserRank(userId: string): number {
   const db = getDb();
-  const user = ensureUser(userId);
-  const score = Number(user.level || 1) * 100000 + Number(user.xp || 0);
+  const user = getUser(userId);
+  if (!user) return 1;
+  const level = Number(user.level || 1);
+  const xp = Number(user.xp || 0);
   const row = db.prepare(`
     SELECT COUNT(*) + 1 as rank
     FROM users
-    WHERE (COALESCE(level, 1) * 100000 + COALESCE(xp, 0)) > ?
-  `).get(score) as any;
+    WHERE COALESCE(is_bot, 0) = 0
+      AND (
+        COALESCE(level, 1) > ?
+        OR (COALESCE(level, 1) = ? AND COALESCE(xp, 0) > ?)
+      )
+  `).get(level, level, xp) as any;
   return Number(row?.rank || 1);
 }
 
@@ -725,6 +731,68 @@ export function getBotSetting(key: string): Buffer | null {
 export function deleteBotSetting(key: string) {
   const db = getDb();
   db.prepare("DELETE FROM bot_settings WHERE key = ?").run(key);
+}
+
+export function getAllBots() {
+  const db = getDb();
+  return db.prepare("SELECT id, name, phone, status, created_at, updated_at FROM bots ORDER BY created_at ASC").all() as any[];
+}
+
+export function getBot(id: string) {
+  const db = getDb();
+  return db.prepare("SELECT * FROM bots WHERE id = ?").get(id) as any;
+}
+
+export function addBot(id: string, name: string, phone: string, imageData?: Buffer) {
+  const db = getDb();
+  db.prepare(`
+    INSERT INTO bots (id, name, phone, image_data, status)
+    VALUES (?, ?, ?, ?, 'offline')
+  `).run(id, name, phone, imageData || null);
+}
+
+export function updateBot(id: string, data: Record<string, any>) {
+  const db = getDb();
+  const keys = Object.keys(data);
+  if (keys.length === 0) return;
+  const set = keys.map((k) => `${k} = ?`).join(", ");
+  db.prepare(`UPDATE bots SET ${set}, updated_at = unixepoch() WHERE id = ?`).run(
+    ...keys.map((k) => data[k]),
+    id
+  );
+}
+
+export function removeBot(id: string) {
+  const db = getDb();
+  db.prepare("DELETE FROM bots WHERE id = ?").run(id);
+}
+
+export function setBotStatus(id: string, status: "online" | "offline") {
+  const db = getDb();
+  db.prepare("UPDATE bots SET status = ?, updated_at = unixepoch() WHERE id = ?").run(status, id);
+}
+
+export function getUserRole(userId: string, ownerId: string): string {
+  const phone = userId.split("@")[0];
+  if (phone === ownerId || userId === `${ownerId}@s.whatsapp.net` || userId === `${ownerId}@lid`) {
+    return "owner";
+  }
+  const staff = getStaff(userId);
+  if (staff?.role === "guardian") return "guardian";
+  if (staff?.role === "mod") return "mod";
+  if (staff?.role === "recruit") return "recruit";
+  const db = getDb();
+  const user = db.prepare("SELECT premium, premium_expiry FROM users WHERE id = ?").get(userId) as any;
+  if (user?.premium) {
+    const expiry = Number(user.premium_expiry || 0);
+    if (expiry === 0 || expiry > Math.floor(Date.now() / 1000)) return "premium";
+  }
+  return "normal";
+}
+
+export function canUseAnimatedBackground(userId: string, ownerId: string): boolean {
+  const role = getUserRole(userId, ownerId);
+  return ["owner", "guardian", "mod", "premium"].includes(role);
 }
 
 export function getSummerTokens(userId: string) {
