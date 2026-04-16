@@ -253,6 +253,8 @@ export async function handleConverter(ctx: CommandContext): Promise<void> {
     const song = args.join(" ");
     if (!song) { await sendText(from, "❌ Usage: .play <song name>"); return; }
     await sendText(from, `🔎 Searching YouTube for: *${song}*`);
+    const MAX_DURATION_SEC = 600;
+    const DOWNLOAD_TIMEOUT_MS = 100_000;
     try {
       const play = await import("play-dl");
       const results = await play.search(song, { limit: 1 });
@@ -261,25 +263,27 @@ export async function handleConverter(ctx: CommandContext): Promise<void> {
         await sendText(from, "❌ Song not found on YouTube.");
         return;
       }
+      const durationSec = video.durationInSec || 0;
+      if (durationSec > MAX_DURATION_SEC) {
+        await sendText(from, `❌ *${video.title}* is too long (${video.durationRaw}). Max is 10 minutes.`);
+        return;
+      }
       const title = video.title || song;
       const duration = video.durationRaw || "Unknown";
       const channel = video.channel?.name || "Unknown channel";
       const thumbnail = video.thumbnails?.[0]?.url;
-      const info = `🎵 *${title}*\n\n👤 Channel: ${channel}\n⏱️ Duration: ${duration}\n🔗 ${video.url}\n\n⬇️ Converting to audio...`;
+      const info = `🎵 *${title}*\n\n👤 Channel: ${channel}\n⏱️ Duration: ${duration}\n🔗 ${video.url}\n\n⬇️ Downloading...`;
       if (thumbnail) {
         await sock.sendMessage(from, { image: { url: thumbnail }, caption: info });
       } else {
         await sendText(from, info);
       }
-      let mp3: Buffer;
-      try {
-        const streamInfo = await play.stream(video.url, { quality: 2 });
-        const sourceBuffer = await readStream(streamInfo.stream as any);
-        mp3 = await convertToMp3(sourceBuffer);
-      } catch (streamErr) {
-        logger.warn({ err: streamErr, url: video.url }, "play-dl stream failed; trying yt-dlp fallback");
-        mp3 = await downloadAudioWithYtDlp(video.url);
-      }
+      const mp3 = await Promise.race<Buffer>([
+        downloadAudioWithYtDlp(video.url),
+        new Promise<Buffer>((_, reject) =>
+          setTimeout(() => reject(new Error("Download timed out after 100s")), DOWNLOAD_TIMEOUT_MS)
+        ),
+      ]);
       await sock.sendMessage(from, {
         audio: mp3,
         mimetype: "audio/mpeg",
@@ -376,23 +380,21 @@ function runFfmpeg(args: string[]): Promise<void> {
   });
 }
 
-async function downloadAudioWithYtDlp(url: string): Promise<Buffer> {
+async function downloadAudioWithYtDlp(url: string, timeoutMs = 90_000): Promise<Buffer> {
   const dir = path.join(process.cwd(), "data", "tmp");
   await fs.mkdir(dir, { recursive: true });
   const id = randomUUID();
   const outputPath = path.join(dir, `${id}.mp3`);
   try {
-    await runCommand("yt-dlp", [
+    await runCommandWithTimeout("yt-dlp", [
       "--no-playlist",
       "--extract-audio",
-      "--audio-format",
-      "mp3",
-      "--audio-quality",
-      "128K",
-      "-o",
-      outputPath,
+      "--audio-format", "mp3",
+      "--audio-quality", "128K",
+      "--max-filesize", "40m",
+      "-o", outputPath,
       url,
-    ]);
+    ], timeoutMs);
     return await fs.readFile(outputPath);
   } finally {
     await fs.rm(outputPath, { force: true }).catch(() => {});
@@ -400,12 +402,21 @@ async function downloadAudioWithYtDlp(url: string): Promise<Buffer> {
 }
 
 function runCommand(command: string, args: string[]): Promise<void> {
+  return runCommandWithTimeout(command, args, 120_000);
+}
+
+function runCommandWithTimeout(command: string, args: string[], timeoutMs: number): Promise<void> {
   return new Promise((resolve, reject) => {
     const child = spawn(command, args, { stdio: ["ignore", "ignore", "pipe"] });
     let stderr = "";
+    const timer = setTimeout(() => {
+      child.kill("SIGKILL");
+      reject(new Error(`${command} timed out after ${Math.round(timeoutMs / 1000)}s`));
+    }, timeoutMs);
     child.stderr.on("data", (chunk) => { stderr += chunk.toString(); });
-    child.on("error", reject);
+    child.on("error", (err) => { clearTimeout(timer); reject(err); });
     child.on("close", (code) => {
+      clearTimeout(timer);
       if (code === 0) resolve();
       else reject(new Error(stderr.slice(-800) || `${command} exited with ${code}`));
     });
