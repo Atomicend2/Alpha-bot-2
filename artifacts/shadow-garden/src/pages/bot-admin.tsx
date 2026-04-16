@@ -6,7 +6,7 @@ import { Label } from "@/components/ui/label";
 import { useToast } from "@/hooks/use-toast";
 import {
   Loader2, Wifi, WifiOff, RefreshCw, Unplug, Trash2, Lock,
-  Plus, Bot, Circle, ImagePlus, Upload, LayoutGrid, X,
+  Plus, Bot, Circle, ImagePlus, Upload, LayoutGrid, X, Play, Square, KeyRound,
 } from "lucide-react";
 
 interface BotStatus {
@@ -30,6 +30,18 @@ interface FrameEntry {
   id: string;
   name: string;
   createdAt: number;
+}
+
+interface SessionInfo {
+  id: string;
+  name: string;
+  phone: string | null;
+  connected: boolean;
+  connecting: boolean;
+  pairingCode: string | null;
+  credsRegistered: boolean;
+  botName: string | null;
+  isPrimary?: boolean;
 }
 
 const API_BASE = "/api/bot";
@@ -194,9 +206,12 @@ export default function BotAdmin() {
   const [status, setStatus] = useState<BotStatus | null>(null);
   const [bots, setBots] = useState<BotProfile[]>([]);
   const [frames, setFrames] = useState<FrameEntry[]>([]);
+  const [sessions, setSessions] = useState<SessionInfo[]>([]);
   const [loading, setLoading] = useState(false);
   const [phone, setPhone] = useState("");
   const [pairingPhone, setPairingPhone] = useState("");
+  const [sessionPhones, setSessionPhones] = useState<Record<string, string>>({});
+  const [sessionLoading, setSessionLoading] = useState<Record<string, boolean>>({});
 
   const [showAddBot, setShowAddBot] = useState(false);
   const [newBotName, setNewBotName] = useState("");
@@ -234,17 +249,27 @@ export default function BotAdmin() {
     } catch { /* ignore */ }
   }, []);
 
+  const fetchSessions = useCallback(async () => {
+    try {
+      const data = await apiFetch("/sessions");
+      const list: SessionInfo[] = data.sessions || [];
+      setSessions(list);
+    } catch { /* ignore */ }
+  }, []);
+
   useEffect(() => {
     if (!adminPassword) return;
     fetchStatus();
     fetchBots();
     fetchFrames();
+    fetchSessions();
     const interval = setInterval(() => {
       fetchStatus();
       fetchBots();
+      fetchSessions();
     }, 4000);
     return () => clearInterval(interval);
-  }, [adminPassword, fetchStatus, fetchBots, fetchFrames]);
+  }, [adminPassword, fetchStatus, fetchBots, fetchFrames, fetchSessions]);
 
   if (!adminPassword) {
     return <PasswordGate onVerified={setAdminPassword} />;
@@ -441,6 +466,50 @@ export default function BotAdmin() {
     }
   }
 
+  function setSessionLoading1(id: string, val: boolean) {
+    setSessionLoading(prev => ({ ...prev, [id]: val }));
+  }
+
+  async function handleSessionConnect(id: string, phone?: string) {
+    setSessionLoading1(id, true);
+    try {
+      const data = await apiFetch(`/sessions/${id}/connect`, "POST", { phone }, adminPassword!);
+      toast({ title: data.success ? "Connecting..." : "Error", description: data.message, variant: data.success ? "default" : "destructive" });
+      await fetchSessions();
+    } catch {
+      toast({ title: "Error", description: "Could not connect session.", variant: "destructive" });
+    } finally {
+      setSessionLoading1(id, false);
+    }
+  }
+
+  async function handleSessionDisconnect(id: string) {
+    setSessionLoading1(id, true);
+    try {
+      const data = await apiFetch(`/sessions/${id}/disconnect`, "POST", {}, adminPassword!);
+      toast({ title: "Disconnected", description: data.message });
+      await fetchSessions();
+    } catch {
+      toast({ title: "Error", description: "Could not disconnect session.", variant: "destructive" });
+    } finally {
+      setSessionLoading1(id, false);
+    }
+  }
+
+  async function handleSessionClearAuth(id: string) {
+    if (!confirm(`Clear auth for this bot? It will need to be paired again.`)) return;
+    setSessionLoading1(id, true);
+    try {
+      const data = await apiFetch(`/sessions/${id}/auth`, "DELETE", {}, adminPassword!);
+      toast({ title: "Auth Cleared", description: data.message });
+      await fetchSessions();
+    } catch {
+      toast({ title: "Error", description: "Could not clear auth.", variant: "destructive" });
+    } finally {
+      setSessionLoading1(id, false);
+    }
+  }
+
   const statusColor = status?.connected
     ? "text-green-400"
     : status?.connecting
@@ -461,7 +530,7 @@ export default function BotAdmin() {
         <div className="flex items-center gap-3">
           <h1 className="text-2xl font-bold text-white">Bot Admin Panel</h1>
           <span className="ml-2 text-xs text-indigo-400 bg-indigo-900/40 border border-indigo-700/50 px-2 py-0.5 rounded-full">Authenticated</span>
-          <button onClick={() => { fetchStatus(); fetchBots(); fetchFrames(); }} className="ml-auto text-gray-400 hover:text-white transition">
+          <button onClick={() => { fetchStatus(); fetchBots(); fetchFrames(); fetchSessions(); }} className="ml-auto text-gray-400 hover:text-white transition">
             <RefreshCw size={18} />
           </button>
           <button onClick={() => setAdminPassword(null)} className="text-gray-500 hover:text-red-400 transition text-xs">
@@ -594,6 +663,115 @@ export default function BotAdmin() {
                 className="w-full flex items-center gap-2">
                 <Trash2 size={16} /> Clear Session &amp; Re-Pair
               </Button>
+            </CardContent>
+          </Card>
+        )}
+
+        {/* ── Multi-Bot Sessions ── */}
+        {sessions.length > 0 && (
+          <Card className="bg-gray-900 border-gray-800">
+            <CardHeader className="pb-2">
+              <CardTitle className="text-white text-lg flex items-center gap-2">
+                <Wifi size={18} className="text-indigo-400" /> Bot Sessions
+              </CardTitle>
+              <CardDescription className="text-gray-400 mt-1">
+                Control each registered bot's live connection independently.
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-3">
+              {sessions.map((session) => {
+                const busy = !!sessionLoading[session.id];
+                const statusDot = session.connected
+                  ? "text-green-400 fill-green-400"
+                  : session.connecting
+                    ? "text-yellow-400 fill-yellow-400"
+                    : "text-gray-500 fill-gray-500";
+                const statusText = session.connected ? "Connected" : session.connecting ? "Connecting..." : "Offline";
+                return (
+                  <div key={session.id} className="rounded-lg bg-gray-800/50 border border-gray-700 p-3 space-y-2">
+                    <div className="flex items-center gap-2">
+                      <BotAvatar botId={session.id} name={session.name} cacheKey={0} />
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center gap-2">
+                          <span className="font-semibold text-white text-sm truncate">{session.name || session.id}</span>
+                          <Circle size={8} className={statusDot} />
+                          <span className={`text-xs ${session.connected ? "text-green-400" : session.connecting ? "text-yellow-400" : "text-gray-500"}`}>{statusText}</span>
+                        </div>
+                        {(session.botName || session.phone) && (
+                          <p className="text-xs text-gray-400 mt-0.5 truncate font-mono">
+                            {session.botName || `+${session.phone}`}
+                          </p>
+                        )}
+                      </div>
+                    </div>
+
+                    {session.pairingCode && (
+                      <div className="p-3 bg-indigo-950 border border-indigo-700 rounded-lg text-center">
+                        <p className="text-xs text-indigo-300 mb-1">Pairing Code — enter in WhatsApp</p>
+                        <p className="text-2xl font-mono font-bold tracking-widest text-indigo-300">{session.pairingCode}</p>
+                      </div>
+                    )}
+
+                    {!session.connected && !session.connecting && !session.credsRegistered && (
+                      <div className="flex gap-2">
+                        <Input
+                          type="tel"
+                          placeholder={session.phone ? `+${session.phone}` : "Phone with country code"}
+                          value={sessionPhones[session.id] || ""}
+                          onChange={e => setSessionPhones(prev => ({ ...prev, [session.id]: e.target.value }))}
+                          className="bg-gray-700 border-gray-600 text-white placeholder:text-gray-500 text-sm flex-1"
+                        />
+                        <Button
+                          size="sm"
+                          disabled={busy}
+                          onClick={() => handleSessionConnect(session.id, sessionPhones[session.id] || session.phone || undefined)}
+                          className="bg-indigo-600 hover:bg-indigo-700 shrink-0"
+                        >
+                          {busy ? <Loader2 size={14} className="animate-spin" /> : <Play size={14} />}
+                          Connect
+                        </Button>
+                      </div>
+                    )}
+
+                    {(session.connected || session.connecting || session.credsRegistered) && (
+                      <div className="flex gap-2 flex-wrap">
+                        {!session.connected && session.credsRegistered && !session.connecting && (
+                          <Button
+                            size="sm"
+                            disabled={busy}
+                            onClick={() => handleSessionConnect(session.id, session.phone || undefined)}
+                            className="bg-indigo-600 hover:bg-indigo-700"
+                          >
+                            {busy ? <Loader2 size={14} className="animate-spin" /> : <Play size={14} />}
+                            Reconnect
+                          </Button>
+                        )}
+                        {session.connected && (
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            disabled={busy}
+                            onClick={() => handleSessionDisconnect(session.id)}
+                            className="border-gray-700 text-gray-300 hover:bg-gray-800"
+                          >
+                            {busy ? <Loader2 size={14} className="animate-spin" /> : <Square size={14} />}
+                            Disconnect
+                          </Button>
+                        )}
+                        <Button
+                          size="sm"
+                          variant="destructive"
+                          disabled={busy}
+                          onClick={() => handleSessionClearAuth(session.id)}
+                        >
+                          {busy ? <Loader2 size={14} className="animate-spin" /> : <KeyRound size={14} />}
+                          Clear Auth
+                        </Button>
+                      </div>
+                    )}
+                  </div>
+                );
+              })}
             </CardContent>
           </Card>
         )}

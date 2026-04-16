@@ -1,7 +1,7 @@
 import app from "./app.js";
 import { logger } from "./lib/logger.js";
-import { connectToWhatsApp, isCredsRegistered } from "./bot/connection.js";
 import { getDb } from "./bot/db/database.js";
+import { SessionManager } from "./bot/session-manager.js";
 import http from "http";
 
 const rawPort = process.env["PORT"];
@@ -26,30 +26,36 @@ app.listen(port, async (err?: Error) => {
   }
   logger.info({ port }, "Server listening");
 
-  if (isCredsRegistered()) {
-    // Credentials exist from a previous session — auto-reconnect
-    logger.info("Existing WhatsApp credentials found — reconnecting...");
-    try {
-      await connectToWhatsApp(undefined);
-    } catch (botErr) {
-      logger.error({ botErr }, "Failed to auto-reconnect bot (use the admin page to reconnect)");
-    }
+  const primary = SessionManager.getPrimary();
+  if (primary.isCredsRegistered()) {
+    logger.info("Existing primary bot credentials found — reconnecting...");
+    primary.connect().catch(e => logger.error({ e }, "Primary bot auto-connect failed"));
   } else {
-    logger.info("No WhatsApp credentials found — use the admin page at /admin to connect the bot");
+    logger.info("No primary bot credentials — use the admin page at /admin to connect");
   }
 
-  // Keep-alive: ping our own health endpoint every 4 minutes to prevent Render from sleeping
+  const db = getDb();
+  let bots: any[] = [];
+  try {
+    bots = db.prepare("SELECT id, phone FROM bots").all() as any[];
+  } catch {}
+
+  for (const bot of bots) {
+    const session = SessionManager.addSession(bot.id);
+    if (session.isCredsRegistered()) {
+      logger.info({ id: bot.id }, "Auto-starting registered bot session");
+      session.connect(bot.phone || undefined).catch(e => {
+        logger.error({ e, id: bot.id }, "Bot session auto-start failed");
+      });
+    }
+  }
+
   const PING_INTERVAL_MS = 4 * 60 * 1000;
   setInterval(() => {
     try {
-      http.get(`http://localhost:${port}/api/healthz`, (res) => {
-        res.resume();
-      }).on("error", () => {
-        // Silently ignore ping errors
-      });
-    } catch {
-      // Silently ignore
-    }
+      http.get(`http://localhost:${port}/api/healthz`, (res) => { res.resume(); })
+        .on("error", () => {});
+    } catch {}
   }, PING_INTERVAL_MS);
   logger.info({ intervalMs: PING_INTERVAL_MS }, "Keep-alive ping scheduled");
 });

@@ -9,6 +9,7 @@ import {
   isCredsRegistered,
   clearAuth,
 } from "../bot/connection.js";
+import { SessionManager } from "../bot/session-manager.js";
 import { getAllBots, addBot, removeBot, getAllFrames, getFrame, addFrame, removeFrame } from "../bot/db/queries.js";
 import { getDb } from "../bot/db/database.js";
 import { logger } from "../lib/logger.js";
@@ -310,6 +311,127 @@ router.delete("/frames/:id", requireAdminPassword, (req, res) => {
   try {
     removeFrame(id);
     res.json({ success: true, message: "Frame removed." });
+  } catch (err: any) {
+    res.status(500).json({ success: false, message: err.message });
+  }
+});
+
+// ── MULTI-BOT SESSION ROUTES ──────────────────────────────────────────────────
+
+// GET /api/bot/sessions — all bot sessions + their live status
+router.get("/sessions", (_req, res) => {
+  const primary = SessionManager.getPrimary();
+  const primaryInfo = primary.getInfo();
+  const sessions = SessionManager.getAll()
+    .filter(s => !s.isPrimary)
+    .map(s => {
+      const db = getDb();
+      const botRow = db.prepare("SELECT name, phone FROM bots WHERE id = ?").get(s.id) as any;
+      const info = s.getInfo();
+      return {
+        ...info,
+        name: botRow?.name || info.botName || s.id,
+        phone: botRow?.phone || info.phone,
+        connected: info.status === "connected",
+        connecting: info.status === "connecting" || info.status === "pairing",
+        credsRegistered: s.isCredsRegistered(),
+      };
+    });
+  res.json({
+    primary: {
+      ...primaryInfo,
+      connected: isSocketConnected(),
+      connecting: isSocketConnecting(),
+      pairingCode: getPairingCode() || primaryInfo.pairingCode,
+    },
+    sessions,
+  });
+});
+
+// POST /api/bot/sessions/:id/connect — start/connect a specific bot session
+router.post("/sessions/:id/connect", requireAdminPassword, async (req, res) => {
+  const { id } = req.params;
+  const { phone } = req.body as { phone?: string };
+
+  if (id === "primary") {
+    rememberPairingPhoneNumber(phone);
+    connectToWhatsApp(phone ? phone.replace(/\D/g, "") : undefined).catch(e => {
+      logger.error({ e }, "Primary connect failed");
+    });
+    res.json({ success: true, message: "Primary bot connecting..." });
+    return;
+  }
+
+  const db = getDb();
+  const botRow = db.prepare("SELECT id, phone FROM bots WHERE id = ?").get(id) as any;
+  if (!botRow) {
+    res.status(404).json({ success: false, message: "Bot not found." });
+    return;
+  }
+
+  const session = SessionManager.addSession(id);
+  const connectPhone = phone?.replace(/\D/g, "") || botRow.phone || undefined;
+  session.connect(connectPhone).catch(e => {
+    logger.error({ e, id }, "Bot session connect failed");
+  });
+  res.json({ success: true, message: `Bot ${id} connecting...`, phone: connectPhone || null });
+});
+
+// POST /api/bot/sessions/:id/disconnect — stop a specific bot session
+router.post("/sessions/:id/disconnect", requireAdminPassword, async (req, res) => {
+  const { id } = req.params;
+  if (id === "primary") {
+    const s = getSocket();
+    if (s) { try { await s.logout(); } catch {} }
+    res.json({ success: true, message: "Primary bot disconnected." });
+    return;
+  }
+  const session = SessionManager.get(id);
+  if (!session) {
+    res.status(404).json({ success: false, message: "Session not found." });
+    return;
+  }
+  await session.disconnect();
+  res.json({ success: true, message: `Bot ${id} disconnected.` });
+});
+
+// DELETE /api/bot/sessions/:id/auth — clear auth for a specific bot
+router.delete("/sessions/:id/auth", requireAdminPassword, (req, res) => {
+  const { id } = req.params;
+  if (id === "primary") {
+    clearAuth();
+    res.json({ success: true, message: "Primary bot auth cleared." });
+    return;
+  }
+  const session = SessionManager.get(id);
+  if (!session) {
+    const s = SessionManager.addSession(id);
+    s.clearAuth();
+    res.json({ success: true, message: `Bot ${id} auth cleared.` });
+    return;
+  }
+  session.clearAuth();
+  res.json({ success: true, message: `Bot ${id} auth cleared.` });
+});
+
+// POST /api/bot/sessions/primary/pair — request pairing code for primary bot (legacy alias)
+router.post("/sessions/primary/pair", requireAdminPassword, async (req, res) => {
+  const { phone } = req.body as { phone?: string };
+  const digits = phone?.replace(/\D/g, "");
+  if (!digits) {
+    res.status(400).json({ success: false, message: "Phone number required" });
+    return;
+  }
+  const sock = getSocket();
+  if (!sock) {
+    rememberPairingPhoneNumber(digits);
+    connectToWhatsApp(digits).catch(() => {});
+    res.json({ success: true, message: "Primary bot starting with pairing...", code: null });
+    return;
+  }
+  try {
+    const code = await sock.requestPairingCode(digits);
+    res.json({ success: true, code });
   } catch (err: any) {
     res.status(500).json({ success: false, message: err.message });
   }

@@ -16,6 +16,7 @@ import { logger } from "../lib/logger.js";
 import { handleMessage } from "./handlers/message.js";
 import { handleGroupUpdate, handleGroupParticipantsUpdate } from "./handlers/group.js";
 import { ensureUser, updateUser } from "./db/queries.js";
+import { getActiveSocket } from "./socket-context.js";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const DATA_DIR = path.join(__dirname, "../../..", "data");
@@ -328,27 +329,29 @@ async function sendWithRetry(fn: () => Promise<any>, retries = 4): Promise<any> 
   }
 }
 
+function resolveSocket(): WASocket {
+  const s = getActiveSocket() || sock;
+  if (!s) throw new Error("No active bot socket — connect a bot first");
+  return s;
+}
+
 export async function sendMessage(jid: string, content: any, options?: any) {
-  if (!sock) throw new Error("Socket not initialized");
-  const s = sock;
+  const s = resolveSocket();
   return sendWithRetry(() => s.sendMessage(jid, content, withReplyOptions(options)));
 }
 
 export async function sendText(jid: string, text: string, mentions?: string[]) {
-  if (!sock) throw new Error("Socket not initialized");
-  const s = sock;
+  const s = resolveSocket();
   return sendWithRetry(() => s.sendMessage(jid, { text, mentions: mentions || [] }, withReplyOptions()));
 }
 
 export async function sendImage(jid: string, imageBuffer: Buffer, caption?: string) {
-  if (!sock) throw new Error("Socket not initialized");
-  const s = sock;
+  const s = resolveSocket();
   return sendWithRetry(() => s.sendMessage(jid, { image: imageBuffer, caption: caption || "" }, withReplyOptions()));
 }
 
 export async function sendVideo(jid: string, videoBuffer: Buffer, caption?: string, gif = true) {
-  if (!sock) throw new Error("Socket not initialized");
-  const s = sock;
+  const s = resolveSocket();
   return sendWithRetry(() =>
     s.sendMessage(jid, {
       video: videoBuffer,
@@ -360,8 +363,8 @@ export async function sendVideo(jid: string, videoBuffer: Buffer, caption?: stri
 }
 
 export async function sendReact(jid: string, msgKey: any, emoji: string) {
-  if (!sock) throw new Error("Socket not initialized");
-  return sock.sendMessage(jid, { react: { text: emoji, key: msgKey } });
+  const s = resolveSocket();
+  return s.sendMessage(jid, { react: { text: emoji, key: msgKey } });
 }
 
 function getMessageTimestampMs(msg: any): number {
