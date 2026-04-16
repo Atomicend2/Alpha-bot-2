@@ -21,11 +21,12 @@ export async function handleCards(ctx: CommandContext): Promise<void> {
       await sendText(from, `🎴 @${target.split("@")[0]} has no cards yet!`, [target]);
       return;
     }
-    let text = `*🎴 Your card collection:*\n\n`;
+    let text = `*🎴 ${target === sender ? "Your" : `@${target.split("@")[0]}'s`} card collection (${cards.length}):*\n\n`;
     cards.slice(0, 30).forEach((c, i) => {
       const tierNum = c.tier.replace(/^T/, "");
-      const tierLabel = c.tier.startsWith("T") && !isNaN(Number(tierNum)) ? `Tier ${tierNum}` : c.tier;
-      text += `${i + 1}. 🃏 ${c.name} ${tierLabel}\n`;
+      const tierLabel = c.tier.startsWith("T") && !isNaN(Number(tierNum)) ? `T${tierNum}` : c.tier;
+      const issueNum = getCardIssueNumber(c.user_card_id, c.id);
+      text += `${i + 1}. 🃏 *${c.name}* [${tierLabel}] • Issue #${issueNum} • ID: \`${c.user_card_id}\`\n`;
     });
     if (cards.length > 30) text += `\n_...and ${cards.length - 30} more_`;
     await sock.sendMessage(from, { text, mentions: [target] });

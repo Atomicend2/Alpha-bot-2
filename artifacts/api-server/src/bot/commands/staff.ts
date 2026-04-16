@@ -329,7 +329,6 @@ export async function handleStaff(ctx: CommandContext): Promise<void> {
   }
 
   if (cmd === "dc") {
-    const quoted = msg.message?.extendedTextMessage?.contextInfo;
     const cardId = args[0];
     if (!cardId) { await sendText(from, "❌ Provide card ID to delete."); return; }
     const card = getCard(cardId);
@@ -337,6 +336,22 @@ export async function handleStaff(ctx: CommandContext): Promise<void> {
     const { deleteCard } = await import("../db/queries.js");
     deleteCard(cardId);
     await sendText(from, `✅ Deleted card *${card.name}* (${cardId}).`);
+    return;
+  }
+
+  if (cmd === "dci") {
+    // Delete a specific user card by its issue ID (user_card_id)
+    const issueId = args[0];
+    if (!issueId) { await sendText(from, "❌ Usage: .dci <issue_id>\nThe issue ID appears in .collection output."); return; }
+    const db = (await import("../db/database.js")).getDb();
+    const issue = db.prepare("SELECT uc.*, c.name FROM user_cards uc JOIN cards c ON uc.id = c.id WHERE uc.user_card_id = ?").get(issueId) as any;
+    if (!issue) { await sendText(from, `❌ No card issue found with ID: \`${issueId}\``); return; }
+    db.prepare("DELETE FROM user_cards WHERE user_card_id = ?").run(issueId);
+    // Also remove from any decks
+    try { db.prepare("UPDATE decks SET card1=NULL WHERE card1=?").run(issueId); } catch {}
+    try { db.prepare("UPDATE decks SET card2=NULL WHERE card2=?").run(issueId); } catch {}
+    try { db.prepare("UPDATE decks SET card3=NULL WHERE card3=?").run(issueId); } catch {}
+    await sendText(from, `🗑️ Deleted issue \`${issueId}\` — *${issue.name}* from @${issue.user_id?.split("@")[0]}'s collection.`, [issue.user_id]);
     return;
   }
 
@@ -540,15 +555,32 @@ export async function handleStaff(ctx: CommandContext): Promise<void> {
     const info = ctx.msg.message?.extendedTextMessage?.contextInfo;
     const targetId = info?.mentionedJid?.[0] || info?.participant;
     if (!targetId || !role) {
-      await sendText(from, "❌ Usage: .addrole bot @user\n(Currently only 'bot' role is supported)");
+      await sendText(from, "❌ Usage: .addrole <role> @user\nRoles: bot | cardmaker | otp");
       return;
     }
     if (role === "bot") {
       ensureUser(targetId);
       updateUser(targetId, { is_bot: 1 });
       await sendText(from, `✅ @${targetId.split("@")[0]} has been flagged as a bot and excluded from the economy system.`, [targetId]);
+    } else if (role === "cardmaker") {
+      // Only guardians and owner can assign cardmaker
+      if (!isOwner && staffRecord?.role !== "guardian") {
+        await sendText(from, "❌ Only guardians and the owner can assign the cardmaker role.");
+        return;
+      }
+      addStaff(targetId, "cardmaker" as any, sender);
+      await sendText(from, `🃏 @${targetId.split("@")[0]} has been given the *Card Maker* role and can now upload cards.`, [targetId]);
+    } else if (role === "otp") {
+      // Only guardians and owner can designate OTP bot
+      if (!isOwner && staffRecord?.role !== "guardian") {
+        await sendText(from, "❌ Only guardians and the owner can assign the OTP sender role.");
+        return;
+      }
+      ensureUser(targetId);
+      setBotSetting("otp_bot_jid", targetId);
+      await sendText(from, `🔐 @${targetId.split("@")[0]} bot has been set as the *OTP Sender*. It will deliver login codes to users.`, [targetId]);
     } else {
-      await sendText(from, `❌ Unknown role: *${role}*. Currently only 'bot' is supported.`);
+      await sendText(from, `❌ Unknown role: *${role}*\nAvailable roles: bot | cardmaker | otp`);
     }
     return;
   }

@@ -359,28 +359,35 @@ export async function handleBots(ctx: CommandContext): Promise<void> {
   const bots = getAllBots();
 
   if (bots.length === 0) {
-    await sock.sendMessage(from, { text: "🤖 *Shadow Garden Bots*\n\nNo bots registered yet. Use the admin panel at the website to add bots." });
+    await sock.sendMessage(from, { text: "🤖 *Shadow Garden Bots*\n\nNo bots registered yet." });
     return;
   }
 
-  const header = `🤖 *Shadow Garden Bots* (${bots.length} registered)\n` +
-    `━━━━━━━━━━━━━━━━━━━━\n`;
-
-  for (const bot of bots as any[]) {
-    const indicator = bot.status === "online" ? "🟢 Online" : "🔴 Offline";
-    const caption = `${header}` +
-      `👾 *${bot.name}*\n` +
-      `📞 Number: ${bot.phone || "N/A"}\n` +
-      `📡 Status: ${indicator}\n` +
-      `━━━━━━━━━━━━━━━━━━━━`;
-
-    if (bot.image_data) {
-      await sock.sendMessage(from, {
-        image: Buffer.from(bot.image_data),
-        caption,
-      });
-    } else {
-      await sock.sendMessage(from, { text: caption });
+  // Detect which bot phones are currently online via the active socket
+  const activeBotPhone = (() => {
+    try {
+      const id = sock?.user?.id || "";
+      return id.split(":")[0].split("@")[0];
+    } catch {
+      return "";
     }
+  })();
+
+  let botLines = "";
+  for (const bot of bots as any[]) {
+    const botPhone = (bot.phone || "").replace(/\D/g, "");
+    const isOnline = bot.status === "online" || (activeBotPhone && botPhone && activeBotPhone === botPhone);
+    const dot = isOnline ? "🟢" : "🔴";
+    const nameFormatted = (bot.name || "Unknown").toUpperCase().split("").join("\u200b");
+    botLines += `   │✑  ${dot} *${bot.name}*\n`;
   }
+
+  const text =
+    `┌─❖\n` +
+    `│「 *_SHADOW GARDEN_*」\n` +
+    `└┬❖ 「 𝗕𝗢𝗧𝗦 」\n` +
+    botLines +
+    `   └────────────┈ ⳹`;
+
+  await sock.sendMessage(from, { text });
 }

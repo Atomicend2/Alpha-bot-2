@@ -135,127 +135,150 @@ export default function Profile() {
 
   const avatarSrc = `${base}/api/v1/user/avatar?t=${avatarCacheKey}`;
 
+  const bgSrc = `${base}/api/v1/user/background?t=${bgCacheKey}`;
+
   return (
-    <div className="min-h-screen p-4 md:p-8 max-w-6xl mx-auto space-y-8 animate-in fade-in duration-500">
-      <div className="glass-card rounded-xl relative overflow-hidden border border-primary/20">
-        {/* Background Layer */}
-        <div className="absolute inset-0 z-0">
-          <div className="absolute inset-0 bg-gradient-to-br from-primary/10 via-transparent to-secondary/5" />
-        </div>
+    <div className="min-h-screen p-4 md:p-8 max-w-6xl mx-auto space-y-6 animate-in fade-in duration-500">
+      {/* ─── Profile Card ─── */}
+      <div className="glass-card rounded-2xl overflow-hidden border border-primary/20 shadow-[0_0_40px_rgba(168,85,247,0.08)]">
 
-        {/* Background upload button */}
-        <div className="absolute top-3 right-3 z-20">
-          <button
-            onClick={() => bgRef.current?.click()}
-            disabled={bgUploading}
-            className="flex items-center gap-1.5 px-3 py-1.5 bg-black/60 hover:bg-black/80 border border-white/20 hover:border-primary/50 rounded-full text-xs text-muted-foreground hover:text-white transition-all"
-          >
-            {bgUploading ? <Loader2 className="w-3 h-3 animate-spin" /> : <ImagePlus className="w-3 h-3" />}
-            Set BG
-          </button>
-          <input ref={bgRef} type="file" accept="image/*" className="hidden"
-            onChange={(e) => { const f = e.target.files?.[0]; if (f) handleBgFile(f); }} />
-        </div>
-
-        <div className="relative z-10 p-6 md:p-8 flex flex-col md:flex-row items-center md:items-start gap-6">
-          {/* Avatar */}
-          <div className="relative shrink-0">
-            <div className="w-28 h-28 md:w-36 md:h-36 rounded-full border-2 border-primary shadow-[0_0_20px_rgba(168,85,247,0.4)] overflow-hidden bg-black/60 flex items-center justify-center">
-              <img
-                src={avatarSrc}
-                alt={displayName}
-                className="w-full h-full object-cover"
-                onError={(e) => {
-                  (e.target as HTMLImageElement).style.display = "none";
-                  (e.target as HTMLImageElement).nextElementSibling?.classList.remove("hidden");
-                }}
-              />
-              <span className="text-5xl font-bold text-primary hidden">{displayName.charAt(0).toUpperCase()}</span>
-            </div>
+        {/* ── Cover Banner ── */}
+        <div className="relative h-40 md:h-52 w-full bg-gradient-to-br from-primary/20 via-black to-secondary/10 overflow-hidden">
+          <img
+            src={bgSrc}
+            alt=""
+            className="absolute inset-0 w-full h-full object-cover opacity-60"
+            onError={(e) => { (e.target as HTMLImageElement).style.display = "none"; }}
+          />
+          <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-transparent to-transparent" />
+          {/* BG upload */}
+          <div className="absolute top-3 right-3 z-10">
             <button
-              onClick={() => avatarRef.current?.click()}
-              disabled={avatarUploading}
-              className="absolute bottom-0 right-0 w-9 h-9 bg-primary hover:bg-primary/80 rounded-full border-2 border-background flex items-center justify-center transition-all shadow-lg"
+              onClick={() => bgRef.current?.click()}
+              disabled={bgUploading}
+              className="flex items-center gap-1.5 px-3 py-1.5 bg-black/60 hover:bg-black/80 border border-white/20 hover:border-primary/50 rounded-full text-xs text-muted-foreground hover:text-white transition-all"
             >
-              {avatarUploading ? <Loader2 className="w-4 h-4 animate-spin text-white" /> : <Camera className="w-4 h-4 text-white" />}
+              {bgUploading ? <Loader2 className="w-3 h-3 animate-spin" /> : <ImagePlus className="w-3 h-3" />}
+              Set Cover
             </button>
-            <input ref={avatarRef} type="file" accept="image/*" className="hidden"
-              onChange={(e) => { const f = e.target.files?.[0]; if (f) handleAvatarFile(f); }} />
+            <input ref={bgRef} type="file" accept="image/*" className="hidden"
+              onChange={(e) => { const f = e.target.files?.[0]; if (f) handleBgFile(f); }} />
+          </div>
+        </div>
+
+        {/* ── Identity Row ── */}
+        <div className="px-6 md:px-8 pb-6">
+          <div className="flex flex-col md:flex-row md:items-end gap-4 -mt-14 md:-mt-16 mb-4">
+            {/* Avatar */}
+            <div className="relative shrink-0 self-center md:self-auto">
+              <div className="w-28 h-28 md:w-32 md:h-32 rounded-full border-4 border-background ring-2 ring-primary shadow-[0_0_24px_rgba(168,85,247,0.5)] overflow-hidden bg-black flex items-center justify-center">
+                <img
+                  src={avatarSrc}
+                  alt={displayName}
+                  className="w-full h-full object-cover"
+                  onError={(e) => {
+                    (e.target as HTMLImageElement).style.display = "none";
+                    (e.target as HTMLImageElement).nextElementSibling?.classList.remove("hidden");
+                  }}
+                />
+                <span className="text-5xl font-bold text-primary hidden">{displayName.charAt(0).toUpperCase()}</span>
+              </div>
+              <button
+                onClick={() => avatarRef.current?.click()}
+                disabled={avatarUploading}
+                className="absolute bottom-1 right-1 w-8 h-8 bg-primary hover:bg-primary/80 rounded-full border-2 border-background flex items-center justify-center transition-all shadow-lg"
+              >
+                {avatarUploading ? <Loader2 className="w-3.5 h-3.5 animate-spin text-white" /> : <Camera className="w-3.5 h-3.5 text-white" />}
+              </button>
+              <input ref={avatarRef} type="file" accept="image/*" className="hidden"
+                onChange={(e) => { const f = e.target.files?.[0]; if (f) handleAvatarFile(f); }} />
+            </div>
+
+            {/* Name + badges */}
+            <div className="flex-1 text-center md:text-left min-w-0">
+              <div className="flex flex-wrap items-center justify-center md:justify-start gap-2 mb-1">
+                <h1 className="text-2xl md:text-3xl font-bold text-white tracking-wider truncate">{displayName}</h1>
+                {profile?.premium === 1 && (
+                  <span className="px-2.5 py-0.5 bg-amber-500/20 text-amber-400 text-[10px] font-bold uppercase tracking-wider rounded-full border border-amber-500/50">
+                    ✦ Premium
+                  </span>
+                )}
+                {profile?.role && profile.role !== "normal" && (
+                  <span className="px-2.5 py-0.5 bg-primary/20 text-primary text-[10px] font-bold uppercase tracking-wider rounded-full border border-primary/30">
+                    {profile.role}
+                  </span>
+                )}
+              </div>
+              {/* Bio */}
+              {bioEditing ? (
+                <div className="flex items-center gap-2 max-w-lg">
+                  <Input
+                    value={bioValue}
+                    onChange={(e) => setBioValue(e.target.value)}
+                    maxLength={200}
+                    placeholder="Write your bio..."
+                    className="bg-black/50 border-primary/30 text-white text-sm h-7"
+                    autoFocus
+                  />
+                  <button onClick={saveBio} disabled={bioSaving} className="text-green-400 hover:text-green-300 shrink-0">
+                    {bioSaving ? <Loader2 className="w-4 h-4 animate-spin" /> : <Check className="w-4 h-4" />}
+                  </button>
+                  <button onClick={() => setBioEditing(false)} className="text-red-400 hover:text-red-300 shrink-0">
+                    <X className="w-4 h-4" />
+                  </button>
+                </div>
+              ) : (
+                <p
+                  className="text-muted-foreground text-sm group cursor-pointer hover:text-white/70 transition-colors flex items-center gap-1.5 justify-center md:justify-start"
+                  onClick={() => { setBioValue(profile?.bio || ""); setBioEditing(true); }}
+                >
+                  <span className="italic truncate">{profile?.bio || "No bio yet — click to add one."}</span>
+                  <Pencil className="w-3 h-3 opacity-0 group-hover:opacity-50 transition-opacity shrink-0" />
+                </p>
+              )}
+            </div>
+
+            {/* XP bar — top right on desktop */}
+            <div className="hidden md:block w-56 shrink-0 pb-1">
+              <div className="flex justify-between text-[10px] text-muted-foreground mb-1 font-mono">
+                <span>LVL {profile?.level || 1}</span>
+                <span>{profile?.xp || 0} / {stats?.xpNeeded || 100} XP</span>
+              </div>
+              <Progress value={progressPercentage} className="h-1.5 bg-black/60 border border-white/10" />
+            </div>
           </div>
 
-          <div className="flex-1 text-center md:text-left w-full">
-            <div className="flex flex-col md:flex-row md:items-center gap-2 md:gap-4 mb-1">
-              <h1 className="text-3xl md:text-4xl font-bold text-white tracking-wider">{displayName}</h1>
-              {profile?.premium === 1 && (
-                <span className="px-3 py-1 bg-amber-500/20 text-amber-400 text-xs font-bold uppercase tracking-wider rounded-full border border-amber-500/50 inline-block self-center">
-                  Premium
-                </span>
-              )}
-              {profile?.role && profile.role !== "normal" && (
-                <span className="px-3 py-1 bg-primary/20 text-primary text-xs font-bold uppercase tracking-wider rounded-full border border-primary/30 inline-block self-center">
-                  {profile.role}
-                </span>
-              )}
+          {/* ── Quick Stats ── */}
+          <div className="grid grid-cols-3 sm:grid-cols-5 gap-2 mt-2">
+            <div className="bg-black/40 p-3 rounded-xl border border-white/5 text-center">
+              <p className="text-[9px] text-muted-foreground uppercase tracking-wider mb-0.5">Level</p>
+              <p className="text-xl font-bold text-primary">{profile?.level || 1}</p>
             </div>
-
-            {/* Bio */}
-            {bioEditing ? (
-              <div className="flex items-center gap-2 mb-4 max-w-lg">
-                <Input
-                  value={bioValue}
-                  onChange={(e) => setBioValue(e.target.value)}
-                  maxLength={200}
-                  placeholder="Write your bio..."
-                  className="bg-black/50 border-primary/30 text-white text-sm h-8"
-                  autoFocus
-                />
-                <button onClick={saveBio} disabled={bioSaving} className="text-green-400 hover:text-green-300">
-                  {bioSaving ? <Loader2 className="w-4 h-4 animate-spin" /> : <Check className="w-4 h-4" />}
-                </button>
-                <button onClick={() => setBioEditing(false)} className="text-red-400 hover:text-red-300">
-                  <X className="w-4 h-4" />
-                </button>
-              </div>
-            ) : (
-              <p
-                className="text-muted-foreground text-sm max-w-2xl mb-4 group cursor-pointer hover:text-white/70 transition-colors flex items-center gap-2"
-                onClick={() => { setBioValue(profile?.bio || ""); setBioEditing(true); }}
-              >
-                {profile?.bio || "No bio set. Click to add one."}
-                <Pencil className="w-3 h-3 opacity-0 group-hover:opacity-50 transition-opacity shrink-0" />
-              </p>
-            )}
-
-            <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-5 gap-3 w-full">
-              <div className="bg-black/40 p-3 rounded-lg border border-white/5">
-                <p className="text-[10px] text-muted-foreground uppercase tracking-wider mb-1">Level</p>
-                <p className="text-2xl font-bold text-primary">{profile?.level || 1}</p>
-              </div>
-              <div className="bg-black/40 p-3 rounded-lg border border-white/5">
-                <p className="text-[10px] text-muted-foreground uppercase tracking-wider mb-1 flex items-center gap-1"><Trophy className="w-3 h-3"/> Rank</p>
-                <p className="text-2xl font-bold text-white">#{stats?.rank || "?"}</p>
-              </div>
-              <div className="bg-black/40 p-3 rounded-lg border border-white/5">
-                <p className="text-[10px] text-muted-foreground uppercase tracking-wider mb-1 flex items-center gap-1"><Wallet className="w-3 h-3"/> Wallet</p>
-                <p className="text-xl font-bold text-amber-400">{(profile?.balance ?? 0).toLocaleString()}</p>
-              </div>
-              <div className="bg-black/40 p-3 rounded-lg border border-white/5">
-                <p className="text-[10px] text-muted-foreground uppercase tracking-wider mb-1 flex items-center gap-1"><Landmark className="w-3 h-3"/> Bank</p>
-                <p className="text-xl font-bold text-blue-400">{(profile?.bank ?? 0).toLocaleString()}</p>
-              </div>
-              <div className="bg-black/40 p-3 rounded-lg border border-white/5">
-                <p className="text-[10px] text-muted-foreground uppercase tracking-wider mb-1 flex items-center gap-1"><Ticket className="w-3 h-3 text-amber-400"/> Tickets</p>
-                <p className="text-xl font-bold text-amber-400">{profile?.lotteryTickets ?? 0}</p>
-              </div>
+            <div className="bg-black/40 p-3 rounded-xl border border-white/5 text-center">
+              <p className="text-[9px] text-muted-foreground uppercase tracking-wider mb-0.5 flex items-center justify-center gap-0.5"><Trophy className="w-2.5 h-2.5"/> Rank</p>
+              <p className="text-xl font-bold text-white">#{stats?.rank || "—"}</p>
             </div>
-
-            <div className="mt-5 w-full max-w-xl">
-              <div className="flex justify-between text-xs text-muted-foreground mb-2 font-mono">
-                <span>XP {profile?.xp || 0}</span>
-                <span>Next Level: {stats?.xpNeeded || 100}</span>
-              </div>
-              <Progress value={progressPercentage} className="h-2 bg-black border border-white/10" />
+            <div className="bg-black/40 p-3 rounded-xl border border-white/5 text-center">
+              <p className="text-[9px] text-muted-foreground uppercase tracking-wider mb-0.5 flex items-center justify-center gap-0.5"><Wallet className="w-2.5 h-2.5"/> Wallet</p>
+              <p className="text-lg font-bold text-amber-400">{(profile?.balance ?? 0).toLocaleString()}</p>
             </div>
+            <div className="bg-black/40 p-3 rounded-xl border border-white/5 text-center">
+              <p className="text-[9px] text-muted-foreground uppercase tracking-wider mb-0.5 flex items-center justify-center gap-0.5"><Landmark className="w-2.5 h-2.5"/> Bank</p>
+              <p className="text-lg font-bold text-blue-400">{(profile?.bank ?? 0).toLocaleString()}</p>
+            </div>
+            <div className="bg-black/40 p-3 rounded-xl border border-white/5 text-center">
+              <p className="text-[9px] text-muted-foreground uppercase tracking-wider mb-0.5 flex items-center justify-center gap-0.5"><Ticket className="w-2.5 h-2.5 text-amber-400"/> Tickets</p>
+              <p className="text-lg font-bold text-amber-400">{profile?.lotteryTickets ?? 0}</p>
+            </div>
+          </div>
+
+          {/* XP bar — mobile only */}
+          <div className="md:hidden mt-4">
+            <div className="flex justify-between text-[10px] text-muted-foreground mb-1 font-mono">
+              <span>LVL {profile?.level || 1}</span>
+              <span>{profile?.xp || 0} / {stats?.xpNeeded || 100} XP</span>
+            </div>
+            <Progress value={progressPercentage} className="h-1.5 bg-black/60 border border-white/10" />
           </div>
         </div>
       </div>

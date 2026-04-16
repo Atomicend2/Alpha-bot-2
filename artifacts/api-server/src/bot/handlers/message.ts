@@ -3,7 +3,7 @@ import fs from "fs";
 import path from "path";
 import { fileURLToPath } from "url";
 import { BOT_OWNER_LID, PREFIX, sendText, runWithReplyContext } from "../connection.js";
-import { ensureUser, ensureGroup, incrementMessageCount, incrementGroupActivity, getStaff, isBanned, isUserBanned, getBotSetting, getUser, addUserXp, getActiveMute } from "../db/queries.js";
+import { ensureUser, ensureGroup, incrementMessageCount, incrementGroupActivity, getStaff, isBanned, isUserBanned, getBotSetting, getUser, addUserXp, getActiveMute, updateUser } from "../db/queries.js";
 import { checkAntilink, checkAntispam, checkBlacklist } from "./antispam.js";
 import { checkAutoSpawn, handleGetCard } from "./cardspawn.js";
 import { checkAfkMention, checkSenderReturnedFromAfk, handleAfk } from "../commands/afk.js";
@@ -44,7 +44,8 @@ export async function handleMessage(
   const senderRaw = isGroup
     ? (msg.key.participant || (msg.key.fromMe ? getPrimaryBotJid(sock) : ""))
     : (msg.key.remoteJid || "");
-  const sender = senderRaw;
+  // Normalize JID — strip device suffix (e.g. 2347012345678:67@s.whatsapp.net → 2347012345678@s.whatsapp.net)
+  const sender = normalizeJid(senderRaw);
 
   if (!sender) return;
 
@@ -70,7 +71,16 @@ export async function handleMessage(
   const mentionedJids: string[] =
     getContextInfo(messageContent)?.mentionedJid || [];
 
+  // Ensure user exists and store normalized phone for web login lookup
   ensureUser(sender, msg.pushName || undefined);
+  // Store the plain-digits phone in the phone column for reliable web linking
+  const senderDigits = sender.split("@")[0].split(":")[0];
+  if (/^\d+$/.test(senderDigits)) {
+    const existingUser = getUser(sender);
+    if (existingUser && !existingUser.phone) {
+      updateUser(sender, { phone: senderDigits });
+    }
+  }
   addUserXp(sender, 5);
 
   if (isGroup) {
@@ -135,7 +145,7 @@ export async function handleMessage(
     }
   }
 
-  if (isGroup && body && !isCommandBody) {
+  if (isGroup && body && !isCommandBody && !msg.key.fromMe) {
     const antiSpam = await checkAntispam(sock, from, sender, isAdmin).catch(() => false);
     if (antiSpam) return;
 
@@ -144,7 +154,9 @@ export async function handleMessage(
 
     const bl = await checkBlacklist(sock, from, sender, body, msg.key, isAdmin).catch(() => false);
     if (bl) return;
+  }
 
+  if (isGroup && !msg.key.fromMe) {
     await checkAutoSpawn(sock, from).catch(() => {});
   }
 
@@ -547,8 +559,15 @@ async function dispatch(ctx: CommandContext): Promise<void> {
         await sendText(from, "❌ Only mods, guardians and owner can use this command.");
         return;
       }
-      await sendText(from, "🔄 Restarting bot and clearing cache... Please wait.");
-      setTimeout(() => process.exit(0), 1000);
+      await sendText(from, "🔄 Reconnecting bot... Session will be preserved. Back in a moment!");
+      setTimeout(async () => {
+        try {
+          const { softReconnect } = await import("../connection.js");
+          await softReconnect();
+        } catch {
+          // fallback
+        }
+      }, 1500);
       return;
     }
 

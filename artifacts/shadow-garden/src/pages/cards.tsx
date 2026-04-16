@@ -15,6 +15,10 @@ const TIER_COLORS: Record<string, { bg: string, text: string, border: string, gl
   "T3": { bg: "bg-blue-500/20", text: "text-blue-400", border: "border-blue-500/50", glow: "shadow-[0_0_10px_rgba(96,165,250,0.5)]" },
   "T4": { bg: "bg-purple-500/20", text: "text-purple-400", border: "border-purple-500/50", glow: "shadow-[0_0_10px_rgba(168,85,247,0.5)]" },
   "T5": { bg: "bg-amber-500/20", text: "text-amber-400", border: "border-amber-500/50", glow: "shadow-[0_0_15px_rgba(245,158,11,0.6)]" },
+  "T6": { bg: "bg-red-500/20", text: "text-red-400", border: "border-red-500/50", glow: "shadow-[0_0_20px_rgba(239,68,68,0.7)]" },
+  "TS": { bg: "bg-amber-300/20", text: "text-amber-300", border: "border-amber-300/60", glow: "shadow-[0_0_25px_rgba(252,211,77,0.8)]" },
+  "TX": { bg: "bg-violet-500/20", text: "text-violet-300", border: "border-violet-500/50", glow: "shadow-[0_0_20px_rgba(196,181,253,0.6)]" },
+  "TZ": { bg: "bg-cyan-500/20", text: "text-cyan-300", border: "border-cyan-500/50", glow: "shadow-[0_0_20px_rgba(103,232,249,0.6)]" },
 };
 
 export default function Cards() {
@@ -80,6 +84,10 @@ export default function Cards() {
               <SelectItem value="T3">Tier 3 (Rare)</SelectItem>
               <SelectItem value="T4">Tier 4 (Epic)</SelectItem>
               <SelectItem value="T5">Tier 5 (Legendary)</SelectItem>
+              <SelectItem value="T6">Tier 6 (Mythic)</SelectItem>
+              <SelectItem value="TS">Tier S (Shadow)</SelectItem>
+              <SelectItem value="TX">Tier X (Extreme)</SelectItem>
+              <SelectItem value="TZ">Tier Z (Zenith)</SelectItem>
             </SelectContent>
           </Select>
         </div>

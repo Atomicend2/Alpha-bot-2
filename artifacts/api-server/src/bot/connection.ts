@@ -105,6 +105,27 @@ function getRememberedPairingPhoneNumber(): string | undefined {
   }
 }
 
+export async function softReconnect(): Promise<void> {
+  logger.info("Soft reconnect requested — closing current connection without clearing auth");
+  try {
+    const currentSock = sock;
+    sock = null;
+    isConnected = false;
+    isConnecting = false;
+    pairingCode = null;
+    connectionGeneration++;
+    if (currentSock) {
+      try { currentSock.end(undefined as any); } catch {}
+      try { (currentSock as any).ws?.close?.(); } catch {}
+    }
+    await new Promise((r) => setTimeout(r, 2000));
+    await connectToWhatsApp(getRememberedPairingPhoneNumber());
+    logger.info("Soft reconnect completed");
+  } catch (err) {
+    logger.error({ err }, "Soft reconnect failed");
+  }
+}
+
 export function clearAuth(): void {
   try {
     fs.rmSync(AUTH_DIR, { recursive: true, force: true });
