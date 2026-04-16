@@ -58,17 +58,18 @@ export async function handleAdmin(ctx: CommandContext): Promise<void> {
 
   if (cmd === "warn") {
     if (!canUse) return noPerms(from);
-    const mentioned = msg.message?.extendedTextMessage?.contextInfo?.mentionedJid?.[0];
+    const info = msg.message?.extendedTextMessage?.contextInfo;
+    const mentioned = info?.mentionedJid?.[0] || info?.participant;
     if (!mentioned) {
-      await sendText(from, "❌ Please mention someone to warn.");
+      await sendText(from, "❌ Please mention someone to warn, or reply to their message with .warn [reason]");
       return;
     }
-    const reason = args.slice(1).join(" ") || "No reason provided";
+    const reason = args.filter((a) => !a.startsWith("@")).join(" ") || "No reason provided";
     const warns = addWarning(mentioned, from, reason, sender);
     const count = warns.length;
     await sendText(
       from,
-      `┌─❖\n│「 ⚠️ 𝗪𝗔𝗥𝗡𝗜𝗡𝗚 」\n└┬❖ 「 @${mentioned.split("@")[0]} 」\n│✑ 𝗥𝗘𝗔𝗦𝗢𝗡: ${reason}\n│✑ 𝗗𝗲𝘃𝗶𝗰𝗲: WhatsApp\n│✑ 𝗟𝗜𝗠𝗜𝗧: ${count} / 5\n└────────────┈ ⳹`,
+      `┌─❖\n│「 ⚠️ 𝗪𝗔𝗥𝗡𝗜𝗡𝗚 」\n└┬❖ 「 @${mentioned.split("@")[0]} 」\n│✑ 𝗥𝗘𝗔𝗦𝗢𝗡: ${reason}\n│✑ 𝗟𝗜𝗠𝗜𝗧: ${count} / 5\n└────────────┈ ⳹`,
       [mentioned]
     );
     if (count >= 5) {
@@ -115,13 +116,24 @@ export async function handleAdmin(ctx: CommandContext): Promise<void> {
 
   if (cmd === "antism") {
     if (!canUse) return noPerms(from);
-    const val = args[0]?.toLowerCase();
-    if (val === "on") {
+    const sub2 = args[0]?.toLowerCase();
+    const gAntism = getGroup(from);
+    if (sub2 === "on") {
       updateGroup(from, { antispam: "on" });
-      await sendText(from, "🚫 Anti-Spam enabled.");
-    } else {
+      await sendText(from, `🚫 Anti-Spam *enabled*. Action: *${gAntism?.antispam_action || "kick"}*\nUse .antism set [warn|delete|kick] to change action.`);
+    } else if (sub2 === "off") {
       updateGroup(from, { antispam: "off" });
-      await sendText(from, "🚫 Anti-Spam disabled.");
+      await sendText(from, "🟢 Anti-Spam *disabled*.");
+    } else if (sub2 === "set" || sub2 === "action") {
+      const action = args[1]?.toLowerCase();
+      if (!["warn", "delete", "kick"].includes(action)) {
+        await sendText(from, "❌ Valid actions: warn | delete | kick\nUsage: .antism set <action>");
+        return;
+      }
+      updateGroup(from, { antispam: "on", antispam_action: action });
+      await sendText(from, `✅ Anti-Spam action set to: *${action}*`);
+    } else {
+      await sendText(from, `🚫 Anti-Spam: *${gAntism?.antispam || "off"}* (action: ${gAntism?.antispam_action || "kick"})\nUsage: .antism on | .antism off | .antism set [warn|delete|kick]`);
     }
     return;
   }
@@ -201,29 +213,26 @@ export async function handleAdmin(ctx: CommandContext): Promise<void> {
     return;
   }
 
-  if (cmd === "pm") {
-    if (!isBotAdmin) return botNoAdmin(from);
+  if (cmd === "pm" || cmd === "dm") {
+    const staffRecord2 = await import("../db/queries.js").then((m) => m.getStaff(sender));
+    if (!isOwner && !staffRecord2) return noPerms(from);
     const info = msg.message?.extendedTextMessage?.contextInfo;
-    const mentioned = info?.mentionedJid?.[0] || info?.participant;
-    if (!mentioned) {
-      await sendText(from, "❌ Please mention someone or reply to their message with .pm");
+    const target = info?.mentionedJid?.[0] || info?.participant;
+    const msgText = args.filter((a) => !a.startsWith("@")).join(" ");
+    if (!target) {
+      await sendText(from, "❌ Mention someone and include a message.\nUsage: .pm @user your message");
       return;
     }
-    await sock.groupParticipantsUpdate(from, [mentioned], "promote");
-    await sendText(from, "Done.");
-    return;
-  }
-
-  if (cmd === "dm") {
-    if (!isBotAdmin) return botNoAdmin(from);
-    const info = msg.message?.extendedTextMessage?.contextInfo;
-    const mentioned = info?.mentionedJid?.[0] || info?.participant;
-    if (!mentioned) {
-      await sendText(from, "❌ Please mention someone or reply to their message with .dm");
+    if (!msgText.trim()) {
+      await sendText(from, "❌ Include a message.\nUsage: .pm @user your message");
       return;
     }
-    await sock.groupParticipantsUpdate(from, [mentioned], "demote");
-    await sendText(from, "Done.");
+    try {
+      await sock.sendMessage(target, { text: `*[Shadow Garden Staff]*\n\n${msgText}` });
+      await sendText(from, `✅ Message sent to @${target.split("@")[0]}.`, [target]);
+    } catch {
+      await sendText(from, "❌ Failed to send private message. The user may have privacy settings enabled.");
+    }
     return;
   }
 
@@ -287,6 +296,10 @@ export async function handleAdmin(ctx: CommandContext): Promise<void> {
     const participants = groupMeta?.participants || [];
     const all = participants.map((p: any) => p.id);
     const text = args.join(" ") || "📢 Announcement";
+    // Delete the command message first so it disappears before the hidetag is sent
+    try {
+      await sock.sendMessage(from, { delete: msg.key as any });
+    } catch {}
     await sock.sendMessage(from, { text, mentions: all });
     return;
   }
@@ -449,7 +462,25 @@ export async function handleAdmin(ctx: CommandContext): Promise<void> {
 
   if (cmd === "purge") {
     if (!canUse) return noPerms(from);
-    await sendText(from, "⚠️ Purge command is not available via WhatsApp API.");
+    if (!isBotAdmin) return botNoAdmin(from);
+    const info = msg.message?.extendedTextMessage?.contextInfo;
+    const quotedId = info?.stanzaId;
+    if (!quotedId) {
+      await sendText(from, "❌ Reply to a message with .purge to delete it.");
+      return;
+    }
+    const key = {
+      remoteJid: from,
+      fromMe: false,
+      id: quotedId,
+      participant: info?.participant,
+    };
+    try {
+      await sock.sendMessage(from, { delete: key });
+      await sock.sendMessage(from, { delete: msg.key as any });
+    } catch {
+      await sendText(from, "❌ Failed to delete. The message may be too old.");
+    }
     return;
   }
 
@@ -475,10 +506,18 @@ export async function handleAdmin(ctx: CommandContext): Promise<void> {
       if (bl.length === 0) {
         await sendText(from, "🔒 No blacklisted words.");
       } else {
-        await sendText(from, `🔒 *Blacklisted Words:*\n${bl.map((w) => `• ${w}`).join("\n")}`);
+        await sendText(from, `🔒 *Blacklisted Words:*\n${bl.map((w) => `• ${w}`).join("\n")}\n\n⚙️ Action: *${g?.blacklist_action || "delete"}*`);
       }
+    } else if (sub === "set" || sub === "action") {
+      const action = args[1]?.toLowerCase();
+      if (!["delete", "warn", "kick"].includes(action)) {
+        await sendText(from, "❌ Valid actions: delete | warn | kick\nUsage: .blacklist set <action>");
+        return;
+      }
+      updateGroup(from, { blacklist_action: action });
+      await sendText(from, `✅ Blacklist action set to: *${action}*`);
     } else {
-      await sendText(from, "Usage: .blacklist add [word] | .blacklist remove [word] | .blacklist list");
+      await sendText(from, "Usage:\n.blacklist add [word] | .blacklist remove [word] | .blacklist list\n.blacklist set [delete|warn|kick] — set action for violations");
     }
     return;
   }
@@ -596,201 +635,6 @@ export async function handleAdmin(ctx: CommandContext): Promise<void> {
     return;
   }
 
-  if (cmd === "addmod") {
-    if (!isAdmin && !isOwner) return noPerms(from);
-    const mentioned = msg.message?.extendedTextMessage?.contextInfo?.mentionedJid?.[0];
-    if (!mentioned) { await sendText(from, "❌ Mention someone."); return; }
-    addMod(mentioned, from, sender);
-    await sendText(from, `✅ @${mentioned.split("@")[0]} is now a mod in this group.`, [mentioned]);
-    return;
-  }
-
-  if (cmd === "pm" || cmd === "dm") {
-    const staffCheck = isOwner || (await import("../db/queries.js").then(m => m.getStaff(sender)));
-    if (!staffCheck) return noPerms(from);
-    const info = msg.message?.extendedTextMessage?.contextInfo;
-    const target = info?.mentionedJid?.[0] || info?.participant;
-    const msgText = args.filter(a => !a.startsWith("@")).join(" ");
-    if (!target) { await sendText(from, "❌ Mention someone and include a message.\nUsage: .pm @user your message"); return; }
-    if (!msgText.trim()) { await sendText(from, "❌ Include a message.\nUsage: .pm @user your message"); return; }
-    try {
-      await sock.sendMessage(target, { text: msgText });
-      await sendText(from, `✅ Message sent to @${target.split("@")[0]}.`, [target]);
-    } catch {
-      await sendText(from, "❌ Failed to send private message. The user may have privacy settings enabled.");
-    }
-    return;
-  }
-
-  if (cmd === "welcome") {
-    if (!canUse) return noPerms(from);
-    const val = args[0]?.toLowerCase();
-    if (val === "on") {
-      updateGroup(from, { welcome: "on" });
-      await sendText(from, "✅ Welcome messages *enabled*.\n> Use *.setwelcome* to set a custom message. Use @mention in your message to tag the new member.");
-    } else if (val === "off") {
-      updateGroup(from, { welcome: "off" });
-      await sendText(from, "🔕 Welcome messages *disabled*.");
-    } else {
-      const g = getGroup(from);
-      await sendText(from, `📩 Welcome messages: *${g?.welcome || "off"}*\nCurrent message: ${g?.welcome_msg || "(default)"}\n\nUsage: .welcome on | .welcome off | .setwelcome [message]`);
-    }
-    return;
-  }
-
-  if (cmd === "setwelcome") {
-    if (!canUse) return noPerms(from);
-    const customMsg = args.join(" ");
-    if (!customMsg.trim()) {
-      await sendText(from, "❌ Provide a welcome message.\nUsage: .setwelcome Welcome @mention to our group!\n\n> Use @mention to tag the new member.");
-      return;
-    }
-    updateGroup(from, { welcome_msg: customMsg, welcome: "on" });
-    await sendText(from, `✅ Welcome message set and enabled!\n\n"${customMsg}"\n\n> @mention will be replaced with the new member's tag.`);
-    return;
-  }
-
-  if (cmd === "leave") {
-    if (!canUse) return noPerms(from);
-    const val = args[0]?.toLowerCase();
-    if (val === "on") {
-      updateGroup(from, { leave: "on" });
-      await sendText(from, "✅ Leave messages *enabled*.\n> Use *.setleave* to set a custom message.");
-    } else if (val === "off") {
-      updateGroup(from, { leave: "off" });
-      await sendText(from, "🔕 Leave messages *disabled*.");
-    } else {
-      const g = getGroup(from);
-      await sendText(from, `🚪 Leave messages: *${g?.leave || "off"}*\nCurrent message: ${g?.leave_msg || "(default)"}\n\nUsage: .leave on | .leave off | .setleave [message]`);
-    }
-    return;
-  }
-
-  if (cmd === "setleave") {
-    if (!canUse) return noPerms(from);
-    const customMsg = args.join(" ");
-    if (!customMsg.trim()) {
-      await sendText(from, "❌ Provide a leave message.\nUsage: .setleave Goodbye @mention! We'll miss you.");
-      return;
-    }
-    updateGroup(from, { leave_msg: customMsg, leave: "on" });
-    await sendText(from, `✅ Leave message set and enabled!\n\n"${customMsg}"\n\n> @mention will be replaced with the leaving member's tag.`);
-    return;
-  }
-
-  if (cmd === "antism") {
-    if (!canUse) return noPerms(from);
-    const val = args[0]?.toLowerCase();
-    if (val === "on") {
-      updateGroup(from, { antispam: "on" });
-      await sendText(from, "🚫 Anti-Spam *enabled*. Members sending 5+ messages in 5 seconds will be kicked.");
-    } else if (val === "off") {
-      updateGroup(from, { antispam: "off" });
-      await sendText(from, "🟢 Anti-Spam *disabled*.");
-    } else {
-      const g = getGroup(from);
-      await sendText(from, `🚫 Anti-Spam: *${g?.antispam || "off"}*\nUsage: .antism on | .antism off`);
-    }
-    return;
-  }
-
-  if (cmd === "open") {
-    if (!canUse) return noPerms(from);
-    if (!isBotAdmin) return botNoAdmin(from);
-    try {
-      await sock.groupSettingUpdate(from, "not_announcement");
-      updateGroup(from, { locked: "off" });
-      await sendText(from, "🔓 Group is now *open*. All members can send messages.");
-    } catch {
-      await sendText(from, "❌ Failed to open the group.");
-    }
-    return;
-  }
-
-  if (cmd === "close") {
-    if (!canUse) return noPerms(from);
-    if (!isBotAdmin) return botNoAdmin(from);
-    try {
-      await sock.groupSettingUpdate(from, "announcement");
-      updateGroup(from, { locked: "on" });
-      await sendText(from, "🔒 Group is now *closed*. Only admins can send messages.");
-    } catch {
-      await sendText(from, "❌ Failed to close the group.");
-    }
-    return;
-  }
-
-  if (cmd === "mute") {
-    if (!canUse) return noPerms(from);
-    const info = msg.message?.extendedTextMessage?.contextInfo;
-    const target = info?.mentionedJid?.[0] || info?.participant;
-    if (!target) { await sendText(from, "❌ Mention someone to mute.\nUsage: .mute @user"); return; }
-    const durationArg = args.find(a => /^\d+[smhd]$/.test(a));
-    const durSeconds = durationArg ? parseDuration(durationArg) : null;
-    muteUser(target, from, durSeconds ? Math.floor(Date.now() / 1000) + durSeconds : 0, sender);
-    const label = durSeconds ? `for ${formatDuration(durSeconds)}` : "indefinitely";
-    await sendText(from, `🔇 @${target.split("@")[0]} has been muted ${label}.`, [target]);
-    return;
-  }
-
-  if (cmd === "unmute") {
-    if (!canUse) return noPerms(from);
-    const info = msg.message?.extendedTextMessage?.contextInfo;
-    const target = info?.mentionedJid?.[0] || info?.participant;
-    if (!target) { await sendText(from, "❌ Mention someone to unmute.\nUsage: .unmute @user"); return; }
-    unmuteUser(target, from);
-    await sendText(from, `🔊 @${target.split("@")[0]} has been unmuted.`, [target]);
-    return;
-  }
-
-  if (cmd === "hidetag") {
-    if (!canUse) return noPerms(from);
-    const participants = groupMeta?.participants || [];
-    const allJids = participants.map((p: any) => p.id || p);
-    const text = args.join(" ") || "📢 Attention all members!";
-    await sock.sendMessage(from, { text, mentions: allJids });
-    return;
-  }
-
-  if (cmd === "tagall") {
-    if (!canUse) return noPerms(from);
-    const participants = groupMeta?.participants || [];
-    const allJids = participants.map((p: any) => p.id || p);
-    const lines = allJids.map((jid: string) => `@${jid.split("@")[0]}`).join(" ");
-    const text = `${args.join(" ") || "📢 Attention everyone!"}\n\n${lines}`;
-    await sock.sendMessage(from, { text, mentions: allJids });
-    return;
-  }
-
-  if (cmd === "promote") {
-    if (!canUse) return noPerms(from);
-    if (!isBotAdmin) return botNoAdmin(from);
-    const info = msg.message?.extendedTextMessage?.contextInfo;
-    const target = info?.mentionedJid?.[0] || info?.participant;
-    if (!target) { await sendText(from, "❌ Mention someone to promote.\nUsage: .promote @user"); return; }
-    try {
-      await sock.groupParticipantsUpdate(from, [target], "promote");
-      await sendText(from, `👑 @${target.split("@")[0]} has been promoted to admin.`, [target]);
-    } catch {
-      await sendText(from, "❌ Failed to promote member.");
-    }
-    return;
-  }
-
-  if (cmd === "demote") {
-    if (!canUse) return noPerms(from);
-    if (!isBotAdmin) return botNoAdmin(from);
-    const info = msg.message?.extendedTextMessage?.contextInfo;
-    const target = info?.mentionedJid?.[0] || info?.participant;
-    if (!target) { await sendText(from, "❌ Mention someone to demote.\nUsage: .demote @user"); return; }
-    try {
-      await sock.groupParticipantsUpdate(from, [target], "demote");
-      await sendText(from, `📉 @${target.split("@")[0]} has been demoted from admin.`, [target]);
-    } catch {
-      await sendText(from, "❌ Failed to demote member.");
-    }
-    return;
-  }
 }
 
 async function noPerms(jid: string) {

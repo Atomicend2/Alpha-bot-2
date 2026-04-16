@@ -129,9 +129,36 @@ export async function handleConverter(ctx: CommandContext): Promise<void> {
   }
 
   if (cmd === "speech") {
-    const text = args.join(" ");
-    if (!text) { await sendText(from, "❌ Usage: .speech <text> (reply to image/sticker)"); return; }
-    await sendText(from, `🗣️ Speech overlay: "${text}" — Image editing feature coming soon!`);
+    const text = args.filter((a) => !a.startsWith("@")).join(" ");
+    if (!text) { await sendText(from, "❌ Usage: .speech <caption text> (reply to an image)"); return; }
+    const info = msg.message?.extendedTextMessage?.contextInfo;
+    if (!info?.quotedMessage) { await sendText(from, "❌ Reply to an image with .speech <your text>"); return; }
+    try {
+      const { downloadMediaMessage } = await import("@whiskeysockets/baileys");
+      const fakeMsg = { key: { remoteJid: from, fromMe: false, id: info.stanzaId || "" }, message: info.quotedMessage };
+      const rawBuf = await downloadMediaMessage(fakeMsg as any, "buffer", {});
+      const imgBuf = Buffer.isBuffer(rawBuf) ? rawBuf : Buffer.from(rawBuf as any);
+      const img = sharp(imgBuf);
+      const meta = await img.metadata();
+      const w = meta.width || 512;
+      const h = meta.height || 512;
+      const fontSize = Math.max(20, Math.round(w / 18));
+      const boxH = Math.round(fontSize * 2.4);
+      const escapedText = text.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+      const svgOverlay = `<svg xmlns="http://www.w3.org/2000/svg" width="${w}" height="${h}">
+        <rect x="0" y="${h - boxH}" width="${w}" height="${boxH}" fill="rgba(0,0,0,0.62)" rx="0"/>
+        <text x="${Math.round(w / 2)}" y="${h - Math.round(boxH * 0.28)}" text-anchor="middle" dominant-baseline="middle" font-family="Arial Black, Arial, sans-serif" font-size="${fontSize}" font-weight="bold" fill="white" stroke="black" stroke-width="1.5" paint-order="stroke">${escapedText}</text>
+      </svg>`;
+      const result = await img
+        .flatten({ background: { r: 0, g: 0, b: 0 } })
+        .composite([{ input: Buffer.from(svgOverlay), top: 0, left: 0 }])
+        .jpeg({ quality: 90 })
+        .toBuffer();
+      await sock.sendMessage(from, { image: result, caption: `🗣️ ${text}` });
+    } catch (err: any) {
+      logger.error({ err }, "speech error");
+      await sendText(from, `❌ Failed to add speech caption: ${err?.message || "Unknown error"}`);
+    }
     return;
   }
 
@@ -144,8 +171,23 @@ export async function handleConverter(ctx: CommandContext): Promise<void> {
 
   if (cmd === "pintimg") {
     const query = args.join(" ");
-    if (!query) { await sendText(from, "❌ Usage: .pintimg <query>"); return; }
-    await sendText(from, `🖼️ Pinterest search for "${query}" — Image search feature coming soon!`);
+    if (!query) { await sendText(from, "❌ Usage: .pintimg <search query>"); return; }
+    await sendText(from, `🔎 Searching images for: *${query}*`);
+    try {
+      const controller = new AbortController();
+      const timeout = setTimeout(() => controller.abort(), 15000);
+      const resp = await fetch(
+        `https://source.unsplash.com/random/800x600?${encodeURIComponent(query)}`,
+        { signal: controller.signal, redirect: "follow" }
+      );
+      clearTimeout(timeout);
+      if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
+      const imgBuf = Buffer.from(await resp.arrayBuffer());
+      await sock.sendMessage(from, { image: imgBuf, caption: `🖼️ *${query}*` });
+    } catch (err: any) {
+      logger.error({ err, query }, "pintimg error");
+      await sendText(from, `❌ Could not find image for "${query}". Try a different search term.`);
+    }
     return;
   }
 
@@ -243,7 +285,7 @@ async function convertToStickerWebp(input: Buffer): Promise<Buffer> {
   let result: Buffer;
   do {
     result = await sharp(input, { animated: false })
-      .resize(512, 512, { fit: "contain", background: { r: 0, g: 0, b: 0, alpha: 0 } })
+      .resize(512, 512, { fit: "cover" })
       .webp({ quality, effort: 6, lossless: false, smartSubsample: true })
       .toBuffer();
     quality -= 10;

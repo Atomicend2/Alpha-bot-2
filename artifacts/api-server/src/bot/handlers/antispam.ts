@@ -1,6 +1,6 @@
 import type { WASocket } from "@whiskeysockets/baileys";
 import { getGroup } from "../db/queries.js";
-import { addWarning, getWarnings } from "../db/queries.js";
+import { addWarning } from "../db/queries.js";
 import { sendText } from "../connection.js";
 import { logger } from "../../lib/logger.js";
 
@@ -33,17 +33,59 @@ export async function checkAntispam(
 
   if (entry.count >= SPAM_LIMIT) {
     messageCache.delete(key);
+    const action = group.antispam_action || "kick";
     try {
-      await sock.groupParticipantsUpdate(groupId, [senderId], "remove");
-      await sendText(groupId, `⚡ @${senderId.split("@")[0]} was removed for spamming.`, [senderId]);
+      if (action === "warn") {
+        const warns = addWarning(senderId, groupId, "Spamming messages", "Anti-Spam System");
+        const count = warns.length;
+        await sendText(
+          groupId,
+          `┌─❖\n│「 ⚠️ 𝗔𝗡𝗧𝗜-𝗦𝗣𝗔𝗠 𝗪𝗔𝗥𝗡𝗜𝗡𝗚 」\n└┬❖ 「 @${senderId.split("@")[0]} 」\n│✑ 𝗥𝗘𝗔𝗦𝗢𝗡: Spamming messages\n│✑ 𝗟𝗜𝗠𝗜𝗧: ${count} / 5\n└────────────┈ ⳹`,
+          [senderId]
+        );
+        if (count >= 5) {
+          await sock.groupParticipantsUpdate(groupId, [senderId], "remove");
+        }
+      } else if (action === "delete") {
+        await sendText(groupId, `🚫 @${senderId.split("@")[0]}, please stop spamming!`, [senderId]);
+      } else {
+        await sock.groupParticipantsUpdate(groupId, [senderId], "remove");
+        await sendText(groupId, `⚡ @${senderId.split("@")[0]} was removed for spamming.`, [senderId]);
+      }
     } catch (err) {
-      logger.error({ err }, "Failed to remove spammer");
+      logger.error({ err }, "Failed to handle spammer");
     }
     return true;
   }
 
   return false;
 }
+
+const LINK_PATTERNS = [
+  /https?:\/\//i,
+  /www\.\w+\.\w+/i,
+  /wa\.me\//i,
+  /chat\.whatsapp\.com\//i,
+  /t\.me\//i,
+  /discord\.gg\//i,
+  /bit\.ly\//i,
+  /tinyurl\.com\//i,
+  /youtu\.be\//i,
+  /youtube\.com\/(watch|shorts)/i,
+  /instagram\.com\//i,
+  /fb\.com\//i,
+  /facebook\.com\//i,
+  /twitter\.com\//i,
+  /x\.com\//i,
+  /tiktok\.com\//i,
+  /linktr\.ee\//i,
+  /rb\.gy\//i,
+  /ow\.ly\//i,
+  /is\.gd\//i,
+  /cutt\.ly\//i,
+  /shorturl\.at\//i,
+  /\w{2,}\.\w{2,}\/\w+/i,
+];
 
 export async function checkAntilink(
   sock: WASocket,
@@ -57,17 +99,7 @@ export async function checkAntilink(
   if (!group || group.antilink === "off") return false;
   if (isAdmin) return false;
 
-  const linkPatterns = [
-    /https?:\/\//i,
-    /wa\.me\//i,
-    /chat\.whatsapp\.com\//i,
-    /t\.me\//i,
-    /discord\.gg\//i,
-    /bit\.ly\//i,
-    /tinyurl\.com\//i,
-  ];
-
-  const hasLink = linkPatterns.some((p) => p.test(text));
+  const hasLink = LINK_PATTERNS.some((p) => p.test(text));
   if (!hasLink) return false;
 
   const action = group.antilink_action || "delete";
@@ -120,14 +152,33 @@ export async function checkBlacklist(
   const found = blacklist.find((w: string) => lower.includes(w.toLowerCase()));
   if (!found) return false;
 
+  const action = group.blacklist_action || "delete";
+
   try {
     await sock.sendMessage(groupId, { delete: msgKey });
+  } catch {}
+
+  if (action === "warn") {
+    const warns = addWarning(senderId, groupId, `Used blacklisted word: "${found}"`, "Blacklist System");
+    const count = warns.length;
+    await sendText(
+      groupId,
+      `┌─❖\n│「 ⚠️ 𝗪𝗔𝗥𝗡𝗜𝗡𝗚 」\n└┬❖ 「 @${senderId.split("@")[0]} 」\n│✑ 𝗥𝗘𝗔𝗦𝗢𝗡: Used blacklisted word: "${found}"\n│✑ 𝗟𝗜𝗠𝗜𝗧: ${count} / 5\n└────────────┈ ⳹`,
+      [senderId]
+    );
+    if (count >= 5) {
+      await sock.groupParticipantsUpdate(groupId, [senderId], "remove");
+    }
+  } else if (action === "kick") {
+    await sock.groupParticipantsUpdate(groupId, [senderId], "remove");
+    await sendText(groupId, `🚫 @${senderId.split("@")[0]} was removed — used blacklisted word: "${found}"`, [senderId]);
+  } else {
     await sendText(
       groupId,
       `🚫 Message from @${senderId.split("@")[0]} deleted — contains blacklisted word: "${found}"`,
       [senderId]
     );
-  } catch {}
+  }
 
   return true;
 }

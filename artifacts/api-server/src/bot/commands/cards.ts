@@ -382,15 +382,21 @@ export async function handleCards(ctx: CommandContext): Promise<void> {
   }
 
   if (cmd === "lc") {
-    const mentioned = msg.message?.extendedTextMessage?.contextInfo?.mentionedJid?.[0];
-    const cardNum = parseInt(args[1] || args[0]);
-    if (!mentioned || isNaN(cardNum)) { await sendText(from, "❌ Usage: .lc @user [card #]"); return; }
+    const info = msg.message?.extendedTextMessage?.contextInfo;
+    const mentioned = info?.mentionedJid?.[0] || info?.participant;
+    const cardNum = parseInt(args.find((a) => /^\d+$/.test(a)) || "");
+    if (!mentioned || isNaN(cardNum)) { await sendText(from, "❌ Usage: .lc @user [card #]\nExample: .lc @friend 3 (card #3 from your .cc list)"); return; }
+    if (mentioned === sender) { await sendText(from, "❌ You cannot lend a card to yourself."); return; }
     const cards = getUserCards(sender);
-    if (cardNum < 1 || cardNum > cards.length) { await sendText(from, "❌ Invalid card number."); return; }
+    if (cardNum < 1 || cardNum > cards.length) { await sendText(from, `❌ Invalid card number. You have ${cards.length} card(s).`); return; }
     const card = cards[cardNum - 1];
+    if (card.lent_to) {
+      await sendText(from, `❌ *${card.name}* is already lent to @${(card.lent_to as string).split("@")[0]}. Use .lcr to retrieve it first.`, [card.lent_to as string]);
+      return;
+    }
     lendCard(card.user_card_id, mentioned);
     await sock.sendMessage(from, {
-      text: `🤝 @${sender.split("@")[0]} lent *${card.name}* to @${mentioned.split("@")[0]}!`,
+      text: `🤝 @${sender.split("@")[0]} lent *${card.name}* to @${mentioned.split("@")[0]}!\n\n_Use .lcr to retrieve lent cards._`,
       mentions: [sender, mentioned],
     });
     return;

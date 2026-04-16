@@ -448,6 +448,8 @@ function initSchema(db: Database.Database): void {
   ensureColumn(db, "groups", "games_enabled", "TEXT DEFAULT 'on'");
   ensureColumn(db, "groups", "gambling_enabled", "TEXT DEFAULT 'on'");
   ensureColumn(db, "groups", "blacklist", "TEXT DEFAULT '[]'");
+  ensureColumn(db, "groups", "blacklist_action", "TEXT DEFAULT 'delete'");
+  ensureColumn(db, "groups", "antispam_action", "TEXT DEFAULT 'kick'");
   ensureColumn(db, "cards", "series", "TEXT DEFAULT 'General'");
   ensureColumn(db, "cards", "image_url", "TEXT DEFAULT ''");
   ensureColumn(db, "cards", "image_data", "BLOB");

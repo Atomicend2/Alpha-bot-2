@@ -4,6 +4,43 @@
 
 pnpm workspace monorepo using TypeScript. Each package manages its own dependencies.
 
+## Recent Changes (2026-04-16) — Latest
+
+### Bot Fixes & Upgrades
+
+#### Phone Normalization
+- `normalizePhone(input)` and `jidToPhone(jid)` added to `utils.ts`
+- Converts `07012345678` → `2347012345678`, strips `@s.whatsapp.net` suffix, handles `+` prefix
+- `auth.ts` web login now normalizes local Nigerian format (`07...`) to full international format
+
+#### Admin Commands Fixed
+- **`.warn`** — now accepts reply-based targets (not just explicit @mentions); reason excludes @mention tokens
+- **`.pm` / `.dm`** — were incorrectly calling `groupParticipantsUpdate("promote"/"demote")` instead of sending private messages; now correctly sends DM to mentioned/replied user with `[Shadow Garden Staff]` header
+- **`.hidetag`** — now deletes the command message before sending the mention-all broadcast
+- **`.purge`** — was hardcoded to "not available"; now actually deletes the replied-to message
+- **`.antism set [warn|delete|kick]`** — configurable antispam action (not just always kick)
+- **`.blacklist set [delete|warn|kick]`** — configurable blacklist violation action
+- Removed ~200 lines of dead duplicate code at bottom of `admin.ts` that were never reachable
+
+#### Antispam/Antilink Handler Fixes
+- Antispam respects `antispam_action` column (warn / delete / kick)
+- Blacklist respects `blacklist_action` column (delete = delete + notify, warn = add warning, kick = remove from group)
+- Anti-link patterns expanded: now detects `www.`, `youtu.be`, Instagram, Facebook, Twitter/X, TikTok, Linktree, common URL shorteners
+
+#### Converter Commands
+- **Sticker (`.s`)** — changed `fit: "contain"` (padded) to `fit: "cover"` (crops to fill) for proper 512×512 output
+- **`.speech`** — implemented: replies to an image with text overlay using Sharp SVG compositing; bottom bar with bold white text + drop shadow
+- **`.pintimg`** — implemented: fetches a relevant image from Unsplash for any search query (no API key needed)
+
+#### Card Lend System
+- **`.lc`** — card number parser fixed (now matches first numeric arg, regardless of @mention position)
+- Validates card belongs to sender, checks if card is already lent, blocks self-lending
+- Better error messages: shows lent-to target, card count
+
+#### Database Schema
+- `groups.blacklist_action TEXT DEFAULT 'delete'` — added
+- `groups.antispam_action TEXT DEFAULT 'kick'` — added
+
 ## Recent Changes (2026-04-15) — Latest
 
 ### Bot Commands Added

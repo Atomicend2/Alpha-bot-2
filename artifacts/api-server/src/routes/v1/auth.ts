@@ -36,7 +36,8 @@ function ensureWebTables() {
 ensureWebTables();
 
 function normalizePhone(raw: string): string | null {
-  const cleaned = raw.replace(/\D/g, "");
+  let cleaned = raw.replace(/\D/g, "");
+  if (cleaned.startsWith("0")) cleaned = "234" + cleaned.slice(1);
   if (cleaned.length < 7 || cleaned.length > 15) return null;
   return cleaned;
 }
@@ -44,10 +45,10 @@ function normalizePhone(raw: string): string | null {
 function getUserByPhone(phone: string) {
   const db = getDb();
   const jid = `${phone}@s.whatsapp.net`;
-  const lidPattern = `${phone}`;
+  const localAlt = phone.startsWith("234") ? "0" + phone.slice(3) : "";
   const row = db.prepare(
-    "SELECT * FROM users WHERE id = ? OR id LIKE ? OR phone = ? LIMIT 1"
-  ).get(jid, `${lidPattern}%`, phone) as any;
+    "SELECT * FROM users WHERE id = ? OR id LIKE ? OR phone = ? OR phone = ? LIMIT 1"
+  ).get(jid, `${phone}%`, phone, localAlt) as any;
   return row || null;
 }
 

@@ -144,3 +144,26 @@ export function normalizeId(id: string): string {
   }
   return id;
 }
+
+/**
+ * Normalize a phone number to plain digits with full international format.
+ * - Strips all non-digit characters
+ * - Converts local Nigerian format (0700...) → 2347...
+ * - NEVER returns +, @, or @s.whatsapp.net suffix
+ * Examples: "07012345678" → "2347012345678"
+ *           "+2347012345678" → "2347012345678"
+ *           "2347012345678@s.whatsapp.net" → "2347012345678"
+ */
+export function normalizePhone(input: string): string {
+  const digits = input.replace(/[^0-9]/g, "").replace(/^0/, "234");
+  return digits;
+}
+
+/**
+ * Extract the plain-digit phone number from a WhatsApp JID.
+ * "2347012345678@s.whatsapp.net" → "2347012345678"
+ * "2347012345678:67@s.whatsapp.net" → "2347012345678"
+ */
+export function jidToPhone(jid: string): string {
+  return normalizePhone(jid.split("@")[0].split(":")[0]);
+}
