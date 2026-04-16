@@ -172,21 +172,35 @@ export async function handleConverter(ctx: CommandContext): Promise<void> {
   if (cmd === "pintimg") {
     const query = args.join(" ");
     if (!query) { await sendText(from, "❌ Usage: .pintimg <search query>"); return; }
-    await sendText(from, `🔎 Searching images for: *${query}*`);
-    try {
-      const controller = new AbortController();
-      const timeout = setTimeout(() => controller.abort(), 15000);
-      const resp = await fetch(
-        `https://source.unsplash.com/random/800x600?${encodeURIComponent(query)}`,
-        { signal: controller.signal, redirect: "follow" }
-      );
-      clearTimeout(timeout);
-      if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
-      const imgBuf = Buffer.from(await resp.arrayBuffer());
-      await sock.sendMessage(from, { image: imgBuf, caption: `🖼️ *${query}*` });
-    } catch (err: any) {
-      logger.error({ err, query }, "pintimg error");
-      await sendText(from, `❌ Could not find image for "${query}". Try a different search term.`);
+    await sendText(from, `🔎 Fetching 9 images for: *${query}*`);
+    const COUNT = 9;
+    const sizes = ["800x600","900x600","750x500","800x800","1200x800","600x900","1000x700","800x500","900x900"];
+    let sent = 0;
+    const errors: number[] = [];
+    await Promise.all(
+      Array.from({ length: COUNT }, async (_, i) => {
+        try {
+          const controller = new AbortController();
+          const tid = setTimeout(() => controller.abort(), 18000);
+          const url = `https://source.unsplash.com/random/${sizes[i]}?${encodeURIComponent(query)}&sig=${Date.now()}_${i}`;
+          const resp = await fetch(url, { signal: controller.signal, redirect: "follow" });
+          clearTimeout(tid);
+          if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
+          const imgBuf = Buffer.from(await resp.arrayBuffer());
+          await sock.sendMessage(from, {
+            image: imgBuf,
+            caption: i === 0 ? `🖼️ *${query}* (${COUNT} results)` : undefined,
+          });
+          sent++;
+        } catch {
+          errors.push(i + 1);
+        }
+      })
+    );
+    if (sent === 0) {
+      await sendText(from, `❌ Could not find any images for "${query}". Try a different search term.`);
+    } else if (errors.length > 0) {
+      await sendText(from, `⚠️ Sent ${sent}/${COUNT} images. ${errors.length} failed to load.`);
     }
     return;
   }

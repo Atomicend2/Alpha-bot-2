@@ -403,6 +403,10 @@ async function dispatch(ctx: CommandContext): Promise<void> {
       if (ctx.args.length === 0) return handleEconomy(ctx);
       return;
 
+    case "lend":
+    case "repay":
+      return handleEconomy(ctx);
+
     case "lc":
       if (!ctx.args[0]?.startsWith("@") && ctx.args.length < 2) {
         return handleEconomy(ctx);

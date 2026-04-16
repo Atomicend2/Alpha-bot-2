@@ -119,8 +119,10 @@ export async function handleMenu(ctx: CommandContext): Promise<void> {
 ║ ║ ➩ .roast
 ║ ║ ➩ .cds
 ║ ║ ➩ .stats
-║ ║ ➩ .lc (lent cash / lend card)
-║ ║ ➩ .bc (borrowed cash)
+║ ║ ➩ .lend @user [amount] (lend cash)
+║ ║ ➩ .repay @user [amount] (repay loan)
+║ ║ ➩ .lc (status: lent cash)
+║ ║ ➩ .bc (status: borrowed cash)
 ║ └────────────────────
 ║
 ╠─⟡ 🎴 𝗖𝗔𝗥𝗗𝗦

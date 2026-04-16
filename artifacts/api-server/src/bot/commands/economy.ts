@@ -907,6 +907,94 @@ export async function handleEconomy(ctx: CommandContext): Promise<void> {
     await sendText(from, `💸 You have borrowed $${formatNumber(borrowed)} total.`);
     return;
   }
+
+  if (cmd === "lend") {
+    const info = ctx.msg.message?.extendedTextMessage?.contextInfo;
+    const mentioned = info?.mentionedJid?.[0] || info?.participant;
+    const amount = parseInt(args.find((a) => !a.startsWith("@")) || "");
+    if (!mentioned || isNaN(amount) || amount <= 0) {
+      await sendText(from, "❌ Usage: .lend @user [amount]\nExample: .lend @friend 500\n\nUse .repay @user [amount] to repay a loan.");
+      return;
+    }
+    if (mentioned === sender) {
+      await sendText(from, "❌ You can't lend money to yourself.");
+      return;
+    }
+    if (isBot(mentioned)) {
+      await sendText(from, "❌ Bots are not part of the economy system.");
+      return;
+    }
+    const senderBal = user.balance || 0;
+    if (amount > senderBal) {
+      await sendText(from, `❌ Not enough in wallet. You have $${formatNumber(senderBal)}.`);
+      return;
+    }
+    const target = ensureUser(mentioned);
+    updateUser(sender, {
+      balance: senderBal - amount,
+      lent_cash: (user.lent_cash || 0) + amount,
+    });
+    updateUser(mentioned, {
+      balance: (target.balance || 0) + amount,
+      borrowed_cash: (target.borrowed_cash || 0) + amount,
+    });
+    await sendText(from,
+      `🤝 *Cash Lent!*\n\n` +
+      `@${sender.split("@")[0]} lent *$${formatNumber(amount)}* to @${mentioned.split("@")[0]}.\n\n` +
+      `💼 Your wallet: $${formatNumber(senderBal - amount)}\n` +
+      `📋 Total lent by you: $${formatNumber((user.lent_cash || 0) + amount)}\n\n` +
+      `_@${mentioned.split("@")[0]}: use .repay @${sender.split("@")[0]} ${amount} to pay back!_`,
+      [sender, mentioned]
+    );
+    return;
+  }
+
+  if (cmd === "repay") {
+    const info = ctx.msg.message?.extendedTextMessage?.contextInfo;
+    const mentioned = info?.mentionedJid?.[0] || info?.participant;
+    const amount = parseInt(args.find((a) => !a.startsWith("@")) || "");
+    if (!mentioned || isNaN(amount) || amount <= 0) {
+      await sendText(from, "❌ Usage: .repay @user [amount]\nExample: .repay @lender 500");
+      return;
+    }
+    if (mentioned === sender) {
+      await sendText(from, "❌ You can't repay yourself.");
+      return;
+    }
+    if (isBot(mentioned)) {
+      await sendText(from, "❌ Bots are not part of the economy system.");
+      return;
+    }
+    const senderBal = user.balance || 0;
+    const senderBorrowed = user.borrowed_cash || 0;
+    if (amount > senderBal) {
+      await sendText(from, `❌ Not enough in wallet to repay. You have $${formatNumber(senderBal)}.`);
+      return;
+    }
+    if (senderBorrowed <= 0) {
+      await sendText(from, "❌ You have no recorded borrowed cash to repay.");
+      return;
+    }
+    const repayAmount = Math.min(amount, senderBorrowed);
+    const target = ensureUser(mentioned);
+    updateUser(sender, {
+      balance: senderBal - repayAmount,
+      borrowed_cash: Math.max(0, senderBorrowed - repayAmount),
+    });
+    updateUser(mentioned, {
+      balance: (target.balance || 0) + repayAmount,
+      lent_cash: Math.max(0, (target.lent_cash || 0) - repayAmount),
+    });
+    const remaining = Math.max(0, senderBorrowed - repayAmount);
+    await sendText(from,
+      `✅ *Loan Repaid!*\n\n` +
+      `@${sender.split("@")[0]} repaid *$${formatNumber(repayAmount)}* to @${mentioned.split("@")[0]}.\n\n` +
+      `💼 Your wallet: $${formatNumber(senderBal - repayAmount)}\n` +
+      `📋 Remaining debt: $${formatNumber(remaining)}`,
+      [sender, mentioned]
+    );
+    return;
+  }
 }
 
 function formatDuration(secs: number): string {
